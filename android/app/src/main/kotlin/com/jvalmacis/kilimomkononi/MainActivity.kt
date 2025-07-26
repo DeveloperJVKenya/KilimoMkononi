@@ -1,4 +1,4 @@
-package com.example.kilimomkononi
+package com.jvalmacis.kilimomkononi
 
 import io.flutter.embedding.android.FlutterActivity
 

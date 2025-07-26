@@ -37,8 +37,8 @@ android {
         applicationId = "com.jvalmacis.kilimomkononi"
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.0.3"
     }
 
     signingConfigs {

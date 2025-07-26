@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
-import 'package:kilimomkononi/screens/Alma%20Dairy/alma_dairy_home.dart';
+//import 'package:kilimomkononi/screens/Alma%20Dairy/alma_dairy_home.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
 import 'package:kilimomkononi/screens/admin/admin_management_screen.dart';
 import 'package:kilimomkononi/screens/farm_management_screen.dart';
@@ -28,7 +28,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  // int _selectedIndex = 0;
   Map<String, dynamic>? _userData;
   Uint8List? _profileImageBytes;
   bool _isMainAdmin = false;
@@ -54,6 +54,45 @@ class _HomePageState extends State<HomePage> {
     _listenToAuthState();
   }
 
+  // Helper method to determine screen type
+  ScreenType _getScreenType(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 600) {
+      return ScreenType.mobile;
+    } else if (width < 1200) {
+      return ScreenType.tablet;
+    } else {
+      return ScreenType.desktop;
+    }
+  }
+
+  // Helper method to get responsive values
+  double _getResponsiveValue(BuildContext context, {
+    required double mobile,
+    required double tablet,
+    required double desktop,
+  }) {
+    switch (_getScreenType(context)) {
+      case ScreenType.mobile:
+        return mobile;
+      case ScreenType.tablet:
+        return tablet;
+      case ScreenType.desktop:
+        return desktop;
+    }
+  }
+
+  int _getCrossAxisCount(BuildContext context) {
+    switch (_getScreenType(context)) {
+      case ScreenType.mobile:
+        return 2;
+      case ScreenType.tablet:
+        return 3;
+      case ScreenType.desktop:
+        return 4;
+    }
+  }
+
   Future<void> _fetchUserData() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -63,9 +102,9 @@ class _HomePageState extends State<HomePage> {
           .collection('Users')
           .doc(user.uid)
           .get();
+
       if (userSnapshot.exists) {
         AppUser appUser = AppUser.fromFirestore(userSnapshot as DocumentSnapshot<Map<String, dynamic>>, null);
-
         if (appUser.isDisabled) {
           await FirebaseAuth.instance.signOut();
           if (mounted) {
@@ -88,7 +127,6 @@ class _HomePageState extends State<HomePage> {
 
         String? profileImageBase64 = appUser.profileImage;
         Uint8List? decodedImage;
-
         if (profileImageBase64 != null) {
           try {
             decodedImage = base64Decode(profileImageBase64);
@@ -202,24 +240,59 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenType = _getScreenType(context);
+    final isDesktop = screenType == ScreenType.desktop;
+
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(MediaQuery.of(context).size.height * 0.08),
+        preferredSize: Size.fromHeight(_getResponsiveValue(
+          context,
+          mobile: MediaQuery.of(context).size.height * 0.08,
+          tablet: MediaQuery.of(context).size.height * 0.07,
+          desktop: MediaQuery.of(context).size.height * 0.06,
+        )),
         child: AppBar(
-          title: const Text(
+          title: Text(
             'KilimoMkononi',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: _getResponsiveValue(
+                context,
+                mobile: 18,
+                tablet: 20,
+                desktop: 22,
+              ),
+            ),
           ),
           backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-          leading: Builder(
+          leading: isDesktop ? null : Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white, size: 40),
+              icon: Icon(
+                Icons.menu,
+                color: Colors.white,
+                size: _getResponsiveValue(
+                  context,
+                  mobile: 40,
+                  tablet: 35,
+                  desktop: 30,
+                ),
+              ),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.notifications, color: Colors.white, size: 40),
+              icon: Icon(
+                Icons.notifications,
+                color: Colors.white,
+                size: _getResponsiveValue(
+                  context,
+                  mobile: 40,
+                  tablet: 35,
+                  desktop: 30,
+                ),
+              ),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -228,35 +301,160 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.search, color: Colors.white, size: 40),
+              icon: Icon(
+                Icons.search,
+                color: Colors.white,
+                size: _getResponsiveValue(
+                  context,
+                  mobile: 40,
+                  tablet: 35,
+                  desktop: 30,
+                ),
+              ),
               onPressed: () {},
             ),
           ],
         ),
       ),
-      drawer: _buildDrawer(),
-      body: Container(
-        color: Colors.grey[200],
-        child: Column(
-          children: [
-            _buildCarousel(),
-            _buildClickableSections(),
-            if (_isMainAdmin)
-              _buildAdminButton()
-            else
-              Builder(
-                builder: (context) => _buildMenuButton(context), // Pass Scaffold context
+      drawer: isDesktop ? null : _buildDrawer(),
+      body: Row(
+        children: [
+          // Desktop sidebar
+          if (isDesktop) _buildDesktopSidebar(),
+          // Main content
+          Expanded(
+            child: Container(
+              color: Colors.grey[200],
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildCarousel(),
+                    _buildClickableSections(),
+                    if (_isMainAdmin)
+                      _buildAdminButton()
+                    else if (!isDesktop)
+                      Builder(
+                        builder: (context) => _buildMenuButton(context),
+                      ),
+                  ],
+                ),
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      //bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildDesktopSidebar() {
+    return Container(
+      width: 280,
+      color: const Color.fromARGB(255, 3, 39, 4),
+      child: Column(
+        children: [
+          // Profile section
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Colors.white,
+                  child: _profileImageBytes != null
+                      ? ClipOval(
+                          child: Image.memory(
+                            _profileImageBytes!,
+                            fit: BoxFit.cover,
+                            width: 80,
+                            height: 80,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.person, size: 40, color: Color.fromARGB(255, 3, 39, 4)),
+                          ),
+                        )
+                      : const Icon(Icons.person, size: 40, color: Color.fromARGB(255, 3, 39, 4)),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _userData?['fullName'] ?? 'Loading...',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Colors.white24),
+          // Navigation items
+          Expanded(
+            child: ListView(
+              children: [
+                _buildDesktopDrawerItem(Icons.home, 'Home', () {}),
+                _buildDesktopDrawerItem(Icons.cloud, 'Weather Forecast', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const WeatherScreen()));
+                }),
+                _buildDesktopDrawerItem(Icons.input, 'Field Data Input', () {
+                  logger.i('Navigating to FieldDataInputPage, userId: $_userId');
+                  if (_userId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const FieldDataInputHomePage()),
+                    );
+                  } else {
+                    logger.w('User ID is null, attempting refresh');
+                    _fetchUserData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('User ID not available. Retrying...')),
+                    );
+                  }
+                }),
+                _buildDesktopDrawerItem(Icons.pest_control, 'Manage Pests & Diseases', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PestDiseaseHomePage()));
+                }),
+                _buildDesktopDrawerItem(Icons.supervisor_account, 'Farm Management', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const FarmManagementScreen()));
+                }),
+                /*_buildDesktopDrawerItem(Icons.local_drink, 'Alma Dairy', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const AlmaDairyHome()));
+                }),*/
+                _buildDesktopDrawerItem(Icons.book, 'Manuals', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualsScreen()));
+                }),
+                _buildDesktopDrawerItem(Icons.settings, 'Settings', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
+                }),
+                if (_isMainAdmin)
+                  _buildDesktopDrawerItem(Icons.admin_panel_settings, 'Admin Management', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminManagementScreen()));
+                  }),
+                _buildDesktopDrawerItem(Icons.logout, 'Logout', _handleLogout),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopDrawerItem(IconData icon, String title, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.white),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      onTap: onTap,
+      hoverColor: Colors.white24,
     );
   }
 
   Widget _buildAdminButton() {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(_getResponsiveValue(
+        context,
+        mobile: 16.0,
+        tablet: 20.0,
+        desktop: 24.0,
+      )),
       child: ElevatedButton.icon(
         onPressed: () {
           Navigator.push(
@@ -265,9 +463,33 @@ class _HomePageState extends State<HomePage> {
           );
         },
         icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
-        label: const Text('Admin Management', style: TextStyle(color: Colors.white)),
+        label: Text(
+          'Admin Management',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: _getResponsiveValue(
+              context,
+              mobile: 14,
+              tablet: 16,
+              desktop: 18,
+            ),
+          ),
+        ),
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          padding: EdgeInsets.symmetric(
+            horizontal: _getResponsiveValue(
+              context,
+              mobile: 20,
+              tablet: 25,
+              desktop: 30,
+            ),
+            vertical: _getResponsiveValue(
+              context,
+              mobile: 15,
+              tablet: 18,
+              desktop: 20,
+            ),
+          ),
           backgroundColor: const Color.fromARGB(255, 3, 39, 4),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -277,15 +499,44 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildMenuButton(BuildContext scaffoldContext) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(_getResponsiveValue(
+        context,
+        mobile: 16.0,
+        tablet: 20.0,
+        desktop: 24.0,
+      )),
       child: ElevatedButton.icon(
         onPressed: () {
-          Scaffold.of(scaffoldContext).openDrawer(); // Use the correct context
+          Scaffold.of(scaffoldContext).openDrawer();
         },
         icon: const Icon(Icons.menu, color: Colors.white),
-        label: const Text('MENU', style: TextStyle(color: Colors.white)),
+        label: Text(
+          'MENU',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: _getResponsiveValue(
+              context,
+              mobile: 14,
+              tablet: 16,
+              desktop: 18,
+            ),
+          ),
+        ),
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          padding: EdgeInsets.symmetric(
+            horizontal: _getResponsiveValue(
+              context,
+              mobile: 20,
+              tablet: 25,
+              desktop: 30,
+            ),
+            vertical: _getResponsiveValue(
+              context,
+              mobile: 15,
+              tablet: 18,
+              desktop: 20,
+            ),
+          ),
           backgroundColor: const Color.fromARGB(255, 3, 39, 4),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -294,18 +545,38 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildCarousel() {
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.4,
+    final carouselHeight = _getResponsiveValue(
+      context,
+      mobile: MediaQuery.of(context).size.height * 0.35,
+      tablet: MediaQuery.of(context).size.height * 0.4,
+      desktop: MediaQuery.of(context).size.height * 0.45,
+    );
+
+    return Container(
+      height: carouselHeight,
+      margin: EdgeInsets.symmetric(
+        vertical: _getResponsiveValue(
+          context,
+          mobile: 10,
+          tablet: 15,
+          desktop: 20,
+        ),
+      ),
       child: CarouselSlider(
         options: CarouselOptions(
-          height: MediaQuery.of(context).size.height * 0.4,
+          height: carouselHeight,
           autoPlay: true,
           enlargeCenterPage: true,
           aspectRatio: 16 / 9,
           autoPlayCurve: Curves.fastOutSlowIn,
           enableInfiniteScroll: true,
           autoPlayAnimationDuration: const Duration(milliseconds: 800),
-          viewportFraction: 0.8,
+          viewportFraction: _getResponsiveValue(
+            context,
+            mobile: 0.8,
+            tablet: 0.7,
+            desktop: 0.6,
+          ),
         ),
         items: _carouselImages.map((image) {
           int index = _carouselImages.indexOf(image);
@@ -313,27 +584,44 @@ class _HomePageState extends State<HomePage> {
             'Get Weather Forecasts',
             'Record Field Data Collected',
             'Enhance Pest Management',
-            'Effectively Manage Farming funds ',
+            'Effectively Manage Farming funds',
             'Explore Farming Information',
             'Get Better Farming Tips',
             'Understand Soil Information',
           ];
+
           return Stack(
             children: [
               Container(
                 margin: const EdgeInsets.all(5.0),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10.0),
-                  image: DecorationImage(image: AssetImage(image), fit: BoxFit.cover),
+                  image: DecorationImage(
+                    image: AssetImage(image),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
               Positioned(
                 bottom: 10,
                 left: 10,
+                right: 10,
                 child: Container(
                   color: Colors.black54,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  child: Text(labels[index], style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  child: Text(
+                    labels[index],
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveValue(
+                        context,
+                        mobile: 14,
+                        tablet: 16,
+                        desktop: 18,
+                      ),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
             ],
@@ -345,10 +633,42 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildClickableSections() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: EdgeInsets.symmetric(
+        vertical: _getResponsiveValue(
+          context,
+          mobile: 20,
+          tablet: 25,
+          desktop: 30,
+        ),
+        horizontal: _getResponsiveValue(
+          context,
+          mobile: 16,
+          tablet: 20,
+          desktop: 24,
+        ),
+      ),
       child: GridView.count(
-        crossAxisCount: 2,
+        crossAxisCount: _getCrossAxisCount(context),
         shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        childAspectRatio: _getResponsiveValue(
+          context,
+          mobile: 1.0,
+          tablet: 1.1,
+          desktop: 1.2,
+        ),
+        mainAxisSpacing: _getResponsiveValue(
+          context,
+          mobile: 10,
+          tablet: 15,
+          desktop: 20,
+        ),
+        crossAxisSpacing: _getResponsiveValue(
+          context,
+          mobile: 10,
+          tablet: 15,
+          desktop: 20,
+        ),
         children: [
           _buildClickableCard('Farming Tips', Icons.lightbulb, () {
             Navigator.push(context, MaterialPageRoute(builder: (context) => FarmingTipsWidget()));
@@ -365,8 +685,12 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.all(10),
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(_getResponsiveValue(
+          context,
+          mobile: 15,
+          tablet: 20,
+          desktop: 25,
+        )),
         decoration: BoxDecoration(
           color: const Color.fromRGBO(76, 175, 80, 0.1),
           borderRadius: BorderRadius.circular(15),
@@ -382,12 +706,34 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: const Color.fromARGB(255, 3, 39, 4)),
-            const SizedBox(height: 10),
+            Icon(
+              icon,
+              size: _getResponsiveValue(
+                context,
+                mobile: 35,
+                tablet: 40,
+                desktop: 45,
+              ),
+              color: const Color.fromARGB(255, 3, 39, 4),
+            ),
+            SizedBox(height: _getResponsiveValue(
+              context,
+              mobile: 8,
+              tablet: 10,
+              desktop: 12,
+            )),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: _getResponsiveValue(
+                  context,
+                  mobile: 14,
+                  tablet: 16,
+                  desktop: 18,
+                ),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -395,7 +741,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  /*Widget _buildBottomNavigationBar() {
     return BottomNavigationBar(
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
@@ -412,7 +758,7 @@ class _HomePageState extends State<HomePage> {
         });
       },
     );
-  }
+  }*/
 
   Widget _buildDrawer() {
     return Drawer(
@@ -427,22 +773,65 @@ class _HomePageState extends State<HomePage> {
               decoration: const BoxDecoration(color: Color.fromARGB(255, 3, 39, 4)),
               accountName: Text(
                 _userData?['fullName'] ?? 'Loading...',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: _getResponsiveValue(
+                    context,
+                    mobile: 16,
+                    tablet: 18,
+                    desktop: 20,
+                  ),
+                ),
               ),
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
+                radius: _getResponsiveValue(
+                  context,
+                  mobile: 30,
+                  tablet: 35,
+                  desktop: 40,
+                ),
                 child: _profileImageBytes != null
                     ? ClipOval(
                         child: Image.memory(
                           _profileImageBytes!,
                           fit: BoxFit.cover,
-                          width: 60,
-                          height: 60,
+                          width: _getResponsiveValue(
+                            context,
+                            mobile: 60,
+                            tablet: 70,
+                            desktop: 80,
+                          ),
+                          height: _getResponsiveValue(
+                            context,
+                            mobile: 60,
+                            tablet: 70,
+                            desktop: 80,
+                          ),
                           errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.person, size: 40, color: Color.fromARGB(255, 3, 39, 4)),
+                              Icon(
+                                Icons.person,
+                                size: _getResponsiveValue(
+                                  context,
+                                  mobile: 35,
+                                  tablet: 40,
+                                  desktop: 45,
+                                ),
+                                color: const Color.fromARGB(255, 3, 39, 4),
+                              ),
                         ),
                       )
-                    : const Icon(Icons.person, size: 40, color: Color.fromARGB(255, 3, 39, 4)),
+                    : Icon(
+                        Icons.person,
+                        size: _getResponsiveValue(
+                          context,
+                          mobile: 35,
+                          tablet: 40,
+                          desktop: 45,
+                        ),
+                        color: const Color.fromARGB(255, 3, 39, 4),
+                      ),
               ),
               accountEmail: null,
             ),
@@ -475,9 +864,9 @@ class _HomePageState extends State<HomePage> {
           _buildDrawerItem(Icons.supervisor_account, 'Farm Management', () {
             Navigator.push(context, MaterialPageRoute(builder: (context) => const FarmManagementScreen()));
           }),
-          _buildDrawerItem(Icons.local_drink, 'Alma Dairy', () {
-           Navigator.push(context, MaterialPageRoute(builder: (context) => const AlmaDairyHome()));
-          }),
+          /*_buildDrawerItem(Icons.local_drink, 'Alma Dairy', () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const AlmaDairyHome()));
+          }),*/
           _buildDrawerItem(Icons.book, 'Manuals', () {
             Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualsScreen()));
           }),
@@ -492,9 +881,29 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+      leading: Icon(
+        icon,
+        size: _getResponsiveValue(
+          context,
+          mobile: 24,
+          tablet: 26,
+          desktop: 28,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: _getResponsiveValue(
+            context,
+            mobile: 14,
+            tablet: 16,
+            desktop: 18,
+          ),
+        ),
+      ),
       onTap: onTap,
     );
   }
 }
+
+enum ScreenType { mobile, tablet, desktop }
