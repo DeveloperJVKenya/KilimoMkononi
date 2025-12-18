@@ -3,10 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class PestData {
   final String name;
   final String imagePath;
-  final List<String> preventionStrategies; // Renamed to Possible Strategies
-  final String activeAgent; // Used in Intervention(Active Ingredient)
-  final List<String> possibleCauses; // Renamed to Possible Causes
-  final List<String> herbicides; // Renamed to Herbicides/Pesticides
+  final List<String> preventionStrategies;
+  final String activeAgent;
+  final List<String> possibleCauses;
+  final List<String> herbicides;
+  final List<String> organicInterventions; // Added field
 
   PestData({
     required this.name,
@@ -15,14 +16,27 @@ class PestData {
     required this.activeAgent,
     required this.possibleCauses,
     required this.herbicides,
+    required this.organicInterventions,
   });
+
+  factory PestData.fromMap(Map<String, dynamic> data) {
+    return PestData(
+      name: data['name'] as String? ?? '',
+      imagePath: data['imagePath'] as String? ?? '',
+      preventionStrategies: List<String>.from(data['preventionStrategies'] ?? []),
+      activeAgent: data['activeAgent'] as String? ?? '',
+      possibleCauses: List<String>.from(data['possibleCauses'] ?? []),
+      herbicides: List<String>.from(data['herbicidesPesticides'] ?? []),
+      organicInterventions: List<String>.from(data['organicInterventions'] ?? []),
+    );
+  }
 
   // Static pestLibrary is optional now since PestManagementPage handles dynamic data
   static final Map<String, PestData> pestLibrary = {};
 }
 
 class PestIntervention {
-  final String? id; // Firestore document ID
+  final String? id;
   final String pestName;
   final String cropType;
   final String cropStage;
@@ -72,7 +86,7 @@ class PestIntervention {
       cropStage: data['cropStage'] as String? ?? 'Unknown',
       intervention: data['intervention'] as String? ?? '',
       area: data['area'] as double?,
-      areaUnit: data['areaUnit'] as String? ?? 'Acres', // Updated default to Acres
+      areaUnit: data['areaUnit'] as String? ?? 'Acres',
       timestamp: data['timestamp'] as Timestamp? ?? Timestamp.now(),
       userId: data['userId'] as String? ?? 'Unknown',
       isDeleted: data['isDeleted'] as bool? ?? false,

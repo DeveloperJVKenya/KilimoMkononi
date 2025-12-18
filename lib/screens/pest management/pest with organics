@@ -1,0 +1,3411 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:kilimomkononi/models/pest_disease_model.dart';
+import 'package:kilimomkononi/screens/pest%20management/intervention_page.dart';
+import 'package:kilimomkononi/screens/pest%20management/user_pest_history_page.dart';
+import 'package:kilimomkononi/screens/pest%20management/view_interventions_page.dart';
+
+class PestManagementPage extends StatefulWidget {
+  const PestManagementPage({super.key});
+
+  @override
+  State<PestManagementPage> createState() => _PestManagementPageState();
+}
+
+class _PestManagementPageState extends State<PestManagementPage> {
+  String? _selectedCrop;
+  String? _selectedStage;
+  String? _selectedPest;
+  PestData? _pestData;
+  bool _showPestDetails = false;
+  bool _isOrganic = false;
+  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _hintsKey = GlobalKey();
+  Key _imageKey = UniqueKey();
+
+  final List<String> _crops = ['Beans', 'Maize', 'Cabbages/Kales', 'Carrots', 'Tomatoes', 'Onions', 'Irish Potatoes'];
+
+  final Map<String, List<String>> _cropStages = {
+    'Beans': ['Germination/Seedling', 'Vegetative Growth/Weeding', 'Flowering/Reproductive', 'Maturation/Harvesting', 'Storage'],
+    'Maize': ['Germination/Seedling', 'Vegetative Growth/Weeding', 'Flowering/Reproductive', 'Maturation/Harvesting', 'Storage'],
+    'Cabbages/Kales': ['Germination/Seedling', 'Vegetative Growth/Weeding', 'Flowering/Reproductive', 'Maturation/Harvesting', 'Storage'],
+    'Carrots': ['Germination/Seedling', 'Vegetative Growth/Weeding', 'Maturation/Harvesting', 'Storage'],
+    'Tomatoes': ['Germination/Seedling', 'Vegetative Growth/Weeding', 'Flowering/Reproductive', 'Maturation/Harvesting', 'Storage'],
+    'Onions': ['Germination/Seedling', 'Vegetative Growth/Weeding', 'Bulb Formation/Reproductive', 'Bulbing/Maturation', 'Harvesting/Storage'],
+    'Irish Potatoes': ['Early Growth', 'Tuber Initiation', 'Tuber Bulking', 'Maturation/Harvesting'],
+  };
+
+  final Map<String, Map<String, List<String>>> _cropStagePests = {
+    'Beans': {
+      'Germination/Seedling': ['Bean Fly', 'Cutworms', 'Rodents', 'Termites'],
+      'Vegetative Growth/Weeding': ['Aphids', 'Leafhoppers', 'Thrips', 'Whiteflies', 'Beetles', 'Rodents'],
+      'Flowering/Reproductive': ['Aphids', 'Leafhoppers', 'Thrips', 'Pod Borers', 'Whiteflies'],
+      'Maturation/Harvesting': ['Pod Borers', 'Beetles', 'Bean Weevil', 'Bruchid Beetles', 'Rodents'],
+      'Storage': ['Bean Weevil', 'Bruchid Beetles', 'Rodents'],
+    },
+    'Maize': {
+      'Germination/Seedling': ['Termites', 'Cutworms', 'Maize Shoot Fly', 'Rodents'],
+      'Vegetative Growth/Weeding': ['Aphids', 'Stem Borers', 'Armyworms', 'Leafhoppers', 'Grasshoppers', 'Thrips', 'Rodents'],
+      'Flowering/Reproductive': ['Aphids', 'Stem Borers', 'Armyworms', 'Leafhoppers', 'Grasshoppers', 'Earworms', 'Thrips', 'Birds'],
+      'Maturation/Harvesting': ['Earworms', 'Weevils', 'Birds', 'Rodents'],
+      'Storage': ['Larger Grain Borer', 'Angoumois Grain Moth', 'Weevils', 'Rodents'],
+    },
+    'Cabbages/Kales': {
+      'Germination/Seedling': ['Termites', 'Cutworms', 'Cabbage Root Maggot', 'Flea Beetles', 'Rodents'],
+      'Vegetative Growth/Weeding': ['Aphids', 'Whiteflies', 'Thrips', 'Diamondback Moth', 'Cabbage Looper', 'Leafminers', 'Flea Beetles', 'Cabbage Webworm', 'Armyworms', 'Cabbage Root Maggot', 'Rodents'],
+      'Flowering/Reproductive': ['Aphids', 'Whiteflies', 'Thrips', 'Diamondback Moth', 'Cabbage Looper', 'Armyworms', 'Stink Bugs'],
+      'Maturation/Harvesting': ['Diamondback Moth', 'Cabbage Looper', 'Leafminers', 'Flea Beetles', 'Cabbage Webworm', 'Armyworms', 'Stink Bugs', 'Rodents'],
+      'Storage': ['Rodents', 'Aphids', 'Whiteflies'],
+    },
+    'Carrots': {
+      'Germination/Seedling': ['Termites', 'Cutworms', 'Carrot Rust Fly', 'Nematodes', 'Wireworms', 'Rodents'],
+      'Vegetative Growth/Weeding': ['Aphids', 'Whiteflies', 'Thrips', 'Leaf Loopers', 'Leafminers', 'Carrot Rust Fly', 'Nematodes', 'Wireworms', 'Armyworms', 'Rodents'],
+      'Maturation/Harvesting': ['Aphids', 'Whiteflies', 'Thrips', 'Leaf Loopers', 'Leafminers', 'Carrot Rust Fly', 'Nematodes', 'Wireworms', 'Armyworms', 'Rodents'],
+      'Storage': ['Carrot Rust Fly', 'Nematodes', 'Rodents', 'Aphids'],
+    },
+    'Tomatoes': {
+      'Germination/Seedling': ['Cutworms', 'Termites', 'Rodents'],
+      'Vegetative Growth/Weeding': ['Aphids', 'Whiteflies', 'Thrips', 'Leafminers', 'Spider Mites', 'Tomato Hornworm', 'Flea Beetles', 'Root Knot Nematodes', 'Rodents'],
+      'Flowering/Reproductive': ['Aphids', 'Whiteflies', 'Thrips', 'Leafminers', 'Spider Mites', 'Tomato Hornworm', 'Fruitworms', 'Stink Bugs', 'Blister Beetles'],
+      'Maturation/Harvesting': ['Fruitworms', 'Stink Bugs', 'Blister Beetles', 'Birds', 'Rodents'],
+      'Storage': ['Fruit Flies', 'Rodents'],
+    },
+    'Onions': {
+      'Germination/Seedling': ['Onion Maggot', 'Cutworms', 'Wireworms', 'Termites', 'Rodents'],
+      'Vegetative Growth/Weeding': ['Thrips', 'Leafminers', 'Aphids', 'Onion Maggot', 'Wireworms', 'Root Knot Nematodes', 'Rodents'],
+      'Bulb Formation/Reproductive': ['Thrips', 'Leafminers', 'Aphids', 'Onion Maggot', 'Wireworms'],
+      'Bulbing/Maturation': ['Thrips', 'Leafminers', 'Aphids', 'Onion Maggot', 'Wireworms', 'Rodents'],
+      'Harvesting/Storage': ['Onion Maggot', 'Rodents'],
+    },
+    'Irish Potatoes': {
+      'Early Growth': ['Potato Beetle', 'Cutworms', 'Wireworms', 'Termites', 'Rodents'],
+      'Tuber Initiation': ['Potato Beetle', 'Aphids', 'Leafhoppers', 'Flea Beetles', 'Wireworms', 'Root Knot Nematodes', 'Rodents'],
+      'Tuber Bulking': ['Aphids', 'Leafhoppers', 'Flea Beetles', 'Wireworms', 'Root Knot Nematodes', 'Rodents'],
+      'Maturation/Harvesting': ['Potato Beetle', 'Aphids', 'Leafhoppers', 'Flea Beetles', 'Wireworms', 'Root Knot Nematodes', 'Rodents'],
+    },
+  };
+
+  static const List<String> _organicPesticides = [
+    'Pyrethrin (organic)',
+    'Neem oil (organic)',
+    'Diatomaceous earth (organic)',
+    'Spinosad (organic)',
+    'Beneficial nematodes (organic)',
+    'Bacillus thuringiensis (Bt) (organic)',
+    'Garlic extract (organic)',
+  ];
+
+  static const List<String> _organicPreventionStrategies = [
+    'Introduce beneficial insects (e.g., ladybugs, predatory wasps)',
+    'Use neem oil sprays',
+    'Apply organic mulch',
+    'Use crop rotation',
+    'Plant trap crops',
+    'Use row covers',
+    'Hand-pick pests',
+    'Plant companion crops (e.g., marigolds)',
+  ];
+
+final Map<String, Map<String, dynamic>> _pestDetails = {
+  // Beans - Germination/Seedling
+  'Beans_Germination/Seedling_Bean Fly': {
+    'imagePath': 'assets/pests/beans_bean_fly_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, moist conditions', 'Infested soil'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Gaucho (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Use lightweight row covers during egg-laying',
+      'Introduce beneficial nematodes to soil',
+      'Plant trap crops like cowpeas',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Beans_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/beans_cutworms_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Beans_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/beans_rodents_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+  'Beans_Germination/Seedling_Termites': {
+    'imagePath': 'assets/pests/beans_termites_germination.jpg',
+    'possibleStrategies': ['Soil treatment', 'Use treated seeds', 'Remove debris'],
+    'intervention': 'Insecticide (Fipronil)',
+    'possibleCauses': ['Dry soil', 'Organic matter'],
+    'herbicidesPesticides': ['Termidor (Fipronil)', 'Premise (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Introduce beneficial nematodes to soil',
+      'Use diatomaceous earth as a soil barrier',
+      'Plant repellent crops like marigolds',
+      'Maintain moist soil to deter termites',
+    ],
+  },
+
+  // Beans - Vegetative Growth/Weeding
+  'Beans_Vegetative Growth/Weeding_Aphids': {
+    'imagePath': 'assets/pests/beans_aphids_vegetative_growth.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Beans_Vegetative Growth/Weeding_Leafhoppers': {
+    'imagePath': 'assets/pests/beans_leafhoppers_vegetative_growth.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Control weeds', 'Monitor plants'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Nearby host plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Assail (Acetamiprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around plants',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like alfalfa',
+    ],
+  },
+  'Beans_Vegetative Growth/Weeding_Thrips': {
+    'imagePath': 'assets/pests/beans_thrips_vegetative_growth.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Maintain plant health', 'Avoid dense planting'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Young leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+    ],
+  },
+  'Beans_Vegetative Growth/Weeding_Whiteflies': {
+    'imagePath': 'assets/pests/beans_whiteflies_vegetative_growth.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Control humidity'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Dense foliage'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near plants',
+      'Plant repellent herbs like basil',
+    ],
+  },
+  'Beans_Vegetative Growth/Weeding_Beetles': {
+    'imagePath': 'assets/pests/beans_beetles_vegetative_growth.jpg',
+    'possibleStrategies': ['Hand-picking', 'Crop rotation', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Bean crops'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Hand-pick beetles early in the morning',
+      'Apply spinosad sprays to affected plants',
+      'Use lightweight row covers to protect plants',
+      'Introduce predatory bugs like ladybugs',
+      'Plant trap crops like soybeans',
+    ],
+  },
+  'Beans_Vegetative Growth/Weeding_Rodents': {
+    'imagePath': 'assets/pests/beans_rodents_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Remove weeds', 'Secure field edges'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Dense vegetation', 'Food sources'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around fields',
+    ],
+  },
+
+  // Beans - Flowering/Reproductive
+  'Beans_Flowering/Reproductive_Aphids': {
+    'imagePath': 'assets/pests/beans_aphids_flowering.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Avoid over-fertilization', 'Monitor flowers'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on flowers',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected areas',
+      'Plant companion plants like marigolds',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Beans_Flowering/Reproductive_Leafhoppers': {
+    'imagePath': 'assets/pests/beans_leafhoppers_flowering.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Control weeds', 'Monitor flowers'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Assail (Acetamiprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around flowers',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like alfalfa',
+    ],
+  },
+  'Beans_Flowering/Reproductive_Thrips': {
+    'imagePath': 'assets/pests/beans_thrips_flowering.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Avoid dense planting', 'Monitor flowers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Flowering stage'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on flowers and leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Ensure adequate irrigation to reduce stress',
+    ],
+  },
+  'Beans_Flowering/Reproductive_Pod Borers': {
+    'imagePath': 'assets/pests/beans_pod_borers_flowering.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Remove affected pods', 'Monitor flowering'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering to podding'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected flowers and pods',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested pods',
+    ],
+  },
+  'Beans_Flowering/Reproductive_Whiteflies': {
+    'imagePath': 'assets/pests/beans_whiteflies_flowering.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Monitor flowering'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near flowers',
+      'Plant repellent herbs like mint',
+    ],
+  },
+
+  // Beans - Maturation/Harvesting
+  'Beans_Maturation/Harvesting_Pod Borers': {
+    'imagePath': 'assets/pests/beans_pod_borers_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove affected pods', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature pods'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected pods',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Beans_Maturation/Harvesting_Beetles': {
+    'imagePath': 'assets/pests/beans_beetles_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Use traps', 'Crop rotation'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature beans'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Hand-pick beetles early in the morning',
+      'Apply spinosad sprays to affected plants',
+      'Use lightweight row covers to protect pods',
+      'Introduce predatory bugs like ladybugs',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Beans_Maturation/Harvesting_Bean Weevil': {
+    'imagePath': 'assets/pests/beans_bean_weevil_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Sanitize fields', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature beans'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected pods',
+      'Use pheromone traps to capture adults',
+      'Harvest beans promptly to avoid infestation',
+      'Apply neem oil sprays to deter weevils',
+      'Remove and destroy infested pods',
+    ],
+  },
+  'Beans_Maturation/Harvesting_Bruchid Beetles': {
+    'imagePath': 'assets/pests/beans_bruchid_beetles_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Sanitize fields', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature beans'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected pods',
+      'Use pheromone traps to capture adults',
+      'Harvest beans promptly to avoid infestation',
+      'Apply neem oil sprays to deter beetles',
+      'Remove and destroy infested pods',
+    ],
+  },
+  'Beans_Maturation/Harvesting_Rodents': {
+    'imagePath': 'assets/pests/beans_rodents_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use traps', 'Secure fields'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Mature beans', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around harvested beans',
+    ],
+  },
+
+  // Beans - Storage
+  'Beans_Storage_Bean Weevil': {
+    'imagePath': 'assets/pests/beans_bean_weevil_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Sanitize storage', 'Inspect beans'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested beans'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Store beans at 50-55°F to deter weevils',
+      'Apply neem oil to beans before storage',
+      'Use diatomaceous earth in storage containers',
+      'Inspect and remove infested beans',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Beans_Storage_Bruchid Beetles': {
+    'imagePath': 'assets/pests/beans_bruchid_beetles_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Sanitize storage', 'Inspect beans'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested beans'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Store beans at 50-55°F to deter beetles',
+      'Apply neem oil to beans before storage',
+      'Use diatomaceous earth in storage containers',
+      'Inspect and remove infested beans',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Beans_Storage_Rodents': {
+    'imagePath': 'assets/pests/beans_rodents_storage.jpg',
+    'possibleStrategies': ['Use rodent-proof containers', 'Set traps', 'Clean storage'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Unprotected storage', 'Food availability'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Use rodent-proof metal containers',
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around storage areas',
+      'Encourage natural predators like barn owls',
+      'Regularly clean storage to remove food debris',
+    ],
+  },
+
+  // Maize - Germination/Seedling
+  'Maize_Germination/Seedling_Termites': {
+    'imagePath': 'assets/pests/maize_termites_germination.jpg',
+    'possibleStrategies': ['Soil treatment', 'Use treated seeds', 'Remove debris'],
+    'intervention': 'Insecticide (Fipronil)',
+    'possibleCauses': ['Dry soil', 'Organic matter'],
+    'herbicidesPesticides': ['Termidor (Fipronil)', 'Premise (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Introduce beneficial nematodes to soil',
+      'Use diatomaceous earth as a soil barrier',
+      'Plant repellent crops like marigolds',
+      'Maintain moist soil to deter termites',
+    ],
+  },
+  'Maize_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/maize_cutworms_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Maize_Germination/Seedling_Maize Shoot Fly': {
+    'imagePath': 'assets/pests/maize_shoot_fly_germination.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Crop rotation', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, moist conditions', 'Early planting'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Gaucho (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Use lightweight row covers during egg-laying',
+      'Introduce beneficial nematodes to soil',
+      'Plant trap crops like sorghum',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Maize_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/maize_rodents_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+
+  // Maize - Vegetative Growth/Weeding
+  'Maize_Vegetative Growth/Weeding_Aphids': {
+    'imagePath': 'assets/pests/maize_aphids_vegetative_growth.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Maize_Vegetative Growth/Weeding_Stem Borers': {
+    'imagePath': 'assets/pests/maize_stem_borers_vegetative_growth.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Remove crop debris', 'Monitor stems'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Maize crops'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected stems',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested stems',
+      'Plant trap crops like sorghum',
+    ],
+  },
+  'Maize_Vegetative Growth/Weeding_Armyworms': {
+    'imagePath': 'assets/pests/maize_armyworms_vegetative_growth.jpg',
+    'possibleStrategies': ['Monitor fields', 'Remove crop residues', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Dense vegetation'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Manually remove larvae where feasible',
+    ],
+  },
+  'Maize_Vegetative Growth/Weeding_Leafhoppers': {
+    'imagePath': 'assets/pests/maize_leafhoppers_vegetative_growth.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Control weeds', 'Monitor plants'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Nearby host plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Assail (Acetamiprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around plants',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like alfalfa',
+    ],
+  },
+  'Maize_Vegetative Growth/Weeding_Grasshoppers': {
+    'imagePath': 'assets/pests/maize_grasshoppers_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Control weeds', 'Monitor plants'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Dry conditions', 'Nearby grasslands'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply pyrethrin sprays (organic-approved)',
+      'Use nosema locustae as a biological control',
+      'Introduce predatory birds or insects',
+      'Apply neem oil sprays to deter grasshoppers',
+      'Use physical barriers like netting',
+    ],
+  },
+  'Maize_Vegetative Growth/Weeding_Thrips': {
+    'imagePath': 'assets/pests/maize_thrips_vegetative_growth.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Maintain plant health', 'Avoid dense planting'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Young leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+    ],
+  },
+  'Maize_Vegetative Growth/Weeding_Rodents': {
+    'imagePath': 'assets/pests/maize_rodents_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Remove weeds', 'Secure field edges'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Dense vegetation', 'Food sources'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around fields',
+    ],
+  },
+
+  // Maize - Flowering/Reproductive
+  'Maize_Flowering/Reproductive_Aphids': {
+    'imagePath': 'assets/pests/maize_aphids_flowering.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Avoid over-fertilization', 'Monitor flowers'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on flowers',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected areas',
+      'Plant companion plants like marigolds',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Stem Borers': {
+    'imagePath': 'assets/pests/maize_stem_borers_flowering.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Remove crop debris', 'Monitor stems'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering maize'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected stems',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested stems',
+      'Plant trap crops like sorghum',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Armyworms': {
+    'imagePath': 'assets/pests/maize_armyworms_flowering.jpg',
+    'possibleStrategies': ['Monitor flowering', 'Remove residues', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected flowers and leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Manually remove larvae where feasible',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Leafhoppers': {
+    'imagePath': 'assets/pests/maize_leafhoppers_flowering.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Control weeds', 'Monitor flowers'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Assail (Acetamiprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around flowers',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like alfalfa',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Grasshoppers': {
+    'imagePath': 'assets/pests/maize_grasshoppers_flowering.jpg',
+    'possibleStrategies': ['Use traps', 'Control weeds', 'Monitor flowers'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Dry conditions', 'Flowering stage'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply pyrethrin sprays (organic-approved)',
+      'Use nosema locustae as a biological control',
+      'Introduce predatory birds or insects',
+      'Apply neem oil sprays to deter grasshoppers',
+      'Use physical barriers like netting',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Earworms': {
+    'imagePath': 'assets/pests/maize_earworms_flowering.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Monitor ears', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering to grain fill'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected ears',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested ears',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Thrips': {
+    'imagePath': 'assets/pests/maize_thrips_flowering.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Avoid dense planting', 'Monitor flowers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Flowering stage'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on flowers and leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Ensure adequate irrigation to reduce stress',
+    ],
+  },
+  'Maize_Flowering/Reproductive_Birds': {
+    'imagePath': 'assets/pests/maize_birds_flowering.jpg',
+    'possibleStrategies': ['Use scare devices', 'Netting', 'Monitor fields'],
+    'intervention': 'Physical deterrents',
+    'possibleCauses': ['Grain availability', 'Open fields'],
+    'herbicidesPesticides': [],
+    'organicInterventions': [
+      'Install reflective tape or scarecrows',
+      'Use netting to cover maize ears',
+      'Encourage natural predators like hawks',
+      'Play distress calls to deter birds',
+      'Plant decoy crops like sunflowers',
+    ],
+  },
+
+  // Maize - Maturation/Harvesting
+  'Maize_Maturation/Harvesting_Earworms': {
+    'imagePath': 'assets/pests/maize_earworms_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove affected ears', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature ears'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected ears',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Maize_Maturation/Harvesting_Weevils': {
+    'imagePath': 'assets/pests/maize_weevils_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Sanitize fields', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature grains'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected ears',
+      'Use pheromone traps to capture adults',
+      'Harvest maize promptly to avoid infestation',
+      'Apply neem oil sprays to deter weevils',
+      'Remove and destroy infested grains',
+    ],
+  },
+  'Maize_Maturation/Harvesting_Birds': {
+    'imagePath': 'assets/pests/maize_birds_harvesting.jpg',
+    'possibleStrategies': ['Use scare devices', 'Netting', 'Harvest early'],
+    'intervention': 'Physical deterrents',
+    'possibleCauses': ['Mature grains', 'Open fields'],
+    'herbicidesPesticides': [],
+    'organicInterventions': [
+      'Install reflective tape or scarecrows',
+      'Use netting to cover maize ears',
+      'Encourage natural predators like hawks',
+      'Play distress calls to deter birds',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Maize_Maturation/Harvesting_Rodents': {
+    'imagePath': 'assets/pests/maize_rodents_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use traps', 'Secure fields'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Mature grains', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around harvested maize',
+    ],
+  },
+
+  // Maize - Storage
+  'Maize_Storage_Larger Grain Borer': {
+    'imagePath': 'assets/pests/maize_larger_grain_borer_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Sanitize storage', 'Inspect grains'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested grains'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Store maize at 50-55°F to deter borers',
+      'Apply diatomaceous earth to grains',
+      'Use neem oil treatment before storage',
+      'Inspect and remove infested grains',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Maize_Storage_Angoumois Grain Moth': {
+    'imagePath': 'assets/pests/maize_angoumois_grain_moth_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Sanitize storage', 'Inspect grains'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested grains'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Store maize at 50-55°F to deter moths',
+      'Apply neem oil to grains before storage',
+      'Use pheromone traps in storage areas',
+      'Inspect and remove infested grains',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Maize_Storage_Weevils': {
+    'imagePath': 'assets/pests/maize_weevils_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Sanitize storage', 'Inspect grains'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested grains'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Store maize at 50-55°F to deter weevils',
+      'Apply diatomaceous earth to grains',
+      'Use neem oil treatment before storage',
+      'Inspect and remove infested grains',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Maize_Storage_Rodents': {
+    'imagePath': 'assets/pests/maize_rodents_storage.jpg',
+    'possibleStrategies': ['Use rodent-proof containers', 'Set traps', 'Clean storage'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Unprotected storage', 'Food availability'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Use rodent-proof metal containers',
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around storage areas',
+      'Encourage natural predators like barn owls',
+      'Regularly clean storage to remove food debris',
+    ],
+  },
+
+  // Cabbages/Kales - Germination/Seedling
+  'Cabbages/Kales_Germination/Seedling_Termites': {
+    'imagePath': 'assets/pests/cabbages_kales_termites_germination.jpg',
+    'possibleStrategies': ['Soil treatment', 'Use treated seeds', 'Remove debris'],
+    'intervention': 'Insecticide (Fipronil)',
+    'possibleCauses': ['Dry soil', 'Organic matter'],
+    'herbicidesPesticides': ['Termidor (Fipronil)', 'Premise (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Introduce beneficial nematodes to soil',
+      'Use diatomaceous earth as a soil barrier',
+      'Plant repellent crops like marigolds',
+      'Maintain moist soil to deter termites',
+    ],
+  },
+  'Cabbages/Kales_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/cabbages_kales_cutworms_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Cabbages/Kales_Germination/Seedling_Cabbage Root Maggot': {
+    'imagePath': 'assets/pests/cabbages_kales_root_maggot_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Infested soil'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use lightweight row covers during egg-laying',
+      'Apply neem oil to soil around seedlings',
+      'Plant trap crops like radishes',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Cabbages/Kales_Germination/Seedling_Flea Beetles': {
+    'imagePath': 'assets/pests/cabbages_kales_flea_beetles_germination.jpg',
+    'possibleStrategies': ['Use row covers', 'Crop rotation', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Pyrethroids)',
+    'possibleCauses': ['Warm weather', 'Young plants'],
+    'herbicidesPesticides': ['Sevin (Carbaryl)', 'Pounce (Permethrin)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use lightweight row covers to protect seedlings',
+      'Place yellow sticky traps around plants',
+      'Plant trap crops like mustard',
+      'Apply diatomaceous earth to foliage',
+    ],
+  },
+  'Cabbages/Kales_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/cabbages_kales_rodents_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+
+  // Cabbages/Kales - Vegetative Growth/Weeding
+  'Cabbages/Kales_Vegetative Growth/Weeding_Aphids': {
+    'imagePath': 'assets/pests/cabbages_kales_aphids_vegetative_growth.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Whiteflies': {
+    'imagePath': 'assets/pests/cabbages_kales_whiteflies_vegetative_growth.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Control humidity'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Dense foliage'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near plants',
+      'Plant repellent herbs like basil',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Thrips': {
+    'imagePath': 'assets/pests/cabbages_kales_thrips_vegetative_growth.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Maintain plant health', 'Avoid dense planting'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Young leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Diamondback Moth': {
+    'imagePath': 'assets/pests/cabbages_kales_diamondback_moth_vegetative_growth.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Remove crop debris', 'Monitor leaves'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Leafy crops'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected leaves',
+      'Introduce Trichogramma wasps as predators',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested leaves',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Cabbage Looper': {
+    'imagePath': 'assets/pests/cabbages_kales_cabbage_looper_vegetative_growth.jpg',
+    'possibleStrategies': ['Hand-picking', 'Use traps', 'Monitor leaves'],
+    'intervention': 'Insecticide (Bacillus thuringiensis)',
+    'possibleCauses': ['Warm nights', 'Leafy crops'],
+    'herbicidesPesticides': ['Dipel (Bt)', 'Thuricide (Bt)'],
+    'organicInterventions': [
+      'Hand-pick loopers during inspection',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested leaves',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Leafminers': {
+    'imagePath': 'assets/pests/cabbages_kales_leafminers_vegetative_growth.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Use yellow traps', 'Monitor plants'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Leafy crops'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Use spinosad sprays on affected plants',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Flea Beetles': {
+    'imagePath': 'assets/pests/cabbages_kales_flea_beetles_vegetative_growth.jpg',
+    'possibleStrategies': ['Use row covers', 'Crop rotation', 'Monitor plants'],
+    'intervention': 'Insecticide (Pyrethroids)',
+    'possibleCauses': ['Warm weather', 'Young plants'],
+    'herbicidesPesticides': ['Sevin (Carbaryl)', 'Pounce (Permethrin)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use lightweight row covers to protect plants',
+      'Place yellow sticky traps around plants',
+      'Plant trap crops like mustard',
+      'Apply diatomaceous earth to foliage',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Cabbage Webworm': {
+    'imagePath': 'assets/pests/cabbages_kales_webworm_vegetative_growth.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Use traps', 'Monitor plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Leafy crops'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected leaves',
+      'Introduce Trichogramma wasps as predators',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested leaves',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Armyworms': {
+    'imagePath': 'assets/pests/cabbages_kales_armyworms_vegetative_growth.jpg',
+    'possibleStrategies': ['Monitor fields', 'Remove crop residues', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Dense vegetation'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Manually remove larvae where feasible',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Cabbage Root Maggot': {
+    'imagePath': 'assets/pests/cabbages_kales_root_maggot_vegetative_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor roots'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Growing plants'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use lightweight row covers during egg-laying',
+      'Apply neem oil to soil around plants',
+      'Plant trap crops like radishes',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Cabbages/Kales_Vegetative Growth/Weeding_Rodents': {
+    'imagePath': 'assets/pests/cabbages_kales_rodents_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Remove weeds', 'Secure field edges'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Dense vegetation', 'Food sources'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around fields',
+    ],
+  },
+
+  // Cabbages/Kales - Flowering/Reproductive
+  'Cabbages/Kales_Flowering/Reproductive_Aphids': {
+    'imagePath': 'assets/pests/cabbages_kales_aphids_flowering.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Avoid over-fertilization', 'Monitor flowers'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on flowers',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected areas',
+      'Plant companion plants like marigolds',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Cabbages/Kales_Flowering/Reproductive_Whiteflies': {
+    'imagePath': 'assets/pests/cabbages_kales_whiteflies_flowering.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Monitor flowering'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near flowers',
+      'Plant repellent herbs like mint',
+    ],
+  },
+  'Cabbages/Kales_Flowering/Reproductive_Thrips': {
+    'imagePath': 'assets/pests/cabbages_kales_thrips_flowering.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Avoid dense planting', 'Monitor flowers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Flowering stage'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on flowers and leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Ensure adequate irrigation to reduce stress',
+    ],
+  },
+  'Cabbages/Kales_Flowering/Reproductive_Diamondback Moth': {
+    'imagePath': 'assets/pests/cabbages_kales_diamondback_moth_flowering.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Remove crop debris', 'Monitor flowers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected flowers and leaves',
+      'Introduce Trichogramma wasps as predators',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested leaves',
+    ],
+  },
+  'Cabbages/Kales_Flowering/Reproductive_Cabbage Looper': {
+    'imagePath': 'assets/pests/cabbages_kales_cabbage_looper_flowering.jpg',
+    'possibleStrategies': ['Hand-picking', 'Use traps', 'Monitor flowers'],
+    'intervention': 'Insecticide (Bacillus thuringiensis)',
+    'possibleCauses': ['Warm nights', 'Flowering plants'],
+    'herbicidesPesticides': ['Dipel (Bt)', 'Thuricide (Bt)'],
+    'organicInterventions': [
+      'Hand-pick loopers during inspection',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Remove and destroy infested leaves',
+    ],
+  },
+  'Cabbages/Kales_Flowering/Reproductive_Armyworms': {
+    'imagePath': 'assets/pests/cabbages_kales_armyworms_flowering.jpg',
+    'possibleStrategies': ['Monitor flowering', 'Remove residues', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected flowers and leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Manually remove larvae where feasible',
+    ],
+  },
+  'Cabbages/Kales_Flowering/Reproductive_Stink Bugs': {
+    'imagePath': 'assets/pests/cabbages_kales_stink_bugs_flowering.jpg',
+    'possibleStrategies': ['Remove weeds', 'Use traps', 'Monitor flowering'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Warm weather', 'Flowering crops'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply pyrethrin sprays (organic-approved)',
+      'Use pheromone traps to capture adults',
+      'Introduce predatory bugs like soldier bugs',
+      'Apply neem oil sprays to deter stink bugs',
+      'Hand-pick and destroy adults where feasible',
+    ],
+  },
+
+  // Cabbages/Kales - Maturation/Harvesting
+  'Cabbages/Kales_Maturation/Harvesting_Diamondback Moth': {
+    'imagePath': 'assets/pests/cabbages_kales_diamondback_moth_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove crop debris', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected leaves',
+      'Introduce Trichogramma wasps as predators',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Use neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Cabbage Looper': {
+    'imagePath': 'assets/pests/cabbages_kales_cabbage_looper_harvesting.jpg',
+    'possibleStrategies': ['Hand-picking', 'Harvest promptly', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Bacillus thuringiensis)',
+    'possibleCauses': ['Warm nights', 'Mature leaves'],
+    'herbicidesPesticides': ['Dipel (Bt)', 'Thuricide (Bt)'],
+    'organicInterventions': [
+      'Hand-pick loopers during inspection',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Leafminers': {
+    'imagePath': 'assets/pests/cabbages_kales_leafminers_harvesting.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Harvest early', 'Use yellow traps'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Mature leaves'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Flea Beetles': {
+    'imagePath': 'assets/pests/cabbages_kales_flea_beetles_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Use row covers', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Pyrethroids)',
+    'possibleCauses': ['Warm weather', 'Mature plants'],
+    'herbicidesPesticides': ['Sevin (Carbaryl)', 'Pounce (Permethrin)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use lightweight row covers to protect plants',
+      'Place yellow sticky traps around plants',
+      'Plant trap crops like mustard',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Cabbage Webworm': {
+    'imagePath': 'assets/pests/cabbages_kales_webworm_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove affected leaves', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected leaves',
+      'Introduce Trichogramma wasps as predators',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Use neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Armyworms': {
+    'imagePath': 'assets/pests/cabbages_kales_armyworms_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove residues', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature plants'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Stink Bugs': {
+    'imagePath': 'assets/pests/cabbages_kales_stink_bugs_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Use traps', 'Remove weeds'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Warm weather', 'Mature plants'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply pyrethrin sprays (organic-approved)',
+      'Use pheromone traps to capture adults',
+      'Introduce predatory bugs like soldier bugs',
+      'Apply neem oil sprays to deter stink bugs',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Cabbages/Kales_Maturation/Harvesting_Rodents': {
+    'imagePath': 'assets/pests/cabbages_kales_rodents_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use traps', 'Secure fields'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Mature leaves', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around harvested crops',
+    ],
+  },
+
+  // Cabbages/Kales - Storage
+  'Cabbages/Kales_Storage_Rodents': {
+    'imagePath': 'assets/pests/cabbages_kales_rodents_storage.jpg',
+    'possibleStrategies': ['Use rodent-proof containers', 'Set traps', 'Clean storage'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Unprotected storage', 'Food availability'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Use rodent-proof metal containers',
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around storage areas',
+      'Encourage natural predators like barn owls',
+      'Regularly clean storage to remove food debris',
+    ],
+  },
+  'Cabbages/Kales_Storage_Aphids': {
+    'imagePath': 'assets/pests/cabbages_kales_aphids_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Inspect produce', 'Sanitize storage'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm storage', 'Infested produce'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to produce before storage',
+      'Maintain cold storage at 32-40°F',
+      'Inspect and remove infested produce',
+      'Use insecticidal soap on affected areas',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Cabbages/Kales_Storage_Whiteflies': {
+    'imagePath': 'assets/pests/cabbages_kales_whiteflies_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Inspect produce', 'Sanitize storage'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm storage', 'Infested produce'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to produce before storage',
+      'Maintain cold storage at 32-40°F',
+      'Use yellow sticky traps in storage areas',
+      'Inspect and remove infested produce',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+
+  // Carrots - Germination/Seedling
+  'Carrots_Germination/Seedling_Termites': {
+    'imagePath': 'assets/pests/carrots_termites_germination.jpg',
+    'possibleStrategies': ['Soil treatment', 'Use treated seeds', 'Remove debris'],
+    'intervention': 'Insecticide (Fipronil)',
+    'possibleCauses': ['Dry soil', 'Organic matter'],
+    'herbicidesPesticides': ['Termidor (Fipronil)', 'Premise (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Introduce beneficial nematodes to soil',
+      'Use diatomaceous earth as a soil barrier',
+      'Plant repellent crops like marigolds',
+      'Maintain moist soil to deter termites',
+    ],
+  },
+  'Carrots_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/carrots_cutworms_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Carrots_Germination/Seedling_Carrot Rust Fly': {
+    'imagePath': 'assets/pests/carrots_carrot_rust_fly_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Carrot fields'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use lightweight row covers during egg-laying',
+      'Apply neem oil to soil around seedlings',
+      'Plant trap crops like radishes',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Carrots_Germination/Seedling_Nematodes': {
+    'imagePath': 'assets/pests/carrots_nematodes_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting',
+      'Plant resistant carrot varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Carrots_Germination/Seedling_Wireworms': {
+    'imagePath': 'assets/pests/carrots_wireworms_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Avoid grassy fields', 'Deep tillage'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Cool, moist soil', 'Previous grass crops'],
+    'herbicidesPesticides': ['Gaucho (Imidacloprid)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use trap crops like wheat or barley',
+      'Apply diatomaceous earth around plants',
+      'Perform deep tillage to expose wireworms',
+      'Introduce predatory ground beetles',
+    ],
+  },
+  'Carrots_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/carrots_rodents_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+  'Carrots_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/carrots_cutworm_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Carrots_Germination/Seedling_Carrot Rust Fly': {
+    'imagePath': 'assets/pests/carrots_carrot_rust_fly_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Carrot fields'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to soil around seedlings',
+      'Use lightweight row covers during egg-laying',
+      'Apply beneficial nematodes to soil',
+      'Plant trap crops like radishes',
+      'Use neem oil sprays to deter adults',
+    ],
+  },
+  'Carrots_Germination/Seedling_Nematodes': {
+    'imagePath': 'assets/pests/carrots_nematodes_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting',
+      'Plant resistant carrot varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Carrots_Germination/Seedling_Wireworms': {
+    'imagePath': 'assets/pests/carrots_wireworm_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Avoid grassy fields', 'Deep tillage'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Cool, moist soil', 'Previous grass crops'],
+    'herbicidesPesticides': ['Gaucho (Imidacloprid)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use trap crops like wheat or barley',
+      'Apply diatomaceous earth around seedlings',
+      'Perform deep tillage to expose wireworms',
+      'Introduce predatory ground beetles',
+    ],
+  },
+  'Carrots_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/carrots_rodent_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+
+  // Carrots - Vegetative Growth/Weeding
+  'Carrots_Vegetative Growth/Weeding_Aphids': {
+    'imagePath': 'assets/pests/carrots_aphids_vegetative_growth.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Whiteflies': {
+    'imagePath': 'assets/pests/carrots_whiteflies_vegetative_growth.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Control humidity'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Dense foliage'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near plants',
+      'Plant repellent herbs like basil',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Thrips': {
+    'imagePath': 'assets/pests/carrots_thrips_vegetative_growth.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Maintain plant health', 'Avoid dense planting'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Young leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Carrot Rust Fly': {
+    'imagePath': 'assets/pests/carrots_carrot_rust_fly_vegetative_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Carrot fields'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to soil around plants',
+      'Use lightweight row covers during egg-laying',
+      'Apply beneficial nematodes to soil',
+      'Plant trap crops like radishes',
+      'Use neem oil sprays to deter adults',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Leafhoppers': {
+    'imagePath': 'assets/pests/carrots_leafhoppers_vegetative_growth.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Control weeds', 'Monitor populations'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Nearby host plants'],
+    'herbicidesPesticides': ['Confidor (Imidacloprid)', 'Gaucho (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around plants',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like alfalfa',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Nematodes': {
+    'imagePath': 'assets/pests/carrots_nematodes_vegetative_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization during fallow periods',
+      'Plant resistant carrot varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Wireworms': {
+    'imagePath': 'assets/pests/carrots_wireworms_vegetative_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Avoid grassy fields', 'Deep tillage'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Cool, moist soil', 'Previous grass crops'],
+    'herbicidesPesticides': ['Gaucho (Imidacloprid)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use trap crops like wheat or barley',
+      'Apply diatomaceous earth around plants',
+      'Perform deep tillage to expose wireworms',
+      'Introduce predatory ground beetles',
+    ],
+  },
+  'Carrots_Vegetative Growth/Weeding_Rodents': {
+    'imagePath': 'assets/pests/carrots_rodents_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Remove weeds', 'Secure field edges'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Dense vegetation', 'Food sources'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around fields',
+    ],
+  },
+
+  // Carrots - Flowering/Reproductive
+  'Carrots_Flowering/Reproductive_Aphids': {
+    'imagePath': 'assets/pests/carrots_aphids_flowering.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Avoid over-fertilization', 'Monitor flowers'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on flowers',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected areas',
+      'Plant companion plants like marigolds',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Carrots_Flowering/Reproductive_Whiteflies': {
+    'imagePath': 'assets/pests/carrots_whiteflies_flowering.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Monitor flowering'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near flowers',
+      'Plant repellent herbs like mint',
+    ],
+  },
+  'Carrots_Flowering/Reproductive_Thrips': {
+    'imagePath': 'assets/pests/carrots_thrips_flowering.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Avoid dense planting', 'Monitor flowers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Flowering stage'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on flowers and leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Ensure adequate irrigation to reduce stress',
+    ],
+  },
+  'Carrots_Flowering/Reproductive_Carrot Rust Fly': {
+    'imagePath': 'assets/pests/carrots_carrot_rust_fly_flowering.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor flowering'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Flowering carrots'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to soil around plants',
+      'Use lightweight row covers during egg-laying',
+      'Apply beneficial nematodes to soil',
+      'Plant trap crops like radishes',
+      'Use neem oil sprays to deter adults',
+    ],
+  },
+  'Carrots_Flowering/Reproductive_Leafhoppers': {
+    'imagePath': 'assets/pests/carrots_leafhoppers_flowering.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Control weeds', 'Monitor flowers'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Confidor (Imidacloprid)', 'Gaucho (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around flowers',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like sunflowers',
+    ],
+  },
+  'Carrots_Flowering/Reproductive_Nematodes': {
+    'imagePath': 'assets/pests/carrots_nematodes_flowering.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization during fallow periods',
+      'Plant resistant carrot varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+
+  // Carrots - Maturation/Harvesting
+  'Carrots_Maturation/Harvesting_Carrot Rust Fly': {
+    'imagePath': 'assets/pests/carrots_carrot_rust_fly_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Use row covers', 'Monitor roots'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Mature roots'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to soil around mature plants',
+      'Use lightweight row covers during egg-laying',
+      'Apply beneficial nematodes to soil',
+      'Plant trap crops like radishes',
+      'Harvest carrots promptly to reduce exposure',
+    ],
+  },
+  'Carrots_Maturation/Harvesting_Nematodes': {
+    'imagePath': 'assets/pests/carrots_nematodes_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Crop rotation', 'Soil testing'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Mature roots'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting next crop',
+      'Plant resistant carrot varieties',
+      'Incorporate marigold cover crops',
+      'Harvest promptly to minimize damage',
+    ],
+  },
+  'Carrots_Maturation/Harvesting_Wireworms': {
+    'imagePath': 'assets/pests/carrots_wireworms_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Crop rotation', 'Deep tillage'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Cool, moist soil', 'Mature roots'],
+    'herbicidesPesticides': ['Gaucho (Imidacloprid)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use trap crops like wheat or barley',
+      'Apply diatomaceous earth around plants',
+      'Perform deep tillage to expose wireworms',
+      'Harvest carrots promptly to reduce damage',
+    ],
+  },
+  'Carrots_Maturation/Harvesting_Aphids': {
+    'imagePath': 'assets/pests/carrots_aphids_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Introduce ladybugs', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Mature plants'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on mature plants',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Carrots_Maturation/Harvesting_Rodents': {
+    'imagePath': 'assets/pests/carrots_rodents_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use traps', 'Secure fields'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Mature roots', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around harvested carrots',
+    ],
+  },
+
+  // Carrots - Storage
+  'Carrots_Storage_Rodents': {
+    'imagePath': 'assets/pests/carrots_rodents_storage.jpg',
+    'possibleStrategies': ['Use rodent-proof containers', 'Set traps', 'Clean storage'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Unprotected storage', 'Food availability'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Use rodent-proof metal containers',
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around storage areas',
+      'Encourage natural predators like barn owls',
+      'Regularly clean storage to remove food debris',
+    ],
+  },
+  'Carrots_Storage_Aphids': {
+    'imagePath': 'assets/pests/carrots_aphids_storage.jpg',
+    'possibleStrategies': ['Inspect stored produce', 'Use cold storage', 'Sanitize storage'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm storage', 'Infested produce'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to carrots before storage',
+      'Maintain cold storage at 32-40°F',
+      'Inspect and remove infested carrots',
+      'Use insecticidal soap on affected areas',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Carrots_Storage_Whiteflies': {
+    'imagePath': 'assets/pests/carrots_whiteflies_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Inspect produce', 'Sanitize storage'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid storage', 'Infested produce'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to carrots before storage',
+      'Maintain cold storage at 32-40°F',
+      'Use yellow sticky traps in storage areas',
+      'Inspect and remove infested carrots',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  // Tomatoes - Germination/Seedling
+  'Tomatoes_Germination/Seedling_Termites': {
+    'imagePath': 'assets/pests/tomatoes_termites_germination.jpg',
+    'possibleStrategies': ['Soil treatment', 'Use treated seeds', 'Remove debris'],
+    'intervention': 'Insecticide (Fipronil)',
+    'possibleCauses': ['Dry soil', 'Organic matter'],
+    'herbicidesPesticides': ['Termidor (Fipronil)', 'Premise (Imidacloprid)'],
+    'organicInterventions': [
+      'Apply neem oil to soil around seedlings',
+      'Introduce beneficial nematodes to soil',
+      'Use diatomaceous earth as a soil barrier',
+      'Plant repellent crops like marigolds',
+      'Maintain moist soil to deter termites',
+    ],
+  },
+  'Tomatoes_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/tomatoes_cutworm_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Tomatoes_Germination/Seedling_Nematodes': {
+    'imagePath': 'assets/pests/tomatoes_nematodes_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting',
+      'Plant resistant tomato varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Tomatoes_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/tomatoes_rodents_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+
+  // Tomatoes - Vegetative Growth/Weeding
+  'Tomatoes_Vegetative Growth/Weeding_Aphids': {
+    'imagePath': 'assets/pests/tomatoes_aphids_vegetative_growth.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Whiteflies': {
+    'imagePath': 'assets/pests/tomatoes_whiteflies_vegetative_growth.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Control humidity'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Dense foliage'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near plants',
+      'Plant repellent herbs like basil',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Thrips': {
+    'imagePath': 'assets/pests/tomatoes_thrips_vegetative_growth.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Maintain plant health', 'Avoid dense planting'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Young leaves'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Leafminers': {
+    'imagePath': 'assets/pests/tomatoes_leafminers_vegetative_growth.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Use yellow traps', 'Monitor plants'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Leafy crops'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Use spinosad sprays on affected plants',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Nematodes': {
+    'imagePath': 'assets/pests/tomatoes_nematodes_vegetative_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Monitor roots'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Growing plants'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization during fallow periods',
+      'Plant resistant tomato varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Hornworms': {
+    'imagePath': 'assets/pests/tomatoes_hornworm_vegetative_growth.jpg',
+    'possibleStrategies': ['Hand-picking', 'Introduce parasitic wasps', 'Monitor leaves'],
+    'intervention': 'Insecticide (Bacillus thuringiensis)',
+    'possibleCauses': ['Warm nights', 'Tomato crops'],
+    'herbicidesPesticides': ['Dipel (Bt)', 'Thuricide (Bt)'],
+    'organicInterventions': [
+      'Hand-pick hornworms during inspection',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Plant repellent crops like marigolds',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Beet Armyworms': {
+    'imagePath': 'assets/pests/tomatoes_beet_armyworm_vegetative_growth.jpg',
+    'possibleStrategies': ['Monitor fields', 'Remove crop residues', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Dense vegetation'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Manually remove larvae where feasible',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Spider Mites': {
+    'imagePath': 'assets/pests/tomatoes_spider_mites_vegetative_growth.jpg',
+    'possibleStrategies': ['Increase humidity', 'Use predatory mites', 'Monitor leaves'],
+    'intervention': 'Miticide (Abamectin)',
+    'possibleCauses': ['Dry conditions', 'Dusty fields'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Release predatory mites like Phytoseiulus persimilis',
+      'Apply neem oil sprays every 7 days',
+      'Use insecticidal soap on affected leaves',
+      'Increase humidity around plants',
+      'Spray water to dislodge mites',
+    ],
+  },
+  'Tomatoes_Vegetative Growth/Weeding_Rodents': {
+    'imagePath': 'assets/pests/tomatoes_rodents_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Remove weeds', 'Secure field edges'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Dense vegetation', 'Food sources'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around fields',
+    ],
+  },
+
+  // Tomatoes - Flowering/Reproductive
+  'Tomatoes_Flowering/Reproductive_Aphids': {
+    'imagePath': 'assets/pests/tomatoes_aphids_flowering.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Avoid over-fertilization', 'Monitor flowers'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on flowers',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected areas',
+      'Plant companion plants like marigolds',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Whiteflies': {
+    'imagePath': 'assets/pests/tomatoes_whiteflies_flowering.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Introduce Encarsia', 'Monitor flowering'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near flowers',
+      'Plant repellent herbs like mint',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Thrips': {
+    'imagePath': 'assets/pests/tomatoes_thrips_flowering.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Avoid dense planting', 'Monitor flowers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Flowering stage'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on flowers and leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Ensure adequate irrigation to reduce stress',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Leafminers': {
+    'imagePath': 'assets/pests/tomatoes_leafminers_flowering.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Use yellow traps', 'Monitor flowering'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Use spinosad sprays on affected plants',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Nematodes': {
+    'imagePath': 'assets/pests/tomatoes_nematodes_flowering.jpg',
+    'possibleStrategies': ['Crop rotation', 'Monitor roots', 'Avoid infested soil'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Flowering plants'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization during fallow periods',
+      'Plant resistant tomato varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Bollworm': {
+    'imagePath': 'assets/pests/tomatoes_bollworm_flowering.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Remove affected fruits', 'Monitor flowering'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering stage'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected flowers and fruits',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested fruits',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Hornworms': {
+    'imagePath': 'assets/pests/tomatoes_hornworm_flowering.jpg',
+    'possibleStrategies': ['Hand-picking', 'Introduce parasitic wasps', 'Monitor flowers'],
+    'intervention': 'Insecticide (Bacillus thuringiensis)',
+    'possibleCauses': ['Warm nights', 'Flowering tomatoes'],
+    'herbicidesPesticides': ['Dipel (Bt)', 'Thuricide (Bt)'],
+    'organicInterventions': [
+      'Hand-pick hornworms during inspection',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Plant repellent crops like marigolds',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Beet Armyworms': {
+    'imagePath': 'assets/pests/tomatoes_beet_armyworm_flowering.jpg',
+    'possibleStrategies': ['Monitor flowering', 'Remove residues', 'Early control'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering plants'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected flowers and leaves',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Manually remove larvae where feasible',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Stink Bugs': {
+    'imagePath': 'assets/pests/tomatoes_stink_bugs_flowering.jpg',
+    'possibleStrategies': ['Remove weeds', 'Use traps', 'Monitor flowering'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Warm weather', 'Flowering crops'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply pyrethrin sprays (organic-approved)',
+      'Use pheromone traps to capture adults',
+      'Introduce predatory bugs like soldier bugs',
+      'Apply neem oil sprays to deter stink bugs',
+      'Hand-pick and destroy adults where feasible',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Fruit Borers': {
+    'imagePath': 'assets/pests/tomatoes_fruit_borers_flowering.jpg',
+    'possibleStrategies': ['Remove infested fruits', 'Use traps', 'Monitor flowering'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Flowering to fruiting'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected flowers and fruits',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested fruits',
+    ],
+  },
+  'Tomatoes_Flowering/Reproductive_Spider Mites': {
+    'imagePath': 'assets/pests/tomatoes_spider_mites_flowering.jpg',
+    'possibleStrategies': ['Increase humidity', 'Use predatory mites', 'Monitor flowers'],
+    'intervention': 'Miticide (Abamectin)',
+    'possibleCauses': ['Dry conditions', 'Flowering plants'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Release predatory mites like Phytoseiulus persimilis',
+      'Apply neem oil sprays every 7 days',
+      'Use insecticidal soap on affected areas',
+      'Increase humidity around plants',
+      'Spray water to dislodge mites',
+    ],
+  },
+
+  // Tomatoes - Maturation/Harvesting
+  'Tomatoes_Maturation/Harvesting_Aphids': {
+    'imagePath': 'assets/pests/tomatoes_aphids_harvesting.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Harvest early', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Mature foliage'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings on mature plants',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Whiteflies': {
+    'imagePath': 'assets/pests/tomatoes_whiteflies_harvesting.jpg',
+    'possibleStrategies': ['Use yellow traps', 'Harvest promptly', 'Control humidity'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm, humid weather', 'Mature plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Confidor (Imidacloprid)'],
+    'organicInterventions': [
+      'Release Encarsia formosa parasitic wasps',
+      'Apply insecticidal soap to undersides of leaves',
+      'Use neem oil sprays every 5-7 days',
+      'Place yellow sticky traps near plants',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Thrips': {
+    'imagePath': 'assets/pests/tomatoes_thrips_harvesting.jpg',
+    'possibleStrategies': ['Use blue sticky traps', 'Harvest early', 'Monitor fruits'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Dry conditions', 'Mature fruits'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on fruits and leaves',
+      'Use blue sticky traps to capture thrips',
+      'Apply neem oil sprays every 7 days',
+      'Introduce predatory mites or lacewings',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Leafminers': {
+    'imagePath': 'assets/pests/tomatoes_leafminers_harvesting.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Harvest early', 'Use yellow traps'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Mature leaves'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Use spinosad sprays on affected plants',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Nematodes': {
+    'imagePath': 'assets/pests/tomatoes_nematodes_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Crop rotation', 'Monitor roots'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Mature plants'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting next crop',
+      'Plant resistant tomato varieties',
+      'Incorporate marigold cover crops',
+      'Harvest promptly to minimize damage',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Bollworm': {
+    'imagePath': 'assets/pests/tomatoes_bollworm_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove affected fruits', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature fruits'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected fruits',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested fruits',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Hornworms': {
+    'imagePath': 'assets/pests/tomatoes_hornworm_harvesting.jpg',
+    'possibleStrategies': ['Hand-picking', 'Harvest promptly', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Bacillus thuringiensis)',
+    'possibleCauses': ['Warm nights', 'Mature tomatoes'],
+    'herbicidesPesticides': ['Dipel (Bt)', 'Thuricide (Bt)'],
+    'organicInterventions': [
+      'Hand-pick hornworms during inspection',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce Trichogramma wasps as predators',
+      'Use neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Beet Armyworms': {
+    'imagePath': 'assets/pests/tomatoes_beet_armyworm_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove residues', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature plants'],
+    'herbicidesPesticides': ['Tracer (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Spray spinosad on affected leaves and fruits',
+      'Apply Bacillus thuringiensis (Bt) weekly',
+      'Introduce predatory wasps like Trichogramma',
+      'Use neem oil sprays to deter larvae',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Fruitflies': {
+    'imagePath': 'assets/pests/tomatoes_fruitflies_harvesting.jpg',
+    'possibleStrategies': ['Sanitation', 'Use bait traps', 'Harvest early'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Overripe fruit', 'Warm weather'],
+    'herbicidesPesticides': ['GF-120 (Spinosad)', 'Entrust (Spinosad)'],
+    'organicInterventions': [
+      'Use bait traps with organic attractants',
+      'Harvest tomatoes promptly to avoid overripening',
+      'Apply spinosad sprays to affected fruits',
+      'Remove and destroy infested fruits',
+      'Sanitize fields to reduce breeding sites',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Stink Bugs': {
+    'imagePath': 'assets/pests/tomatoes_stink_bugs_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Use traps', 'Remove weeds'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Warm weather', 'Mature fruits'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply pyrethrin sprays (organic-approved)',
+      'Use pheromone traps to capture adults',
+      'Introduce predatory bugs like soldier bugs',
+      'Apply neem oil sprays to deter stink bugs',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Fruit Borers': {
+    'imagePath': 'assets/pests/tomatoes_fruit_borers_harvesting.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove infested fruits', 'Use traps'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature fruits'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected fruits',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested fruits',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Spider Mites': {
+    'imagePath': 'assets/pests/tomatoes_spider_mites_harvesting.jpg',
+    'possibleStrategies': ['Increase humidity', 'Harvest early', 'Use predatory mites'],
+    'intervention': 'Miticide (Abamectin)',
+    'possibleCauses': ['Dry conditions', 'Mature plants'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Release predatory mites like Phytoseiulus persimilis',
+      'Apply neem oil sprays every 7 days',
+      'Use insecticidal soap on affected areas',
+      'Increase humidity around plants',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Tomatoes_Maturation/Harvesting_Rodents': {
+    'imagePath': 'assets/pests/tomatoes_rodents_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use traps', 'Secure fields'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Mature fruits', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around harvested tomatoes',
+    ],
+  },
+
+  // Tomatoes - Storage
+  'Tomatoes_Storage_Fruitflies': {
+    'imagePath': 'assets/pests/tomatoes_fruitflies_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Sanitation', 'Inspect produce'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Overripe tomatoes'],
+    'herbicidesPesticides': ['GF-120 (Spinosad)', 'Entrust (Spinosad)'],
+    'organicInterventions': [
+      'Store tomatoes at 50-55°F to deter fruitflies',
+      'Use bait traps with organic attractants in storage',
+      'Apply neem oil to tomatoes before storage',
+      'Inspect and remove infested tomatoes',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Tomatoes_Storage_Stink Bugs': {
+    'imagePath': 'assets/pests/tomatoes_stink_bugs_storage.jpg',
+    'possibleStrategies': ['Inspect stored tomatoes', 'Use cold storage', 'Sanitize storage'],
+    'intervention': 'Insecticide (Cypermethrin)',
+    'possibleCauses': ['Warm storage', 'Infested produce'],
+    'herbicidesPesticides': ['Fastac (Cypermethrin)', 'Decis (Deltamethrin)'],
+    'organicInterventions': [
+      'Apply neem oil to tomatoes before storage',
+      'Maintain cold storage at 50-55°F',
+      'Use pheromone traps in storage areas',
+      'Inspect and remove infested tomatoes',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Tomatoes_Storage_Fruit Borers': {
+    'imagePath': 'assets/pests/tomatoes_fruit_borers_storage.jpg',
+    'possibleStrategies': ['Use cold storage', 'Remove infested fruits', 'Sanitize storage'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested tomatoes'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply neem oil to tomatoes before storage',
+      'Maintain cold storage at 50-55°F',
+      'Inspect and remove infested tomatoes',
+      'Use diatomaceous earth in storage containers',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+  'Tomatoes_Storage_Rodents': {
+    'imagePath': 'assets/pests/tomatoes_rodents_storage.jpg',
+    'possibleStrategies': ['Use rodent-proof containers', 'Set traps', 'Clean storage'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Unprotected storage', 'Food availability'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Use rodent-proof metal containers',
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around storage areas',
+      'Encourage natural predators like barn owls',
+      'Regularly clean storage to remove food debris',
+    ],
+  },
+
+  // Onions - Germination/Seedling
+  'Onions_Germination/Seedling_Thrips': {
+    'imagePath': 'assets/pests/onions_thrips_germination.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Introduce natural predators', 'Maintain proper field hygiene'],
+    'intervention': 'Neem oil or spinosad sprays',
+    'possibleCauses': ['High humidity', 'Overcrowding', 'Late planting'],
+    'herbicidesPesticides': ['Neem-based sprays', 'Spinosad', 'Insecticidal soaps'],
+    'organicInterventions': [
+      'Apply neem oil sprays every 7 days',
+      'Use blue sticky traps to capture thrips',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+      'Plant resistant onion varieties',
+    ],
+  },
+  'Onions_Germination/Seedling_Aphids': {
+    'imagePath': 'assets/pests/onions_aphids_germination.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Encourage natural predators', 'Proper spacing'],
+    'intervention': 'Insecticidal soap or neem oil',
+    'possibleCauses': ['High nitrogen levels', 'Weak plants'],
+    'herbicidesPesticides': ['Insecticidal soaps', 'Neem oil', 'Pyrethroids'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Onions_Germination/Seedling_Onion Maggots': {
+    'imagePath': 'assets/pests/onions_maggots_germination.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor seedlings'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Infested soil'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use lightweight row covers during egg-laying',
+      'Apply neem oil to soil around seedlings',
+      'Plant trap crops like radishes',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Onions_Germination/Seedling_Cutworms': {
+    'imagePath': 'assets/pests/onions_cutworms_germination.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Onions_Germination/Seedling_Rodents': {
+    'imagePath': 'assets/pests/onions_rodents_germination.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+
+  // Onions - Vegetative Growth/Weeding
+  'Onions_Vegetative Growth/Weeding_Thrips': {
+    'imagePath': 'assets/pests/onions_thrips_vegetative_growth.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Introduce natural predators', 'Maintain proper field hygiene'],
+    'intervention': 'Neem oil or spinosad sprays',
+    'possibleCauses': ['High humidity', 'Overcrowding', 'Late planting'],
+    'herbicidesPesticides': ['Neem-based sprays', 'Spinosad', 'Insecticidal soaps'],
+    'organicInterventions': [
+      'Apply neem oil sprays every 7 days',
+      'Use blue sticky traps to capture thrips',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+      'Plant resistant onion varieties',
+    ],
+  },
+  'Onions_Vegetative Growth/Weeding_Aphids': {
+    'imagePath': 'assets/pests/onions_aphids_vegetative_growth.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Encourage natural predators', 'Proper spacing'],
+    'intervention': 'Insecticidal soap or neem oil',
+    'possibleCauses': ['High nitrogen levels', 'Weak plants'],
+    'herbicidesPesticides': ['Insecticidal soaps', 'Neem oil', 'Pyrethroids'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Onions_Vegetative Growth/Weeding_Onion Maggots': {
+    'imagePath': 'assets/pests/onions_maggots_vegetative_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use row covers', 'Monitor plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Growing onions'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use lightweight row covers during egg-laying',
+      'Apply neem oil to soil around plants',
+      'Plant trap crops like radishes',
+      'Use diatomaceous earth around plant base',
+    ],
+  },
+  'Onions_Vegetative Growth/Weeding_Leafminers': {
+    'imagePath': 'assets/pests/onions_leafminers_vegetative_growth.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Use yellow traps', 'Monitor plants'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Leafy growth'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Use spinosad sprays on affected plants',
+    ],
+  },
+  'Onions_Vegetative Growth/Weeding_Rodents': {
+    'imagePath': 'assets/pests/onions_rodents_vegetative_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Remove weeds', 'Secure field edges'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Dense vegetation', 'Food sources'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around fields',
+    ],
+  },
+
+  // Onions - Bulb Formation/Reproductive
+  'Onions_Bulb Formation/Reproductive_Onion Maggots': {
+    'imagePath': 'assets/pests/onions_maggots_bulb_formation.jpg',
+    'possibleStrategies': ['Crop rotation', 'Good field sanitation', 'Use of resistant varieties'],
+    'intervention': 'Dip bulbs in neem extract, apply insecticidal soil drenches',
+    'possibleCauses': ['Exposed bulbs', 'Planting in infested soils'],
+    'herbicidesPesticides': ['Phorate (Thimet)', 'Chlorpyrifos'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Dip bulbs in neem extract before planting',
+      'Use lightweight row covers during egg-laying',
+      'Plant trap crops like radishes',
+      'Apply diatomaceous earth around bulb base',
+    ],
+  },
+  'Onions_Bulb Formation/Reproductive_Bulb Fly': {
+    'imagePath': 'assets/pests/onions_bulbfly_bulb_formation.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use of sticky traps', 'Plant resistant varieties'],
+    'intervention': 'Apply soil drenches with insecticides like diazinon',
+    'possibleCauses': ['Infested soil', 'Overgrown young plants'],
+    'herbicidesPesticides': ['Diazinon', 'Chlorpyrifos'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil to soil around bulbs',
+      'Plant trap crops like radishes',
+      'Use lightweight row covers during egg-laying',
+    ],
+  },
+  'Onions_Bulb Formation/Reproductive_Thrips': {
+    'imagePath': 'assets/pests/onions_thrips_bulb_formation.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Introduce natural predators', 'Maintain proper field hygiene'],
+    'intervention': 'Neem oil or spinosad sprays',
+    'possibleCauses': ['High humidity', 'Overcrowding', 'Late planting'],
+    'herbicidesPesticides': ['Neem-based sprays', 'Spinosad', 'Insecticidal soaps'],
+    'organicInterventions': [
+      'Apply neem oil sprays every 7 days',
+      'Use blue sticky traps to capture thrips',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+      'Plant resistant onion varieties',
+    ],
+  },
+  'Onions_Bulb Formation/Reproductive_Aphids': {
+    'imagePath': 'assets/pests/onions_aphids_bulb_formation.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Encourage natural predators', 'Proper spacing'],
+    'intervention': 'Insecticidal soap or neem oil',
+    'possibleCauses': ['High nitrogen levels', 'Bulbing plants'],
+    'herbicidesPesticides': ['Insecticidal soaps', 'Neem oil', 'Pyrethroids'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+
+  // Onions - Bulbing/Maturation
+  'Onions_Bulbing/Maturation_Onion Maggots': {
+    'imagePath': 'assets/pests/onions_maggots_bulbing.jpg',
+    'possibleStrategies': ['Crop rotation', 'Good field sanitation', 'Use of resistant varieties'],
+    'intervention': 'Dip bulbs in neem extract, apply insecticidal soil drenches',
+    'possibleCauses': ['Exposed bulbs', 'Planting in infested soils'],
+    'herbicidesPesticides': ['Phorate (Thimet)', 'Chlorpyrifos'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Dip bulbs in neem extract before planting',
+      'Use lightweight row covers during egg-laying',
+      'Plant trap crops like radishes',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Onions_Bulbing/Maturation_Bulb Fly': {
+    'imagePath': 'assets/pests/onions_bulbfly_bulbing.jpg',
+    'possibleStrategies': ['Crop rotation', 'Use of sticky traps', 'Plant resistant varieties'],
+    'intervention': 'Apply soil drenches with insecticides like diazinon',
+    'possibleCauses': ['Infested soil', 'Overgrown young plants'],
+    'herbicidesPesticides': ['Diazinon', 'Chlorpyrifos'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil to soil around bulbs',
+      'Plant trap crops like radishes',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Onions_Bulbing/Maturation_Thrips': {
+    'imagePath': 'assets/pests/onions_thrips_bulbing.jpg',
+    'possibleStrategies': ['Use resistant varieties', 'Introduce natural predators', 'Maintain proper field hygiene'],
+    'intervention': 'Neem oil or spinosad sprays',
+    'possibleCauses': ['High humidity', 'Overcrowding', 'Late planting'],
+    'herbicidesPesticides': ['Neem-based sprays', 'Spinosad', 'Insecticidal soaps'],
+    'organicInterventions': [
+      'Apply neem oil sprays every 7 days',
+      'Use blue sticky traps to capture thrips',
+      'Introduce predatory mites or lacewings',
+      'Maintain irrigation to reduce plant stress',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Onions_Bulbing/Maturation_Aphids': {
+    'imagePath': 'assets/pests/onions_aphids_bulbing.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Encourage natural predators', 'Proper spacing'],
+    'intervention': 'Insecticidal soap or neem oil',
+    'possibleCauses': ['High nitrogen levels', 'Mature bulbs'],
+    'herbicidesPesticides': ['Insecticidal soaps', 'Neem oil', 'Pyrethroids'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Onions_Bulbing/Maturation_Leafminers': {
+    'imagePath': 'assets/pests/onions_leafminers_bulbing.jpg',
+    'possibleStrategies': ['Remove affected leaves', 'Use yellow traps', 'Monitor mature plants'],
+    'intervention': 'Insecticide (Abamectin)',
+    'possibleCauses': ['Warm weather', 'Mature leaves'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Remove and destroy affected leaves',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil sprays every 7 days',
+      'Introduce parasitic wasps like Diglyphus isaea',
+      'Use spinosad sprays on affected plants',
+    ],
+  },
+
+  // Onions - Harvesting/Storage
+  'Onions_Harvesting/Storage_Onion Maggots': {
+    'imagePath': 'assets/pests/onions_maggots_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use row covers', 'Monitor mature onions'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Cool, moist conditions', 'Mature onions'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil before harvest',
+      'Use lightweight row covers during egg-laying',
+      'Apply neem oil to soil around mature plants',
+      'Harvest onions promptly to reduce exposure',
+      'Inspect and remove infested onions',
+    ],
+  },
+  'Onions_Harvesting/Storage_Bulb Fly': {
+    'imagePath': 'assets/pests/onions_bulbfly_harvesting.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use row covers', 'Monitor mature onions'],
+    'intervention': 'Insecticide (Diazinon)',
+    'possibleCauses': ['Cool, moist conditions', 'Mature onions'],
+    'herbicidesPesticides': ['Diazinon', 'Chlorpyrifos'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil before harvest',
+      'Use yellow sticky traps to capture adults',
+      'Apply neem oil to soil around mature plants',
+      'Harvest onions promptly to reduce exposure',
+      'Inspect and remove infested onions',
+    ],
+  },
+  'Onions_Harvesting/Storage_Rodents': {
+    'imagePath': 'assets/pests/onions_rodents_harvesting.jpg',
+    'possibleStrategies': ['Use rodent-proof containers', 'Set traps', 'Clean storage'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Unprotected storage', 'Food availability'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Use rodent-proof metal containers',
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around storage areas',
+      'Encourage natural predators like barn owls',
+      'Regularly clean storage to remove food debris',
+    ],
+  },
+  'Onions_Harvesting/Storage_Thrips': {
+    'imagePath': 'assets/pests/onions_thrips_harvesting.jpg',
+    'possibleStrategies': ['Use cold storage', 'Inspect produce', 'Sanitize storage'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm storage', 'Infested onions'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Radiant (Spinosad)'],
+    'organicInterventions': [
+      'Apply neem oil to onions before storage',
+      'Maintain cold storage at 32-40°F',
+      'Use blue sticky traps in storage areas',
+      'Inspect and remove infested onions',
+      'Sanitize storage with organic disinfectants',
+    ],
+  },
+
+  // Irish Potatoes - Early Growth
+  'Irish Potatoes_Early Growth_Wireworms': {
+    'imagePath': 'assets/pests/irish_potatoes_wireworms_early_growth.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting',
+      'Plant resistant potato varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Irish Potatoes_Early Growth_Cutworms': {
+    'imagePath': 'assets/pests/irish_potatoes_cutworms_early_growth.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around seedling stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Use insecticidal soap sprays',
+    ],
+  },
+  'Irish Potatoes_Early Growth_Colorado Potato Beetle': {
+    'imagePath': 'assets/pests/irish_potatoes_colorado_potato_beetle_early_growth.jpg',
+    'possibleStrategies': ['Hand-picking', 'Crop rotation', 'Use resistant varieties'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Potato crops'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Hand-pick beetles and larvae early in the morning',
+      'Apply spinosad sprays to affected plants',
+      'Use lightweight row covers to protect plants',
+      'Introduce predatory bugs like ladybugs',
+      'Plant trap crops like eggplant',
+    ],
+  },
+  'Irish Potatoes_Early Growth_Aphids': {
+    'imagePath': 'assets/pests/irish_potatoes_aphids_early_growth.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Irish Potatoes_Early Growth_Rodents': {
+    'imagePath': 'assets/pests/irish_potatoes_rodents_early_growth.jpg',
+    'possibleStrategies': ['Use traps', 'Protect seedlings', 'Clear debris'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Seed availability', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Use peppermint oil as a repellent around fields',
+      'Install owl nesting boxes to encourage predation',
+      'Use metal mesh barriers around seedling beds',
+    ],
+  },
+
+  // Irish Potatoes - Tuber Initiation
+  'Irish Potatoes_Tuber Initiation_Colorado Potato Beetle': {
+    'imagePath': 'assets/pests/irish_potatoes_colorado_potato_beetle_tuber_initiation.jpg',
+    'possibleStrategies': ['Hand-picking', 'Use traps', 'Crop rotation'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Dense planting'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Hand-pick beetles and larvae early in the morning',
+      'Apply spinosad sprays to affected plants',
+      'Use lightweight row covers to protect plants',
+      'Introduce predatory bugs like ladybugs',
+      'Plant trap crops like eggplant',
+    ],
+  },
+  'Irish Potatoes_Tuber Initiation_Aphids': {
+    'imagePath': 'assets/pests/irish_potatoes_aphids_tuber_initiation.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Irish Potatoes_Tuber Initiation_Spider Mites': {
+    'imagePath': 'assets/pests/irish_potatoes_spider_mites_tuber_initiation.jpg',
+    'possibleStrategies': ['Increase humidity', 'Use predatory mites', 'Monitor leaves'],
+    'intervention': 'Miticide (Abamectin)',
+    'possibleCauses': ['Dry conditions', 'Dusty fields'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Release predatory mites like Phytoseiulus persimilis',
+      'Apply neem oil sprays every 7 days',
+      'Use insecticidal soap on affected leaves',
+      'Increase humidity around plants',
+      'Spray water to dislodge mites',
+    ],
+  },
+  'Irish Potatoes_Tuber Initiation_Wireworms': {
+    'imagePath': 'assets/pests/irish_potatoes_wireworms_tuber_initiation.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting',
+      'Plant resistant potato varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+  'Irish Potatoes_Tuber Initiation_Potato Tuber Moth': {
+    'imagePath': 'assets/pests/irish_potatoes_tuber_moth_tuber_initiation.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Remove crop debris', 'Monitor plants'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Tuber formation'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected plants',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested tubers',
+    ],
+  },
+
+  // Irish Potatoes - Tuber Bulking
+  'Irish Potatoes_Tuber Bulking_Flea Beetles': {
+    'imagePath': 'assets/pests/irish_potatoes_flea_beetles_tuber_bulking.jpg',
+    'possibleStrategies': ['Use row covers', 'Crop rotation', 'Monitor plants'],
+    'intervention': 'Insecticide (Pyrethroids)',
+    'possibleCauses': ['Warm weather', 'Young plants'],
+    'herbicidesPesticides': ['Sevin (Carbaryl)', 'Pounce (Permethrin)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use lightweight row covers to protect plants',
+      'Place yellow sticky traps around plants',
+      'Plant trap crops like mustard',
+      'Apply diatomaceous earth to foliage',
+    ],
+  },
+  'Irish Potatoes_Tuber Bulking_Leaf Hoppers': {
+    'imagePath': 'assets/pests/irish_potatoes_leafhoppers_tuber_bulking.jpg',
+    'possibleStrategies': ['Use reflective mulches', 'Monitor plants', 'Crop rotation'],
+    'intervention': 'Insecticide (Imidacloprid)',
+    'possibleCauses': ['Warm weather', 'Young plants'],
+    'herbicidesPesticides': ['Admire (Imidacloprid)', 'Assail (Acetamiprid)'],
+    'organicInterventions': [
+      'Apply neem oil sprays weekly',
+      'Use insecticidal soap on affected plants',
+      'Place yellow sticky traps around plants',
+      'Introduce predatory bugs like minute pirate bugs',
+      'Plant trap crops like alfalfa',
+    ],
+  },
+  'Irish Potatoes_Tuber Bulking_Aphids': {
+    'imagePath': 'assets/pests/irish_potatoes_aphids_tuber_bulking.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Spray water to dislodge aphids',
+    ],
+  },
+  'Irish Potatoes_Tuber Bulking_Spider Mites': {
+    'imagePath': 'assets/pests/irish_potatoes_spider_mites_tuber_bulking.jpg',
+    'possibleStrategies': ['Increase humidity', 'Use predatory mites', 'Monitor leaves'],
+    'intervention': 'Miticide (Abamectin)',
+    'possibleCauses': ['Dry conditions', 'Dusty fields'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Release predatory mites like Phytoseiulus persimilis',
+      'Apply neem oil sprays every 7 days',
+      'Use insecticidal soap on affected leaves',
+      'Increase humidity around plants',
+      'Spray water to dislodge mites',
+    ],
+  },
+  'Irish Potatoes_Tuber Bulking_Colorado Potato Beetle': {
+    'imagePath': 'assets/pests/irish_potatoes_colorado_potato_beetle_tuber_bulking.jpg',
+    'possibleStrategies': ['Hand-picking', 'Use traps', 'Crop rotation'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Dense planting'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Hand-pick beetles and larvae early in the morning',
+      'Apply spinosad sprays to affected plants',
+      'Use lightweight row covers to protect plants',
+      'Introduce predatory bugs like ladybugs',
+      'Plant trap crops like eggplant',
+    ],
+  },
+  'Irish Potatoes_Tuber Bulking_Potato Tuber Moth': {
+    'imagePath': 'assets/pests/irish_potatoes_tuber_moth_tuber_bulking.jpg',
+    'possibleStrategies': ['Use pheromone traps', 'Remove crop debris', 'Monitor tubers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Tuber development'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected plants',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Remove and destroy infested tubers',
+    ],
+  },
+  'Irish Potatoes_Tuber Bulking_Wireworms': {
+    'imagePath': 'assets/pests/irish_potatoes_wireworms_tuber_bulking.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting',
+      'Plant resistant potato varieties',
+      'Incorporate marigold cover crops',
+      'Apply composted manure to improve soil health',
+    ],
+  },
+
+  // Irish Potatoes - Maturation/Harvesting
+  'Irish Potatoes_Maturation/Harvesting_Wireworms': {
+    'imagePath': 'assets/pests/irish_potatoes_wireworms_maturation.jpg',
+    'possibleStrategies': ['Crop rotation', 'Soil solarization', 'Use resistant varieties'],
+    'intervention': 'Nematicide (Oxamyl)',
+    'possibleCauses': ['Infested soil', 'Continuous cropping'],
+    'herbicidesPesticides': ['Vydate (Oxamyl)', 'Nemacur (Fenamiphos)'],
+    'organicInterventions': [
+      'Apply beneficial nematodes to soil',
+      'Use soil solarization before planting next crop',
+      'Plant resistant potato varieties',
+      'Incorporate marigold cover crops',
+      'Harvest promptly to minimize damage',
+    ],
+  },
+  'Irish Potatoes_Maturation/Harvesting_Cutworms': {
+    'imagePath': 'assets/pests/irish_potatoes_cutworms_maturation.jpg',
+    'possibleStrategies': ['Plow fields', 'Use collars', 'Remove weeds'],
+    'intervention': 'Insecticide (Lambda-cyhalothrin)',
+    'possibleCauses': ['Moist soil', 'Weedy fields'],
+    'herbicidesPesticides': ['Karate (Lambda-cyhalothrin)', 'Sevin (Carbaryl)'],
+    'organicInterventions': [
+      'Place cardboard collars around plant stems',
+      'Apply diatomaceous earth around plant base',
+      'Introduce beneficial nematodes to soil',
+      'Spray Bacillus thuringiensis (Bt) on affected areas',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Irish Potatoes_Maturation/Harvesting_Colorado Potato Beetle': {
+    'imagePath': 'assets/pests/irish_potatoes_colorado_potato_beetle_maturation.jpg',
+    'possibleStrategies': ['Hand-picking', 'Use traps', 'Crop rotation'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Dense planting'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Hand-pick beetles and larvae early in the morning',
+      'Apply spinosad sprays to affected plants',
+      'Use lightweight row covers to protect plants',
+      'Introduce predatory bugs like ladybugs',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Irish Potatoes_Maturation/Harvesting_Aphids': {
+    'imagePath': 'assets/pests/irish_potatoes_aphids_maturation.jpg',
+    'possibleStrategies': ['Introduce ladybugs', 'Use reflective mulches', 'Monitor leaves'],
+    'intervention': 'Insecticide (Neem Oil)',
+    'possibleCauses': ['Warm weather', 'Over-fertilization'],
+    'herbicidesPesticides': ['Azadirachtin (Neem Oil)', 'Admire (Imidacloprid)'],
+    'organicInterventions': [
+      'Release ladybugs or lacewings as predators',
+      'Apply neem oil sprays every 5-7 days',
+      'Use insecticidal soap on affected leaves',
+      'Plant companion plants like garlic or chives',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Irish Potatoes_Maturation/Harvesting_Spider Mites': {
+    'imagePath': 'assets/pests/irish_potatoes_spider_mites_maturation.jpg',
+    'possibleStrategies': ['Increase humidity', 'Use predatory mites', 'Monitor leaves'],
+    'intervention': 'Miticide (Abamectin)',
+    'possibleCauses': ['Dry conditions', 'Dusty fields'],
+    'herbicidesPesticides': ['Agri-Mek (Abamectin)', 'Avid (Abamectin)'],
+    'organicInterventions': [
+      'Release predatory mites like Phytoseiulus persimilis',
+      'Apply neem oil sprays every 7 days',
+      'Use insecticidal soap on affected leaves',
+      'Increase humidity around plants',
+      'Harvest promptly to reduce exposure',
+    ],
+  },
+  'Irish Potatoes_Maturation/Harvesting_Potato Tuber Moth': {
+    'imagePath': 'assets/pests/irish_potatoes_tuber_moth_maturation.jpg',
+    'possibleStrategies': ['Harvest early', 'Remove crop debris', 'Monitor tubers'],
+    'intervention': 'Insecticide (Spinosad)',
+    'possibleCauses': ['Warm weather', 'Mature tubers'],
+    'herbicidesPesticides': ['Entrust (Spinosad)', 'Success (Spinosad)'],
+    'organicInterventions': [
+      'Apply spinosad to affected plants',
+      'Use pheromone traps to disrupt mating',
+      'Introduce Trichogramma wasps as predators',
+      'Apply neem oil sprays to deter larvae',
+      'Harvest tubers promptly to reduce exposure',
+    ],
+  },
+  'Irish Potatoes_Maturation/Harvesting_Rodents': {
+    'imagePath': 'assets/pests/irish_potatoes_rodents_maturation.jpg',
+    'possibleStrategies': ['Harvest promptly', 'Use traps', 'Secure fields'],
+    'intervention': 'Rodenticide (Bromadiolone)',
+    'possibleCauses': ['Mature tubers', 'Unprotected fields'],
+    'herbicidesPesticides': ['Ratoxin (Bromadiolone)', 'Tomcat (Bromadiolone)'],
+    'organicInterventions': [
+      'Set mechanical snap traps with organic bait',
+      'Apply peppermint oil around field edges',
+      'Encourage natural predators like owls',
+      'Use metal mesh barriers around harvested tubers',
+    ],
+  },
+ };
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeNotifications();
+  }
+
+  Future<void> _initializeNotifications() async {
+    const androidInitSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const initializationSettings = InitializationSettings(android: androidInitSettings);
+    await _notificationsPlugin.initialize(initializationSettings);
+  }
+
+  void _updatePestDetails() {
+    if (_selectedCrop != null && _selectedStage != null && _selectedPest != null) {
+      String pestKey = '${_selectedCrop}_${_selectedStage}_$_selectedPest';
+      if (_pestDetails.containsKey(pestKey)) {
+        setState(() {
+          _pestData = PestData(
+            name: _selectedPest!,
+            imagePath: _pestDetails[pestKey]!['imagePath'] as String,
+            preventionStrategies: List<String>.from(_pestDetails[pestKey]!['preventionStrategies'] ?? []),
+            activeAgent: _pestDetails[pestKey]!['activeAgent'] as String,
+            possibleCauses: List<String>.from(_pestDetails[pestKey]!['possibleCauses'] ?? []),
+            herbicides: List<String>.from(_pestDetails[pestKey]!['herbicides'] ?? []),
+          );
+          _showPestDetails = true;
+          _imageKey = UniqueKey();
+        });
+        Timer(const Duration(milliseconds: 100), () {
+          if (mounted && _hintsKey.currentContext != null) {
+            Scrollable.ensureVisible(
+              _hintsKey.currentContext!,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+      } else {
+        setState(() {
+          _showPestDetails = false;
+          _pestData = null;
+          _imageKey = UniqueKey();
+        });
+      }
+    } else {
+      setState(() {
+        _showPestDetails = false;
+        _pestData = null;
+        _imageKey = UniqueKey();
+      });
+    }
+  }
+
+  void _showOrganicPestGuide() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Organic Pest Management Guide'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Organic farmers can manage pests using biological methods. Here are some tips:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ..._organicPreventionStrategies.map((strategy) => Text('• $strategy')),
+              const Text('• Use organic pesticides like:'),
+              ..._organicPesticides.map((pesticide) => Text('• $pesticide')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+        title: const Text(
+          'Pest Management',
+          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        controller: _scrollController,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Selection section
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              color: Colors.grey[100],
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('Organic Farming'),
+                    subtitle: const Text('Enable to prioritize biological interventions'),
+                    value: _isOrganic,
+                    onChanged: (value) => setState(() => _isOrganic = value),
+                    activeColor: Colors.green[300],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDropdown('Select Crop', _crops, _selectedCrop, (value) {
+                    setState(() {
+                      _selectedCrop = value;
+                      _updatePestDetails();
+                    });
+                  }),
+                  const SizedBox(height: 16),
+                  _buildDropdown('Select Crop Stage', _cropStages[_selectedCrop] ?? [], _selectedStage, (value) {
+                    setState(() {
+                      _selectedStage = value;
+                      _updatePestDetails();
+                    });
+                  }),
+                  const SizedBox(height: 16),
+                  _buildDropdown('Select Pest', _cropStagePests[_selectedCrop]?[_selectedStage] ?? [], _selectedPest, (value) {
+                    setState(() {
+                      _selectedPest = value;
+                      _updatePestDetails();
+                    });
+                  }),
+                ],
+              ),
+            ),
+            // Details section
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_showPestDetails && _pestData != null) _buildImageCard(_pestData!.imagePath),
+                  if (_showPestDetails && _pestData != null) const SizedBox(height: 16),
+                  if (_showPestDetails && _pestData != null)
+                    _buildHintCard('Possible Causes', _pestData!.possibleCauses.join('\n')),
+                  if (_showPestDetails && _pestData != null) const SizedBox(height: 16),
+                  if (_showPestDetails && _pestData != null)
+                    _buildHintCard('Prevention Strategies', _pestData!.preventionStrategies.join('\n')),
+                  if (_showPestDetails && _pestData != null) const SizedBox(height: 16),
+                  if (_showPestDetails && _pestData != null)
+                    _buildHintCard('Active Agent', _pestData!.activeAgent),
+                  if (_showPestDetails && _pestData != null) const SizedBox(height: 16),
+                  if (_showPestDetails && _pestData != null)
+                    _buildHintCard(
+                      'Herbicides/Pesticides',
+                      _isOrganic
+                          ? _pestData!.herbicides
+                              .where((pesticide) => pesticide.contains('(organic)'))
+                              .join('\n')
+                              .isEmpty
+                              ? 'No organic pesticides available'
+                              : _pestData!.herbicides
+                                  .where((pesticide) => pesticide.contains('(organic)'))
+                                  .join('\n')
+                          : _pestData!.herbicides.join('\n'),
+                    ),
+                  if (_showPestDetails && _pestData != null) const SizedBox(height: 16),
+                  if (_showPestDetails && _pestData != null)
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => InterventionPage(
+                             
+                              cropType: _selectedCrop!,
+                              cropStage: _selectedStage!,
+                              pestData: _pestData!,
+                              notificationsPlugin: _notificationsPlugin,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('Add Intervention', style: TextStyle(fontSize: 16)),
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (_pestData != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ViewInterventionsPage(
+                              pestData: _pestData!,
+                              notificationsPlugin: _notificationsPlugin,
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select a pest to view interventions.')),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('View Interventions', style: TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserPestHistoryPage(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('View History', style: TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Organic Pest Guide',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.blue),
+                        onPressed: _showOrganicPestGuide,
+                        tooltip: 'Organic Pest Management Tips',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown(String label, List<String> items, String? value, ValueChanged<String?> onChanged) {
+    final uniqueItems = items.toSet().toList();
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: DropdownButtonFormField<String>(
+          value: uniqueItems.contains(value) ? value : null,
+          items: uniqueItems.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageCard(String imagePath) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width - 56,
+            maxHeight: MediaQuery.of(context).size.height * 0.4,
+          ),
+          child: FutureBuilder<Size>(
+            future: _getImageSize(imagePath),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                return const SizedBox(height: 150, child: Center(child: CircularProgressIndicator()));
+              }
+              final imageSize = snapshot.data!;
+              return AspectRatio(
+                aspectRatio: imageSize.width / imageSize.height,
+                child: Image.asset(
+                  imagePath,
+                  key: _imageKey,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    String pestKey = '${_selectedCrop}_${_selectedStage}_$_selectedPest';
+                    if (_pestDetails.containsKey(pestKey) &&
+                        _pestDetails[pestKey]!.containsKey('fallbackImagePath')) {
+                      return Image.asset(
+                        _pestDetails[pestKey]!['fallbackImagePath'],
+                        key: UniqueKey(),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.image_not_supported, size: 150),
+                      );
+                    }
+                    return const Icon(Icons.image_not_supported, size: 150);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<Size> _getImageSize(String imagePath) async {
+    final Completer<Size> completer = Completer();
+    final Image image = Image.asset(imagePath);
+    image.image.resolve(const ImageConfiguration()).addListener(
+      ImageStreamListener(
+        (ImageInfo info, bool synchronousCall) {
+          completer.complete(Size(info.image.width.toDouble(), info.image.height.toDouble()));
+        },
+        onError: (exception, stackTrace) {
+          completer.complete(const Size(150, 150));
+        },
+      ),
+    );
+    return completer.future;
+  }
+
+  Widget _buildHintCard(String title, String content) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12.0),
+      child: Card(
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color.fromARGB(255, 3, 39, 4),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                content,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.left,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

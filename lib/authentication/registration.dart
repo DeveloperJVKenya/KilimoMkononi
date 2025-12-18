@@ -1,10 +1,12 @@
-
+// lib/screens/registration.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:logger/logger.dart';
+import 'package:provider/provider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
-import 'package:kilimomkononi/data/kenya_locations.dart'; 
+import 'package:kilimomkononi/data/kenya_locations.dart';
+import 'package:kilimomkononi/services/auth_state_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -49,8 +51,8 @@ class RegistrationScreenState extends State<RegistrationScreen> {
     setState(() {
       _county = county;
       _currentConstituencies = county != null ? kenyaLocations[county] ?? [] : [];
-      _constituency = null; // Reset constituency when county changes
-      _currentWards = []; // Reset wards when county changes
+      _constituency = null;
+      _currentWards = [];
       _ward = null;
     });
   }
@@ -59,7 +61,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
     setState(() {
       _constituency = constituency;
       _currentWards = constituency != null ? constituencyWards[constituency] ?? [] : [];
-      _ward = null; // Reset ward when constituency changes
+      _ward = null;
     });
   }
 
@@ -85,7 +87,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const SizedBox(height: 20.0),
-                  Text(
+                  const Text(
                     'Welcome!',
                     style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.teal),
                   ),
@@ -95,7 +97,8 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                     style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 30.0),
-                  // Full Name Field
+
+                  // Full Name
                   TextFormField(
                     controller: _fullNameController,
                     decoration: InputDecoration(
@@ -105,18 +108,12 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your full name';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) {
-                      _fullName = value;
-                    },
+                    validator: (v) => v == null || v.isEmpty ? 'Please enter your full name' : null,
+                    onSaved: (v) => _fullName = v,
                   ),
                   const SizedBox(height: 15.0),
-                  // Email Field
+
+                  // Email
                   TextFormField(
                     controller: _emailController,
                     decoration: InputDecoration(
@@ -126,18 +123,17 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                    validator: (v) {
+                      if (v == null || v.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                         return 'Please enter a valid email address';
                       }
                       return null;
                     },
-                    onSaved: (value) {
-                      _email = value;
-                    },
+                    onSaved: (v) => _email = v,
                   ),
                   const SizedBox(height: 15.0),
-                  // County Dropdown
+
+                  // County
                   DropdownButtonFormField<String>(
                     decoration: InputDecoration(
                       labelText: 'County',
@@ -146,17 +142,17 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                     ),
-                    value: _county,
-                    items: kenyaLocations.keys.map((county) => DropdownMenuItem(
-                      value: county,
-                      child: Text(county),
-                    )).toList(),
+                    initialValue: _county,
+                    items: kenyaLocations.keys
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
                     onChanged: _updateConstituencies,
-                    validator: (value) => value == null ? 'Please select a county' : null,
-                    onSaved: (value) => _county = value,
+                    validator: (v) => v == null ? 'Please select a county' : null,
+                    onSaved: (v) => _county = v,
                   ),
                   const SizedBox(height: 15.0),
-                  // Constituency Dropdown
+
+                  // Constituency
                   DropdownButtonFormField<String>(
                     decoration: InputDecoration(
                       labelText: 'Constituency',
@@ -165,17 +161,17 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                     ),
-                    value: _constituency,
-                    items: _currentConstituencies.map((constituency) => DropdownMenuItem(
-                      value: constituency,
-                      child: Text(constituency),
-                    )).toList(),
+                    initialValue: _constituency,
+                    items: _currentConstituencies
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
                     onChanged: _updateWards,
-                    validator: (value) => value == null ? 'Please select a constituency' : null,
-                    onSaved: (value) => _constituency = value,
+                    validator: (v) => v == null ? 'Please select a constituency' : null,
+                    onSaved: (v) => _constituency = v,
                   ),
                   const SizedBox(height: 15.0),
-                  // Ward Dropdown
+
+                  // Ward
                   DropdownButtonFormField<String>(
                     decoration: InputDecoration(
                       labelText: 'Ward',
@@ -184,17 +180,17 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                     ),
-                    value: _ward,
-                    items: _currentWards.map((ward) => DropdownMenuItem(
-                      value: ward,
-                      child: Text(ward),
-                    )).toList(),
-                    onChanged: (value) => setState(() => _ward = value),
-                    validator: (value) => value == null ? 'Please select a ward' : null,
-                    onSaved: (value) => _ward = value,
+                    initialValue: _ward,
+                    items: _currentWards
+                        .map((w) => DropdownMenuItem(value: w, child: Text(w)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _ward = v),
+                    validator: (v) => v == null ? 'Please select a ward' : null,
+                    onSaved: (v) => _ward = v,
                   ),
                   const SizedBox(height: 15.0),
-                  // Phone Number Field
+
+                  // Phone
                   TextFormField(
                     controller: _phoneNumberController,
                     decoration: InputDecoration(
@@ -204,18 +200,12 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your phone number';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) {
-                      _phoneNumber = value;
-                    },
+                    validator: (v) => v == null || v.isEmpty ? 'Please enter your phone number' : null,
+                    onSaved: (v) => _phoneNumber = v,
                   ),
                   const SizedBox(height: 15.0),
-                  // Password Field
+
+                  // Password
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
@@ -226,24 +216,15 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       filled: true,
                       fillColor: Colors.grey[200],
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey[600],
-                        ),
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
                         onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a password';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) {
-                      _password = value;
-                    },
+                    validator: (v) => v == null || v.isEmpty ? 'Please enter a password' : null,
+                    onSaved: (v) => _password = v,
                   ),
                   const SizedBox(height: 20.0),
+
                   // Sign Up Button
                   SizedBox(
                     width: double.infinity,
@@ -263,21 +244,16 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       ),
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Sign Up',
-                              style: TextStyle(fontSize: 20.0, color: Colors.white),
-                            ),
+                          : const Text('Sign Up', style: TextStyle(fontSize: 20.0, color: Colors.white)),
                     ),
                   ),
                   const SizedBox(height: 10.0),
+
                   // Login Link
                   Center(
                     child: TextButton(
                       onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                      child: const Text(
-                        'Already have an account? Log In',
-                        style: TextStyle(color: Colors.teal),
-                      ),
+                      child: const Text('Already have an account? Log In', style: TextStyle(color: Colors.teal)),
                     ),
                   ),
                 ],
@@ -293,13 +269,11 @@ class RegistrationScreenState extends State<RegistrationScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Create user with email and password
-      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      final userCredential = await _auth.createUserWithEmailAndPassword(
         email: _email!,
         password: _password!,
       );
 
-      // Create AppUser instance
       final appUser = AppUser(
         id: userCredential.user!.uid,
         fullName: _fullName!,
@@ -310,23 +284,25 @@ class RegistrationScreenState extends State<RegistrationScreen> {
         phoneNumber: _phoneNumber!,
       );
 
-      // Save to Firestore
       await _firestore.collection('Users').doc(appUser.id).set(appUser.toMap());
 
       if (!mounted) return;
 
-      // Success message
+      // SKIP SPLASHSCREEN NAVIGATION
+      final authService = Provider.of<AuthStateService>(context, listen: false);
+      authService.setSkipNext();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Sign up successful. Welcome, $_fullName!')),
       );
 
-      // Navigate to home
+      // GO TO HOME – NEW USER UX
       Navigator.of(context).pushReplacementNamed('/home');
     } catch (e) {
       if (!mounted) return;
 
       logger.e('Error during sign up: $e');
-      String errorMessage;
+      String errorMessage = 'Failed to sign up. Please try again.';
       if (e is FirebaseAuthException) {
         switch (e.code) {
           case 'email-already-in-use':
@@ -338,18 +314,11 @@ class RegistrationScreenState extends State<RegistrationScreen> {
           case 'weak-password':
             errorMessage = 'The password is too weak.';
             break;
-          default:
-            errorMessage = 'Failed to sign up. Please try again.';
         }
-      } else {
-        errorMessage = 'An unknown error occurred. Please try again.';
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 }

@@ -1,303 +1,270 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:kilimomkononi/screens/pest%20management/pest_management.dart';
-import 'package:kilimomkononi/screens/disease_management_page.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import '../models/symptom_model.dart';
+import 'symptom_result_page.dart';
 
 class SymptomCheckerPage extends StatefulWidget {
   const SymptomCheckerPage({super.key});
 
   @override
-  State<SymptomCheckerPage> createState() => _SymptomCheckerPageState();
+  _SymptomCheckerPageState createState() => _SymptomCheckerPageState();
 }
 
 class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
-  // Symptom data organized by plant section and pest/disease
-  final Map<String, Map<String, List<String>>> symptoms = {
-    'Roots': {
-      'Pests': [
-        'Holes or tunnels in roots',
-        'Swollen or knotted roots',
-        'Wilting despite adequate watering',
-        'Roots eaten or missing',
-        'Presence of larvae or grubs in the soil',
-        'Root surfaces scraped or damaged',
-      ],
-      'Diseases': [
-        'Blackened or rotten roots',
-        'Soft, mushy, or decaying roots',
-        'White, fuzzy fungal growth on roots',
-        'Yellowing and stunted plant growth',
-        'Roots with sunken, dark lesions',
-        'Bad odor from decaying roots',
-      ],
-    },
-    'Stems': {
-      'Pests': [
-        'Holes bored into stems',
-        'Girdling or ring-like damage around stems',
-        'Sawdust-like material around stem base',
-        'Visible caterpillars or borers inside stems',
-        'Stems chewed or snapped',
-        'Galls or unusual swellings on stems',
-      ],
-      'Diseases': [
-        'Dark, sunken lesions or cankers on stems',
-        'White or gray mold on stems',
-        'Stems cracking or splitting abnormally',
-        'Oozing or gummy sap from the stem',
-        'Black streaks or rotting at the base of stems',
-        'Stems drying and becoming brittle',
-      ],
-    },
-    'Leaves': {
-      'Pests': [
-        'Holes or irregular chewing marks',
-        'Skeletonized leaves (only veins left)',
-        'Webbing or silky threads on leaves',
-        'Sticky, shiny substance (honeydew) on leaves',
-        'Small insects seen crawling on or under leaves',
-        'Leaves curling, crinkling, or rolling up',
-      ],
-      'Diseases': [
-        'Yellowing or browning of leaves (not from aging)',
-        'Powdery white or gray coating on leaves',
-        'Black, brown, or yellow spots with halos',
-        'Water-soaked lesions on leaves',
-        'Leaves wilting and falling prematurely',
-        'Sooty black coating on leaf surfaces',
-      ],
-    },
-    'Fruits/Grains': {
-      'Pests': [
-        'Small holes or tunnels in fruits or grains',
-        'Worms or larvae inside the fruit/grain',
-        'Fruits with chewed or missing parts',
-        'Discoloration or deformities on grains',
-        'Silky webbing on stored grains',
-        'Fruits dropping before ripening',
-      ],
-      'Diseases': [
-        'Sunken, black, or brown spots on fruits',
-        'Soft, mushy, or rotting fruits',
-        'Fungal growth (white, gray, or black mold) on fruit surfaces',
-        'Grains appearing shriveled or discolored',
-        'Fruits cracking or developing lesions',
-        'Bad odor or fermentation from rotting produce',
-      ],
-    },
-  };
+  List<Symptom> symptoms = [];
 
-  // Store selected symptoms
-  Map<String, List<bool>> selectedSymptoms = {
-    'Roots': [],
-    'Stems': [],
-    'Leaves': [],
-    'Fruits/Grains': [],
-  };
+  String? selectedCrop;
+  String? selectedStage;
+  String? selectedType;
+  Set<Symptom> selectedSymptoms = {};
 
-  bool _isLoading = false;
+  // Custom stage order for logical sorting
+  final Map<String, int> stageOrder = {
+    "Germination/Seedling": 0,
+    "Vegetative Growth/Weeding": 1,
+    "Flowering/Reproductive": 2,
+    "Podding": 3,
+    "Fruiting": 3,
+    "Tuber Formation": 3,
+    "Maturation/Harvesting": 4,
+    "Bulb Formation/Reproductive": 4,
+    "Bulbing/Maturation": 5,
+    "Maturation": 5,
+    "Harvesting/Storage": 6,
+    "Storage": 7,
+  };
 
   @override
   void initState() {
     super.initState();
-    // Initialize selectedSymptoms with false for each symptom
-    symptoms.forEach((section, categories) {
-      int totalSymptoms = categories['Pests']!.length + categories['Diseases']!.length;
-      selectedSymptoms[section] = List.filled(totalSymptoms, false);
-    });
+    _loadSymptoms();
   }
 
-  void _analyzeSymptoms() async {
-    setState(() => _isLoading = true);
-
-    // Simulate analysis delay
-    await Future.delayed(const Duration(seconds: 2));
-
-    int pestCount = 0;
-    int diseaseCount = 0;
-    int totalSelected = 0;
-
-    symptoms.forEach((section, categories) {
-      List<String> allSymptoms = [...categories['Pests']!, ...categories['Diseases']!];
-      for (int i = 0; i < allSymptoms.length; i++) {
-        if (selectedSymptoms[section]![i]) {
-          totalSelected++;
-          if (i < categories['Pests']!.length) {
-            pestCount++;
-          } else {
-            diseaseCount++;
-          }
-        }
-      }
+  Future<void> _loadSymptoms() async {
+    final String response =
+        await rootBundle.loadString('assets/data/master.json');
+    final List<dynamic> data = jsonDecode(response);
+    setState(() {
+      symptoms = data.map((e) => Symptom.fromJson(e)).toList();
     });
-
-    String resultMessage;
-    Widget navigationButton;
-
-    if (totalSelected == 0) {
-      resultMessage = 'Please select at least one symptom to analyze.';
-      navigationButton = const SizedBox.shrink(); // No button
-    } else {
-      double pestPercentage = (pestCount / totalSelected) * 100;
-      double diseasePercentage = (diseaseCount / totalSelected) * 100;
-
-      if (pestPercentage >= 60) {
-        resultMessage = 'After analysis of your selected symptoms, the chances are that your crop is Pest affected.';
-        navigationButton = ElevatedButton(
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PestManagementPage())),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Go Ahead to Manage Pest'),
-        );
-      } else if (diseasePercentage >= 60) {
-        resultMessage = 'After analysis of your selected symptoms, the chances are that your crop is Disease affected.';
-        navigationButton = ElevatedButton(
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DiseaseManagementPage())),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Go Ahead to Manage Disease'),
-        );
-      } else {
-        resultMessage = 'The symptoms suggest it could be either a pest or disease. Please explore both options.';
-        navigationButton = Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PestManagementPage())),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Manage Pest'),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DiseaseManagementPage())),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Manage Disease'),
-            ),
-          ],
-        );
-      }
-    }
-
-    setState(() => _isLoading = false);
-
-    // Check if the widget is still mounted before using context
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Analysis Result'),
-          content: Text(resultMessage),
-          actions: [
-            navigationButton,
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (symptoms.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text("Symptom Checker",
+              style: TextStyle(color: Colors.white)),
+          backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final crops = symptoms.map((s) => s.crop).toSet().toList();
+    crops.sort();
+
+    // For stages
+    List<String> stages;
+    if (selectedCrop == null) {
+      stages = <String>[];
+    } else {
+      stages = symptoms
+          .where((s) => s.crop == selectedCrop)
+          .map((s) => s.stage)
+          .toSet()
+          .toList();
+      stages.sort((a, b) {
+        final orderA = stageOrder[a] ?? 999;
+        final orderB = stageOrder[b] ?? 999;
+        return orderA.compareTo(orderB);
+      });
+    }
+
+    // For types
+    List<String> types;
+    if (selectedCrop != null && selectedStage != null) {
+      types = symptoms
+          .where((s) => s.crop == selectedCrop && s.stage == selectedStage)
+          .map((s) => s.likelyType)
+          .toSet()
+          .toList();
+      types.sort();
+    } else {
+      types = <String>[];
+    }
+
+    // Filtered symptoms
+    final filteredSymptoms = (selectedCrop != null && selectedStage != null)
+        ? symptoms.where((s) {
+            final matchesCrop = s.crop == selectedCrop;
+            final matchesStage = s.stage == selectedStage;
+            final matchesType =
+                selectedType == null || s.likelyType == selectedType;
+            return matchesCrop && matchesStage && matchesType;
+          }).toList()
+        : [];
+
+    // Group symptoms by plant part
+    final grouped = <String, List<Symptom>>{};
+    for (var s in filteredSymptoms) {
+      grouped.putIfAbsent(s.plantPart, () => []).add(s);
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Symptom Checker', style: TextStyle(color: Colors.white)),
+        title: const Text("Symptom Checker",
+            style: TextStyle(color: Colors.white)),
         backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Stack(
-        children: [
-          Container(
-            color: Colors.grey[200],
-            padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSection('Roots'),
-                  const SizedBox(height: 16),
-                  _buildSection('Stems'),
-                  const SizedBox(height: 16),
-                  _buildSection('Leaves'),
-                  const SizedBox(height: 16),
-                  _buildSection('Fruits/Grains'),
-                  const SizedBox(height: 24),
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _analyzeSymptoms,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Crop dropdown
+              _buildDropdown('Select Crop', crops, selectedCrop, (val) {
+                setState(() {
+                  selectedCrop = val;
+                  selectedStage = null;
+                  selectedType = null;
+                  selectedSymptoms.clear();
+                });
+              }),
+              const SizedBox(height: 16),
+
+              // Stage dropdown
+              if (selectedCrop != null) ...[
+                _buildDropdown('Select Growth Stage', stages, selectedStage, (val) {
+                  setState(() {
+                    selectedStage = val;
+                    selectedType = null;
+                    selectedSymptoms.clear();
+                  });
+                }),
+                const SizedBox(height: 16),
+              ],
+
+              // Type dropdown
+              if (selectedStage != null) ...[
+                _buildDropdown('Filter by Symptom Type (optional)', types, selectedType, (val) {
+                  setState(() {
+                    selectedType = val;
+                    selectedSymptoms.clear();
+                  });
+                }),
+                const SizedBox(height: 16),
+              ],
+
+              // Plant parts with underlined title in ExpansionTile
+              if (grouped.isNotEmpty)
+                ...grouped.entries.map((entry) {
+                  final part = entry.key;
+                  final partSymptoms = entry.value;
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: ExpansionTile(
+                        title: Text(
+                          part,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                        initiallyExpanded: true,
+                        children: partSymptoms.map((s) {
+                          final isSelected = selectedSymptoms.contains(s);
+                          return CheckboxListTile(
+                            title: Text(s.label),
+                            subtitle: Text("Type: ${s.likelyType}"),
+                            value: isSelected,
+                            onChanged: (bool? checked) {
+                              setState(() {
+                                if (checked == true) {
+                                  selectedSymptoms.add(s);
+                                } else {
+                                  selectedSymptoms.remove(s);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
                       ),
-                      child: const Text('Analyze Symptoms', style: TextStyle(fontSize: 16)),
                     ),
+                  );
+                }),
+
+              const SizedBox(height: 20),
+
+              // Identify button
+              if (selectedSymptoms.isNotEmpty)
+                Center(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.search),
+                    label: const Text("Identify"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SymptomResultPage(
+                              symptoms: selectedSymptoms.toList()),
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
-            ),
-          ),
-          if (_isLoading)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color.fromARGB(255, 3, 39, 4)),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSection(String section) {
-    final pestSymptoms = symptoms[section]!['Pests']!;
-    final diseaseSymptoms = symptoms[section]!['Diseases']!;
-    final allSymptoms = [...pestSymptoms, ...diseaseSymptoms];
-
+  // Reusable dropdown widget
+  Widget _buildDropdown(String label, List<String> items, String? value,
+      ValueChanged<String?> onChanged) {
+    final uniqueItems = items.toSet().toList();
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              section,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color.fromARGB(255, 3, 39, 4)),
-            ),
-            const SizedBox(height: 8),
-            ...List.generate(allSymptoms.length, (index) {
-              return CheckboxListTile(
-                title: Text(
-                  allSymptoms[index],
-                  style: const TextStyle(fontSize: 14),
+            DropdownButtonFormField<String>(
+              initialValue: uniqueItems.contains(value) ? value : null,
+              items: uniqueItems
+                  .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                  .toList(),
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
-                value: selectedSymptoms[section]![index],
-                onChanged: (bool? value) {
-                  setState(() {
-                    selectedSymptoms[section]![index] = value!;
-                  });
-                },
-                activeColor: const Color.fromARGB(255, 3, 39, 4),
-                controlAffinity: ListTileControlAffinity.leading,
-                dense: true,
-              );
-            }),
+                border: InputBorder.none,
+              ),
+            ),
+            if (value != null) ...[
+              const SizedBox(height: 4),
+              Container(
+                height: 1,
+                color: Colors.black,
+              ),
+            ],
           ],
         ),
       ),

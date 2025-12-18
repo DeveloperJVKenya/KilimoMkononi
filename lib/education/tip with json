@@ -1,0 +1,725 @@
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:confetti/confetti.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter/services.dart';
+import '../utils/class_id_notifier.dart';
+import '../models/education_user.dart';
+
+const Color primaryGreen = Color(0xFF032704);
+
+extension StringExt on String {
+  String capitalize() => isNotEmpty ? '${this[0].toUpperCase()}${substring(1)}' : this;
+}
+
+extension TextEditingControllerExt on TextEditingController {
+  String get safeText => text.trim();
+}
+
+class EducationFarmingTips extends StatefulWidget {
+  final EduRole role;
+  final String schoolName;
+  final String classId;
+
+  const EducationFarmingTips({
+    super.key,
+    required this.role,
+    required this.schoolName,
+    required this.classId,
+  });
+
+  @override
+  State<EducationFarmingTips> createState() => _EducationFarmingTipsState();
+}
+
+class _EducationFarmingTipsState extends State<EducationFarmingTips> {
+  String? _selectedCrop;
+  String _cropTip = '';
+  late String _schoolId;
+  late String _gradeId;
+  final String _contentType = 'farming_content';
+
+  /// NEW: Holds all JSON farming tips
+  Map<String, dynamic> _jsonTips = {};
+
+  @override
+  void initState() {
+    super.initState();
+
+    // existing code untouched
+    final match = RegExp(r'^(.*)_(\d+)$').firstMatch(widget.classId);
+    if (match == null) return;
+    _schoolId = match.group(1)!;
+    _gradeId = match.group(2)!;
+    classIdNotifier.value = widget.classId;
+
+    // NEW: Load the farming tips JSON
+    _loadFarmingTips();
+  }
+
+  /// NEW: load the JSON file from assets
+  Future<void> _loadFarmingTips() async {
+    final jsonString = await rootBundle.loadString('assets/farming_tips/farming_tips.json');
+    final data = jsonDecode(jsonString);
+
+    setState(() {
+      _jsonTips = data["farming_tips"] ?? {};
+    });
+  }
+
+  // ===========================================================
+  // ============= QUIZ & SIMULATION CODE (UNCHANGED) ==========
+  // ===========================================================
+
+  void _showQuizBuilder() => showDialog(
+        context: context,
+        builder: (_) => FarmingQuizBuilder(onSave: (d) => _save('quiz', d)),
+      );
+
+  void _showSimBuilder() => showDialog(
+        context: context,
+        builder: (_) => FarmingSimulationBuilder(onSave: (d) => _save('simulation', d)),
+      );
+
+  Future<void> _save(String type, Map<String, dynamic> data) async {
+    final String title = data['title'] as String? ?? '${type.capitalize()} Content';
+    final dynamic content = type == 'quiz' ? data['questions'] : data['steps'];
+
+    await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolId)
+        .collection('grades')
+        .doc(_gradeId)
+        .collection(_contentType)
+        .add({
+      'type': type,
+      'title': title,
+      'data': jsonEncode(content),
+      'createdAt': FieldValue.serverTimestamp(),
+      'userId': FirebaseAuth.instance.currentUser!.uid,
+      'schoolId': _schoolId,
+      'gradeId': _gradeId,
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$title saved!'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  Future<void> _launch(
+      String type, Widget Function(Map<String, dynamic>) builder) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(_schoolId)
+          .collection('grades')
+          .doc(_gradeId)
+          .collection(_contentType)
+          .where('type', isEqualTo: type)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty || !mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('No content yet! Ask your teacher to create one.')),
+        );
+        return;
+      }
+
+      final doc = snap.docs.first;
+      final data = doc.data();
+      final title = (data['title'] as String?)?.trim().isNotEmpty == true
+          ? data['title']
+          : '${type.capitalize()} Content';
+      final payload =
+          data['data'] is String ? jsonDecode(data['data']) : data['data'];
+
+      final Map<String, dynamic> fullPayload = {
+        'id': doc.id,
+        'title': title,
+        if (type == 'quiz') 'questions': payload else 'steps': payload,
+      };
+
+      if (mounted) {
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => builder(fullPayload)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _takeQuiz() =>
+      _launch('quiz', (p) => FarmingQuizScreen(payload: p));
+  Future<void> _takeSim() =>
+      _launch('simulation', (p) => FarmingSimulationScreen(payload: p));
+
+  // ===========================================================
+  // ==================== UI SECTION ===========================
+  // ===========================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final crops = _jsonTips.keys.toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Farming Tips'),
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<String>(
+              value: _selectedCrop,
+              hint: const Text('Select Crop'),
+              decoration: const InputDecoration(
+                labelText: 'Crop',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.agriculture),
+              ),
+              items: crops
+                  .map((crop) => DropdownMenuItem(
+                        value: crop,
+                        child: Text(crop),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                setState(() {
+                  _selectedCrop = v;
+                  _cropTip = v != null ? _jsonTips[v] : '';
+                });
+              },
+            ),
+            const SizedBox(height: 24),
+
+            if (_cropTip.isNotEmpty)
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: MarkdownBody(data: _cropTip),
+                ),
+              ),
+
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: widget.role == EduRole.teacher
+              ? [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _showQuizBuilder,
+                      icon: const Icon(Icons.quiz),
+                      label: const Text('Create Quiz'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _showSimBuilder,
+                      icon: const Icon(Icons.play_circle),
+                      label: const Text('Create Simulation'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen),
+                    ),
+                  ),
+                ]
+              : [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _takeQuiz,
+                      icon: const Icon(Icons.quiz),
+                      label: const Text('Take Quiz'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _takeSim,
+                      icon: const Icon(Icons.play_circle),
+                      label: const Text('Run Simulation'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen),
+                    ),
+                  ),
+                ],
+        ),
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// =============== QUIZ + SIMULATION CODE (UNCHANGED) ================
+// ===================================================================
+
+class FarmingQuizBuilder extends StatefulWidget {
+  final Function(Map<String, dynamic>) onSave;
+  const FarmingQuizBuilder({super.key, required this.onSave});
+
+  @override
+  State<FarmingQuizBuilder> createState() => _FarmingQuizBuilderState();
+}
+
+class _FarmingQuizBuilderState extends State<FarmingQuizBuilder> {
+  final _titleCtrl = TextEditingController();
+  final List<Map<String, dynamic>> _questions = [];
+
+  void _addQuestion() {
+    final questionCtrl = TextEditingController();
+    final optionCtrls = List.generate(4, (_) => TextEditingController());
+    int correctIndex = 0;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Question'),
+        content: StatefulBuilder(
+          builder: (context, setStateInner) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: questionCtrl, decoration: const InputDecoration(labelText: 'Question')),
+                const SizedBox(height: 12),
+                ...optionCtrls.asMap().entries.map((e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Radio<int>(
+                        value: e.key,
+                        groupValue: correctIndex,
+                        onChanged: (v) => setStateInner(() => correctIndex = v ?? 0),
+                      ),
+                      Expanded(child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Option ${e.key + 1}'))),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: () {
+              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
+              if (questionCtrl.safeText.isEmpty || filled.isEmpty) return;
+              setState(() {
+                _questions.add({
+                  'question': questionCtrl.safeText,
+                  'options': filled.map((c) => c.safeText).toList(),
+                  'correct': correctIndex,
+                });
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Add', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Create Farming Quiz'),
+    content: SizedBox(
+      width: double.maxFinite,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Quiz Title')),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(onPressed: _addQuestion, icon: const Icon(Icons.add), label: const Text('Add Question')),
+          const SizedBox(height: 16),
+          ..._questions.asMap().entries.map((e) {
+            final q = e.value;
+            final correctLetter = String.fromCharCode(65 + (q['correct'] as int));
+            return Card(
+              child: ListTile(
+                title: Text(q['question']),
+                subtitle: Text('Correct: $correctLetter. ${(q['options'] as List)[q['correct']]}',
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () => setState(() => _questions.removeAt(e.key)),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+        onPressed: _questions.isEmpty
+            ? null
+            : () {
+          widget.onSave({
+            'title': _titleCtrl.safeText.isEmpty ? 'Farming Quiz' : _titleCtrl.safeText,
+            'questions': _questions,
+          });
+          Navigator.pop(context);
+        },
+        child: const Text('Save Quiz', style: TextStyle(color: Colors.white)),
+      ),
+    ],
+  );
+}
+
+class FarmingSimulationBuilder extends StatefulWidget {
+  final Function(Map<String, dynamic>) onSave;
+  const FarmingSimulationBuilder({super.key, required this.onSave});
+
+  @override
+  State<FarmingSimulationBuilder> createState() => _FarmingSimulationBuilderState();
+}
+
+class _FarmingSimulationBuilderState extends State<FarmingSimulationBuilder> {
+  final _titleCtrl = TextEditingController();
+  final List<Map<String, dynamic>> _steps = [];
+
+  void _addStep() {
+    final promptCtrl = TextEditingController();
+    final optionCtrls = List.generate(4, (_) => TextEditingController());
+    int correctIndex = 0;
+    final explanationCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Simulation Step'),
+        content: StatefulBuilder(
+          builder: (context, setStateInner) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: promptCtrl, decoration: const InputDecoration(labelText: 'Situation / Prompt')),
+                const SizedBox(height: 12),
+                ...optionCtrls.asMap().entries.map((e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: correctIndex == e.key,
+                        onChanged: (v) => setStateInner(() => correctIndex = v == true ? e.key : correctIndex),
+                      ),
+                      Expanded(child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Option ${e.key + 1}'))),
+                    ],
+                  ),
+                )),
+                const SizedBox(height: 12),
+                TextField(controller: explanationCtrl, decoration: const InputDecoration(labelText: 'Explanation if wrong (optional)'), maxLines: 3),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: () {
+              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
+              if (promptCtrl.safeText.isEmpty || filled.isEmpty) return;
+              final options = filled
+                  .map((c) => {'text': c.safeText, 'correct': filled.indexOf(c) == correctIndex})
+                  .toList();
+              setState(() => _steps.add({
+                    'prompt': promptCtrl.safeText,
+                    'options': options,
+                    'explanation': explanationCtrl.safeText,
+                  }));
+              Navigator.pop(context);
+            },
+            child: const Text('Add Step', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Create Farming Simulation'),
+    content: SizedBox(
+      width: double.maxFinite,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Simulation Title')),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(onPressed: _addStep, icon: const Icon(Icons.add), label: const Text('Add Step')),
+          const SizedBox(height: 16),
+          ..._steps.asMap().entries.map((e) {
+            final s = e.value;
+            final correctOpt = (s['options'] as List)
+                .firstWhere((o) => o['correct'] == true, orElse: () => {'text': 'None'});
+            final letter = String.fromCharCode(65 + (s['options'] as List).indexOf(correctOpt));
+            return Card(
+              child: ListTile(
+                title: Text(s['prompt']),
+                subtitle: Text(
+                  'Correct: $letter. ${correctOpt['text']}',
+                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+                trailing: IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: () => setState(() => _steps.removeAt(e.key))),
+              ),
+            );
+          }),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+        onPressed: _steps.isEmpty
+            ? null
+            : () {
+          widget.onSave({
+            'title': _titleCtrl.safeText.isEmpty ? 'Farming Simulation' : _titleCtrl.safeText,
+            'steps': _steps,
+          });
+          Navigator.pop(context);
+        },
+        child: const Text('Save Simulation', style: TextStyle(color: Colors.white)),
+      ),
+    ],
+  );
+}
+
+class FarmingQuizScreen extends StatefulWidget {
+  final Map<String, dynamic> payload;
+  const FarmingQuizScreen({super.key, required this.payload});
+
+  @override
+  State<FarmingQuizScreen> createState() => _FarmingQuizScreenState();
+}
+
+class _FarmingQuizScreenState extends State<FarmingQuizScreen> {
+  int _idx = 0;
+  int _score = 0;
+  late final ConfettiController _conf =
+      ConfettiController(duration: const Duration(seconds: 2));
+
+  void _ans(int sel) {
+    if (sel == widget.payload['questions'][_idx]['correct']) {
+      _score++;
+      _conf.play();
+    }
+    if (_idx < widget.payload['questions'].length - 1) {
+      setState(() => _idx++);
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Quiz Complete!'),
+          content: Text('Score: $_score / ${widget.payload['questions'].length}'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(context)
+                  ..pop()
+                  ..pop(),
+                child: const Text('Done'))
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _conf.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = widget.payload['questions'][_idx];
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.payload['title'] ?? 'Farming Quiz'),
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            ConfettiWidget(
+                confettiController: _conf,
+                blastDirectionality: BlastDirectionality.explosive),
+            const SizedBox(height: 30),
+            Text(q['question'],
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 40),
+            ...(q['options'] as List).asMap().entries.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: ElevatedButton(
+                      onPressed: () => _ans(e.key),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen,
+                          minimumSize: const Size(double.infinity, 56)),
+                      child: Text(
+                        '${String.fromCharCode(65 + e.key)}. ${e.value}',
+                        style:
+                            const TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FarmingSimulationScreen extends StatefulWidget {
+  final Map<String, dynamic> payload;
+  const FarmingSimulationScreen({super.key, required this.payload});
+
+  @override
+  State<FarmingSimulationScreen> createState() =>
+      _FarmingSimulationScreenState();
+}
+
+class _FarmingSimulationScreenState extends State<FarmingSimulationScreen> {
+  int _step = 0;
+  int? _sel;
+  bool _show = false;
+  late final ConfettiController _conf =
+      ConfettiController(duration: const Duration(seconds: 2));
+
+  void _submit() {
+    if (_sel == null) return;
+    final s = widget.payload['steps'][_step];
+    final correct =
+        (s['options'] as List).indexWhere((o) => o['correct'] == true);
+
+    if (_sel == correct) {
+      _conf.play();
+      if (_step < widget.payload['steps'].length - 1) {
+        setState(() {
+          _step++;
+          _sel = null;
+          _show = false;
+        });
+      } else {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Simulation Complete!'),
+            content: const Text(
+                'Excellent! You handled the farming scenario perfectly.'),
+            actions: [
+              TextButton(
+                  onPressed: () =>
+                      Navigator.popUntil(context, (r) => r.isFirst),
+                  child: const Text('Done'))
+            ],
+          ),
+        );
+      }
+    } else {
+      setState(() => _show = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _conf.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.payload['steps'][_step];
+    return Scaffold(
+      appBar: AppBar(
+          title: Text(widget.payload['title'] ?? 'Farming Simulation'),
+          backgroundColor: primaryGreen,
+          foregroundColor: Colors.white),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            ConfettiWidget(
+                confettiController: _conf,
+                blastDirectionality: BlastDirectionality.explosive),
+            const SizedBox(height: 30),
+            Text(s['prompt'],
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 40),
+            ...(s['options'] as List).asMap().entries.map(
+                  (e) => RadioListTile<int>(
+                value: e.key,
+                groupValue: _sel,
+                onChanged: (v) => setState(() => _sel = v),
+                title: Text(e.value['text']),
+                activeColor: primaryGreen,
+              ),
+            ),
+            if (_show)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Text(
+                      s['explanation']?.isNotEmpty == true
+                          ? s['explanation']
+                          : 'Try again!',
+                      style: const TextStyle(color: Colors.red)),
+                ),
+              ),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: _submit,
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryGreen,
+                  minimumSize: const Size(double.infinity, 56)),
+              child: const Text('Submit Choice',
+                  style: TextStyle(fontSize: 18, color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

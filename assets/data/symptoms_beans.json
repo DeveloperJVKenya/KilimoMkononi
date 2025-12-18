@@ -1,0 +1,318 @@
+[
+  {
+    "crop": "Beans",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Stem mining near soil line, plants topple or wilt",
+    "likely_type": "Pest",
+    "identity": "Bean fly",
+    "visible_signs": [
+      "holes in stem",
+      "frass inside stems"
+    ],
+    "short_code": "beans_seedling_beanfly"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Cutworms: seedlings cut at soil surface",
+    "likely_type": "Pest",
+    "identity": "Cutworms",
+    "visible_signs": [
+      "severed stems",
+      "chewing damage"
+    ],
+    "short_code": "beans_seedling_cutworms"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Damping-off / seed rot: collapsed seedlings, brown stem base",
+    "likely_type": "Disease",
+    "identity": "Damping-off (Pythium/Rhizoctonia)",
+    "visible_signs": [
+      "collapsed seedlings",
+      "brown stem base"
+    ],
+    "short_code": "beans_seedling_dampingoff"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Seedling",
+    "plant_part": "Roots",
+    "symptom_label": "Poor emergence and stunting, nodulation abnormality, root-knot galls",
+    "likely_type": "Nematode",
+    "identity": "Root-knot nematodes",
+    "visible_signs": [
+      "root galls",
+      "poor nodulation"
+    ],
+    "short_code": "beans_seedling_nematodes"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Seedling",
+    "plant_part": "Whole plant",
+    "symptom_label": "Crusting soil impeding emergence; seed viability issues",
+    "likely_type": "Abiotic",
+    "identity": "Soil crusting / poor seed quality",
+    "visible_signs": [
+      "patchy emergence",
+      "weak seedlings"
+    ],
+    "short_code": "beans_seedling_poor_emergence"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Aphids: curled/rolled new leaves, sticky residue (honeydew), sooty mould",
+    "likely_type": "Pest",
+    "identity": "Aphids",
+    "visible_signs": [
+      "curled leaves",
+      "sticky honeydew",
+      "sooty mould"
+    ],
+    "short_code": "beans_vegetative_aphids"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Thrips: silvering on leaves, distorted growth",
+    "likely_type": "Pest",
+    "identity": "Thrips",
+    "visible_signs": [
+      "silver streaks",
+      "distorted leaves"
+    ],
+    "short_code": "beans_vegetative_thrips"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Leaf miners: serpentine mines",
+    "likely_type": "Pest",
+    "identity": "Leaf miners",
+    "visible_signs": [
+      "serpentine mines"
+    ],
+    "short_code": "beans_vegetative_leafminers"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Stem",
+    "symptom_label": "Bean stem weevils: holes on stems and pods",
+    "likely_type": "Pest",
+    "identity": "Bean stem weevils",
+    "visible_signs": [
+      "holes in stems",
+      "weevils present"
+    ],
+    "short_code": "beans_vegetative_stemweevils"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Angular leaf spot: small angular lesions bounded by veins, pod scarring",
+    "likely_type": "Disease",
+    "identity": "Angular leaf spot (Pseudocercospora griseola)",
+    "visible_signs": [
+      "angular lesions",
+      "darkening with moisture",
+      "sporulation"
+    ],
+    "short_code": "beans_vegetative_angularspot"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Bacterial blight/halo blight: water-soaked lesions with yellow halo; ooze",
+    "likely_type": "Disease",
+    "identity": "Bacterial blight (Xanthomonas)",
+    "visible_signs": [
+      "water-soaked lesions",
+      "yellow halo",
+      "ooze in humid conditions"
+    ],
+    "short_code": "beans_vegetative_bacterialblight"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Rust: pustules on undersides causing defoliation",
+    "likely_type": "Disease",
+    "identity": "Rust (Uromyces appendiculatus)",
+    "visible_signs": [
+      "pustules on underside",
+      "defoliation"
+    ],
+    "short_code": "beans_vegetative_rust"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Powdery mildew: white powdery coating on leaves",
+    "likely_type": "Disease",
+    "identity": "Powdery mildew (Erysiphe polygoni)",
+    "visible_signs": [
+      "white powdery coating"
+    ],
+    "short_code": "beans_vegetative_powderymildew"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Viral mosaics: irregular mosaic, chlorotic patches, stunting",
+    "likely_type": "Disease",
+    "identity": "Bean common mosaic virus",
+    "visible_signs": [
+      "mosaic patterns",
+      "chlorotic patches",
+      "stunted growth"
+    ],
+    "short_code": "beans_vegetative_viral_mosaic"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Roots",
+    "symptom_label": "Root-knot causing stunting, poor nodulation",
+    "likely_type": "Nematode",
+    "identity": "Root-knot nematodes",
+    "visible_signs": [
+      "root galls",
+      "stunted plants",
+      "poor nodulation"
+    ],
+    "short_code": "beans_vegetative_nematodes"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Uniform chlorosis or interveinal issues (N, K, Mg deficiencies)",
+    "likely_type": "Abiotic",
+    "identity": "Nutrient deficiencies (N/K/Mg)",
+    "visible_signs": [
+      "yellow older leaves",
+      "interveinal chlorosis"
+    ],
+    "short_code": "beans_vegetative_nutrient_deficiency"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Flowering",
+    "plant_part": "Pods",
+    "symptom_label": "Pod borer/Helicoverpa: holes in flowers/pods, frass, bored seeds",
+    "likely_type": "Pest",
+    "identity": "Pod borer (Helicoverpa armigera)",
+    "visible_signs": [
+      "holes in pods",
+      "frass",
+      "bored seeds"
+    ],
+    "short_code": "beans_flowering_podbore"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Flowering",
+    "plant_part": "Pods",
+    "symptom_label": "Bruchids/seed beetles: holes in seeds/pods",
+    "likely_type": "Pest",
+    "identity": "Bruchids (seed beetles)",
+    "visible_signs": [
+      "exit holes in seeds",
+      "frass inside pods"
+    ],
+    "short_code": "beans_flowering_bruchids"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Flowering",
+    "plant_part": "Pods",
+    "symptom_label": "Pod rot/Anthracnose: sunken dark lesions on pods and seeds",
+    "likely_type": "Disease",
+    "identity": "Anthracnose (Colletotrichum lindemuthianum)",
+    "visible_signs": [
+      "sunken lesions",
+      "seed discoloration",
+      "spores on lesions"
+    ],
+    "short_code": "beans_flowering_anthracnose"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Flowering",
+    "plant_part": "Flowers",
+    "symptom_label": "Botrytis on flowers: grey fuzzy mould in cool/wet conditions",
+    "likely_type": "Disease",
+    "identity": "Botrytis grey mould",
+    "visible_signs": [
+      "grey fuzzy mould"
+    ],
+    "short_code": "beans_flowering_botrytis"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Flowering",
+    "plant_part": "Flowers",
+    "symptom_label": "Flower drop due to drought or extreme heat",
+    "likely_type": "Abiotic",
+    "identity": "Drought / heat stress",
+    "visible_signs": [
+      "dropped flowers",
+      "poor pod set"
+    ],
+    "short_code": "beans_flowering_flower_drop"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Maturity/Storage",
+    "plant_part": "Seeds",
+    "symptom_label": "Bruchids in stored beans, seed boring, decreased viability",
+    "likely_type": "Pest",
+    "identity": "Bruchids",
+    "visible_signs": [
+      "holes in seeds",
+      "larvae inside"
+    ],
+    "short_code": "beans_storage_bruchids"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Maturity/Storage",
+    "plant_part": "Seeds",
+    "symptom_label": "Seed staining from pod-borne diseases, poor germination",
+    "likely_type": "Disease",
+    "identity": "Seed-borne diseases (e.g., anthracnose)",
+    "visible_signs": [
+      "discolored seeds",
+      "staining"
+    ],
+    "short_code": "beans_storage_seedstaining"
+  },
+  {
+    "crop": "Beans",
+    "stage": "Maturity/Storage",
+    "plant_part": "Pods",
+    "symptom_label": "Poor pod fill due to earlier drought/nutrient stresses",
+    "likely_type": "Abiotic",
+    "identity": "Drought / nutrient stress",
+    "visible_signs": [
+      "underfilled pods",
+      "small seeds"
+    ],
+    "short_code": "beans_storage_poor_podfill"
+  }
+]

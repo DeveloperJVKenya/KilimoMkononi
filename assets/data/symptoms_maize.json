@@ -1,0 +1,377 @@
+[
+  {
+    "crop": "Maize",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Cut seedlings at soil level; chewed short stems",
+    "likely_type": "Pest",
+    "identity": "Cutworms",
+    "visible_signs": [
+      "cut stems",
+      "chewing damage",
+      "missing seedlings"
+    ],
+    "short_code": "maize_seedling_cutworms"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Seedling",
+    "plant_part": "Leaves",
+    "symptom_label": "Small feeding holes on young leaves; slug/snail trails",
+    "likely_type": "Pest",
+    "identity": "Slugs/Snails",
+    "visible_signs": [
+      "small holes",
+      "slime trails"
+    ],
+    "short_code": "maize_seedling_slugs"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Seedlings collapse, brown water-soaked stem base",
+    "likely_type": "Disease",
+    "identity": "Damping-off (Pythium, Rhizoctonia)",
+    "visible_signs": [
+      "collapsed seedlings",
+      "water-soaked stems"
+    ],
+    "short_code": "maize_seedling_dampingoff"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Seedling",
+    "plant_part": "Seed",
+    "symptom_label": "Seed rot / poor emergence with rotted seed",
+    "likely_type": "Disease",
+    "identity": "Seed rot (fungal/bacterial)",
+    "visible_signs": [
+      "rotted seeds",
+      "poor emergence"
+    ],
+    "short_code": "maize_seedling_seedrot"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Seedling",
+    "plant_part": "Roots",
+    "symptom_label": "Root stunting, poor root development, patches of stunted plants",
+    "likely_type": "Nematode",
+    "identity": "Root lesion nematodes / soil pests",
+    "visible_signs": [
+      "stunted roots",
+      "patchy emergence"
+    ],
+    "short_code": "maize_seedling_nematodes"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Seedling",
+    "plant_part": "Whole plant",
+    "symptom_label": "Uniform poor emergence across field",
+    "likely_type": "Abiotic",
+    "identity": "Poor seed quality / planting depth / frost injury",
+    "visible_signs": [
+      "low plant population",
+      "weak seedlings"
+    ],
+    "short_code": "maize_seedling_poor_emergence"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Ragged leaf margins, large irregular holes, frass in whorl",
+    "likely_type": "Pest",
+    "identity": "Fall armyworm",
+    "visible_signs": [
+      "chewed leaves",
+      "frass in whorl",
+      "larvae present"
+    ],
+    "short_code": "maize_vegetative_faw"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Stem/Whorl",
+    "symptom_label": "Whorl or stem tunnelling, dead heart in young plants",
+    "likely_type": "Pest",
+    "identity": "Stem borers",
+    "visible_signs": [
+      "tunnels in stem",
+      "dead heart",
+      "frass"
+    ],
+    "short_code": "maize_vegetative_stemborers"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Silks/Tassel",
+    "symptom_label": "Silk clipping / tassel feeding",
+    "likely_type": "Pest",
+    "identity": "Grasshoppers/Birds",
+    "visible_signs": [
+      "cut silks",
+      "damaged tassels"
+    ],
+    "short_code": "maize_vegetative_silkclipping"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Leaf-miner trails; small serpentine mines",
+    "likely_type": "Pest",
+    "identity": "Leaf miners",
+    "visible_signs": [
+      "serpentine mines"
+    ],
+    "short_code": "maize_vegetative_leafminers"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Fine yellow streaks following veins, stunting",
+    "likely_type": "Disease",
+    "identity": "Maize streak virus",
+    "visible_signs": [
+      "yellow streaks",
+      "stunted plants"
+    ],
+    "short_code": "maize_vegetative_msv"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Long cigar-shaped tan lesions",
+    "likely_type": "Disease",
+    "identity": "Northern leaf blight",
+    "visible_signs": [
+      "long lesions",
+      "tan spots"
+    ],
+    "short_code": "maize_vegetative_nlb"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Rectangular lesions between veins",
+    "likely_type": "Disease",
+    "identity": "Gray leaf spot",
+    "visible_signs": [
+      "rectangular lesions"
+    ],
+    "short_code": "maize_vegetative_gls"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Orange-brown pustules",
+    "likely_type": "Disease",
+    "identity": "Common rust",
+    "visible_signs": [
+      "orange pustules",
+      "powdery spores"
+    ],
+    "short_code": "maize_vegetative_rust"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Leaf tip burn (necrosis at tips)",
+    "likely_type": "Abiotic",
+    "identity": "Fertiliser burn / salt damage",
+    "visible_signs": [
+      "brown tips",
+      "necrosis"
+    ],
+    "short_code": "maize_vegetative_tipburn"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Roots",
+    "symptom_label": "Patchy stunting, chlorosis at plant patches; reduced rooting",
+    "likely_type": "Nematode",
+    "identity": "Root-knot / lesion nematodes",
+    "visible_signs": [
+      "patchy stunting",
+      "chlorotic patches"
+    ],
+    "short_code": "maize_vegetative_nematodes"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Uniform yellowing of older leaves",
+    "likely_type": "Abiotic",
+    "identity": "Nitrogen deficiency",
+    "visible_signs": [
+      "yellow older leaves"
+    ],
+    "short_code": "maize_vegetative_N_deficiency"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Interveinal chlorosis (Mg deficiency)",
+    "likely_type": "Abiotic",
+    "identity": "Magnesium deficiency",
+    "visible_signs": [
+      "interveinal chlorosis"
+    ],
+    "short_code": "maize_vegetative_Mg_deficiency"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Chlorosis of new leaves",
+    "likely_type": "Abiotic",
+    "identity": "Iron deficiency",
+    "visible_signs": [
+      "yellow new leaves"
+    ],
+    "short_code": "maize_vegetative_Fe_deficiency"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Flowering",
+    "plant_part": "Ears",
+    "symptom_label": "Ear-feeding, tunnels in kernels, chewed husks",
+    "likely_type": "Pest",
+    "identity": "Maize earworm / borers",
+    "visible_signs": [
+      "holes in kernels",
+      "frass",
+      "larvae"
+    ],
+    "short_code": "maize_flowering_earborer"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Flowering",
+    "plant_part": "Ears",
+    "symptom_label": "Shallow holes and frass near ear tips",
+    "likely_type": "Pest",
+    "identity": "Weevils / borers",
+    "visible_signs": [
+      "holes at ear tips",
+      "frass"
+    ],
+    "short_code": "maize_flowering_earweevil"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Flowering",
+    "plant_part": "Ears",
+    "symptom_label": "Mould on husk, discolored/shriveled kernels",
+    "likely_type": "Disease",
+    "identity": "Ear rots (Fusarium, Aspergillus)",
+    "visible_signs": [
+      "mould on husk",
+      "shrivelled kernels"
+    ],
+    "short_code": "maize_flowering_earrot"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Flowering",
+    "plant_part": "Ears/Tassel",
+    "symptom_label": "Galls on ears/tassels filled with black spores",
+    "likely_type": "Disease",
+    "identity": "Common smut (Ustilago maydis)",
+    "visible_signs": [
+      "black spore galls"
+    ],
+    "short_code": "maize_flowering_smut"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Flowering",
+    "plant_part": "Ears",
+    "symptom_label": "Poor kernel set",
+    "likely_type": "Abiotic",
+    "identity": "Drought stress during silking",
+    "visible_signs": [
+      "few kernels",
+      "empty cobs"
+    ],
+    "short_code": "maize_flowering_poor_kernelset"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Flowering",
+    "plant_part": "Roots",
+    "symptom_label": "Stunting + poor ear fill associated with nematodes",
+    "likely_type": "Nematode",
+    "identity": "Root lesion nematodes",
+    "visible_signs": [
+      "stunted plants",
+      "poor ear fill"
+    ],
+    "short_code": "maize_flowering_rootnematodes"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Harvest/Storage",
+    "plant_part": "Kernels",
+    "symptom_label": "Weevils, beetles causing holes & powder",
+    "likely_type": "Pest",
+    "identity": "Stored grain pests (Sitophilus spp.)",
+    "visible_signs": [
+      "holes in kernels",
+      "powdery frass"
+    ],
+    "short_code": "maize_storage_weevils"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Harvest/Storage",
+    "plant_part": "Kernels",
+    "symptom_label": "Dry/wet storage moulds, discolored kernels",
+    "likely_type": "Disease",
+    "identity": "Aspergillus / Fusarium storage moulds",
+    "visible_signs": [
+      "green/black mould",
+      "discoloured kernels"
+    ],
+    "short_code": "maize_storage_moulds"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Harvest/Storage",
+    "plant_part": "Kernels",
+    "symptom_label": "Cob rot and secondary moulds after insect damage",
+    "likely_type": "Disease",
+    "identity": "Fusarium cob rot",
+    "visible_signs": [
+      "rotted cob tissue",
+      "mould growth"
+    ],
+    "short_code": "maize_storage_cobrot"
+  },
+  {
+    "crop": "Maize",
+    "stage": "Harvest/Storage",
+    "plant_part": "Whole plant",
+    "symptom_label": "Premature ripening",
+    "likely_type": "Abiotic",
+    "identity": "Drought / heat stress",
+    "visible_signs": [
+      "early drying",
+      "shriveled kernels"
+    ],
+    "short_code": "maize_storage_premature_ripening"
+  }
+]

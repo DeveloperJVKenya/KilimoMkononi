@@ -184,25 +184,17 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
 
   void _loadLoanData(String cycle) {
     String? savedLoanData = _prefs.getString('loanData_$cycle');
-    if (savedLoanData != null) {
-      Map<String, dynamic> loanData = jsonDecode(savedLoanData);
-      _loanAmountController.text = (loanData['loanAmount'] ?? 0).toString();
-      _interestRateController.text = (loanData['interestRate'] ?? 0).toString();
-      _loanInterestController.text =
-          (loanData['interest'] ?? 0).toStringAsFixed(2);
-      _totalRepaymentController.text =
-          (loanData['totalRepayment'] ?? 0).toStringAsFixed(2);
-      _remainingBalanceController.text =
-          (loanData['remainingBalance'] ?? (loanData['totalRepayment'] ?? 0))
-              .toStringAsFixed(2);
-    } else {
-      _loanAmountController.clear();
-      _interestRateController.clear();
-      _loanInterestController.clear();
-      _totalRepaymentController.clear();
-      _remainingBalanceController.clear();
+    Map<String, dynamic> loanData = jsonDecode(savedLoanData ?? '{}');
+    _loanAmountController.text = (loanData['loanAmount'] ?? 0).toString();
+    _interestRateController.text = (loanData['interestRate'] ?? 0).toString();
+    _loanInterestController.text =
+        (loanData['interest'] ?? 0).toStringAsFixed(2);
+    _totalRepaymentController.text =
+        (loanData['totalRepayment'] ?? 0).toStringAsFixed(2);
+    _remainingBalanceController.text =
+        (loanData['remainingBalance'] ?? (loanData['totalRepayment'] ?? 0))
+            .toStringAsFixed(2);
     }
-  }
 
   void _recordPayment() {
     double paymentAmount = double.tryParse(_paymentAmountController.text) ?? 0;
@@ -719,7 +711,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                 value: _labourActivities.fold(
                                     0.0,
                                     (sum, item) =>
-                                        sum! +
+                                        (sum ?? 0) +
                                         (double.tryParse(item['cost'] ?? '0') ?? 0)),
                                 color: Colors.red,
                                 title: 'Labour',
@@ -728,7 +720,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                 value: _mechanicalCosts.fold(
                                     0.0,
                                     (sum, item) =>
-                                        sum! +
+                                        (sum ?? 0) +
                                         (double.tryParse(item['cost'] ?? '0') ?? 0)),
                                 color: Colors.blue,
                                 title: 'Equipment',
@@ -737,7 +729,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                 value: _inputCosts.fold(
                                     0.0,
                                     (sum, item) =>
-                                        sum! +
+                                       (sum ?? 0) +
                                         (double.tryParse(item['cost'] ?? '0') ?? 0)),
                                 color: Colors.orange,
                                 title: 'Inputs',
@@ -746,7 +738,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                 value: _miscellaneousCosts.fold(
                                     0.0,
                                     (sum, item) =>
-                                        sum! +
+                                      (sum ?? 0) +
                                         (double.tryParse(item['cost'] ?? '0') ?? 0)),
                                 color: Colors.grey,
                                 title: 'Misc',
@@ -755,7 +747,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                 value: _revenues.fold(
                                     0.0,
                                     (sum, item) =>
-                                        sum! +
+                                      (sum ?? 0) +
                                         (double.tryParse(item['amount'] ?? '0') ?? 0)),
                                 color: Colors.green,
                                 title: 'Revenue',
@@ -839,7 +831,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                   if (picked != null) {
                                     setState(() => _labourActivityDate = picked);
                                   }
-                                },
+                                                                },
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -942,7 +934,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                   if (picked != null) {
                                     setState(() => _equipmentUsedDate = picked);
                                   }
-                                },
+                                                                },
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -1045,7 +1037,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                   if (picked != null) {
                                     setState(() => _inputUsedDate = picked);
                                   }
-                                },
+                                                                },
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -1127,7 +1119,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                   if (picked != null) {
                                     setState(() => _miscellaneousDate = picked);
                                   }
-                                },
+                                                                },
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -1351,7 +1343,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                                   if (picked != null) {
                                     setState(() => _paymentDate = picked);
                                   }
-                                },
+                                                                },
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -1759,7 +1751,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2030),
                     );
-                    if (picked != null) setState(() => startDate = picked);
+                    setState(() => startDate = picked);
                   },
                   child: Text(startDate == null
                       ? 'Start Date'
@@ -1773,7 +1765,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2030),
                     );
-                    if (picked != null) setState(() => endDate = picked);
+                    setState(() => endDate = picked);
                   },
                   child: Text(endDate == null
                       ? 'End Date'

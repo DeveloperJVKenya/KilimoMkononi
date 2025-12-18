@@ -1,0 +1,231 @@
+[
+  {
+    "crop": "Onions",
+    "stage": "Seedling",
+    "plant_part": "Whole plant",
+    "symptom_label": "Onion maggot: seedlings collapse, maggots feed at bulb/neck",
+    "likely_type": "Pest",
+    "identity": "Onion maggot",
+    "visible_signs": [
+      "collapsed seedlings",
+      "maggots at base"
+    ],
+    "short_code": "onions_seedling_maggot"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Damping-off of seedlings",
+    "likely_type": "Disease",
+    "identity": "Damping-off",
+    "visible_signs": [
+      "collapsed stems",
+      "rotted base"
+    ],
+    "short_code": "onions_seedling_dampingoff"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Seedling",
+    "plant_part": "Whole plant",
+    "symptom_label": "Poor stand from low germination or crusted soil",
+    "likely_type": "Abiotic",
+    "identity": "Poor germination / crusted soil",
+    "visible_signs": [
+      "low stand density"
+    ],
+    "short_code": "onions_seedling_poorstand"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Thrips: silvery streaks, leaf puckering, reduced bulb size; black specks of frass",
+    "likely_type": "Pest",
+    "identity": "Thrips",
+    "visible_signs": [
+      "silvery streaks",
+      "black frass specks"
+    ],
+    "short_code": "onions_vegetative_thrips"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Mites: spotting and leaf bronzing in dry conditions",
+    "likely_type": "Pest",
+    "identity": "Mites",
+    "visible_signs": [
+      "leaf spotting",
+      "bronzing"
+    ],
+    "short_code": "onions_vegetative_mites"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Downy mildew: pale patches followed by grey/purple down on underside",
+    "likely_type": "Disease",
+    "identity": "Downy mildew",
+    "visible_signs": [
+      "pale patches",
+      "grey/purple down"
+    ],
+    "short_code": "onions_vegetative_downymildew"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Purple blotch: elongated purple-brown lesions, often sunken",
+    "likely_type": "Disease",
+    "identity": "Purple blotch (Alternaria porri)",
+    "visible_signs": [
+      "purple-brown lesions",
+      "sunken areas"
+    ],
+    "short_code": "onions_vegetative_purpleblotch"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Botrytis leaf blight: small white/grey spots enlarging into blighted areas",
+    "likely_type": "Disease",
+    "identity": "Botrytis leaf blight",
+    "visible_signs": [
+      "white/grey spots",
+      "blighted areas"
+    ],
+    "short_code": "onions_vegetative_botrytis"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Nitrogen burn or irregular irrigation causing leaf dieback",
+    "likely_type": "Abiotic",
+    "identity": "Nitrogen burn / irregular irrigation",
+    "visible_signs": [
+      "leaf dieback",
+      "yellow tips"
+    ],
+    "short_code": "onions_vegetative_nitrogenburn"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Bulbing",
+    "plant_part": "Bulbs",
+    "symptom_label": "Bulb maggots or late maggot damage causing base rot",
+    "likely_type": "Pest",
+    "identity": "Bulb maggots",
+    "visible_signs": [
+      "base rot",
+      "maggots"
+    ],
+    "short_code": "onions_bulbing_maggots"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Bulbing",
+    "plant_part": "Bulbs",
+    "symptom_label": "White rot: white fluffy mycelium at basal plate with black sclerotia",
+    "likely_type": "Disease",
+    "identity": "White rot (Sclerotium cepivorum)",
+    "visible_signs": [
+      "white fluffy mycelium",
+      "black sclerotia"
+    ],
+    "short_code": "onions_bulbing_whiterot"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Bulbing",
+    "plant_part": "Bulbs",
+    "symptom_label": "Fusarium basal rot: yellowing outer leaves and brown rot at basal plate",
+    "likely_type": "Disease",
+    "identity": "Fusarium basal rot",
+    "visible_signs": [
+      "yellowing leaves",
+      "brown rot at base"
+    ],
+    "short_code": "onions_bulbing_fusarium"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Bulbing",
+    "plant_part": "Bulbs",
+    "symptom_label": "Neck rot: softening at neck on harvest",
+    "likely_type": "Disease",
+    "identity": "Neck rot (Botrytis)",
+    "visible_signs": [
+      "softening at neck"
+    ],
+    "short_code": "onions_bulbing_neckrot"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Bulbing",
+    "plant_part": "Bulbs",
+    "symptom_label": "Splitting of bulbs from irregular watering",
+    "likely_type": "Abiotic",
+    "identity": "Irregular watering",
+    "visible_signs": [
+      "split bulbs"
+    ],
+    "short_code": "onions_bulbing_splitting"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Harvest/Storage",
+    "plant_part": "Bulbs",
+    "symptom_label": "Storage insects (moths/larvae) causing superficial damage",
+    "likely_type": "Pest",
+    "identity": "Storage insects (moths/larvae)",
+    "visible_signs": [
+      "superficial holes",
+      "larvae"
+    ],
+    "short_code": "onions_storage_insects"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Harvest/Storage",
+    "plant_part": "Bulbs",
+    "symptom_label": "Bacterial soft rot in storage: wet, smelly decay",
+    "likely_type": "Disease",
+    "identity": "Bacterial soft rot",
+    "visible_signs": [
+      "wet decay",
+      "smelly rot"
+    ],
+    "short_code": "onions_storage_softrot"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Harvest/Storage",
+    "plant_part": "Bulbs",
+    "symptom_label": "White rot sclerotia persisting in soil",
+    "likely_type": "Disease",
+    "identity": "White rot",
+    "visible_signs": [
+      "sclerotia in soil"
+    ],
+    "short_code": "onions_storage_whiterot_persist"
+  },
+  {
+    "crop": "Onions",
+    "stage": "Harvest/Storage",
+    "plant_part": "Bulbs",
+    "symptom_label": "Dry bulb shrivelling due to low humidity",
+    "likely_type": "Abiotic",
+    "identity": "Low humidity",
+    "visible_signs": [
+      "shriveled bulbs"
+    ],
+    "short_code": "onions_storage_shriveling"
+  }
+]

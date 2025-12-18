@@ -178,7 +178,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                             style: TextStyle(color: customGreen),
                           ),
                           value: _pushNotifications,
-                          activeColor: customGreen,
+                          activeThumbColor: customGreen,
                           onChanged: (bool value) {
                             setState(() {
                               _pushNotifications = value;
@@ -216,7 +216,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                             style: TextStyle(color: customGreen),
                           ),
                           value: _weatherAlerts,
-                          activeColor: customGreen,
+                          activeThumbColor: customGreen,
                           onChanged: (bool value) {
                             setState(() {
                               _weatherAlerts = value;
@@ -231,7 +231,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                             style: TextStyle(color: customGreen),
                           ),
                           value: _fieldReminderActivities,
-                          activeColor: customGreen,
+                          activeThumbColor: customGreen,
                           onChanged: (bool value) {
                             setState(() {
                               _fieldReminderActivities = value;
@@ -248,7 +248,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                           ),
                           trailing: Switch(
                             value: _fieldRemindMeAt,
-                            activeColor: customGreen,
+                            activeThumbColor: customGreen,
                             onChanged: _fieldReminderActivities
                                 ? (bool value) async {
                                     setState(() {
@@ -317,7 +317,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                             style: TextStyle(color: customGreen),
                           ),
                           value: _pestReminderActivities,
-                          activeColor: customGreen,
+                          activeThumbColor: customGreen,
                           onChanged: (bool value) {
                             setState(() {
                               _pestReminderActivities = value;
@@ -334,7 +334,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                           ),
                           trailing: Switch(
                             value: _pestRemindMeAt,
-                            activeColor: customGreen,
+                            activeThumbColor: customGreen,
                             onChanged: _pestReminderActivities
                                 ? (bool value) async {
                                     setState(() {
@@ -403,7 +403,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                             style: TextStyle(color: customGreen),
                           ),
                           value: _farmReminderActivities,
-                          activeColor: customGreen,
+                          activeThumbColor: customGreen,
                           onChanged: (bool value) {
                             setState(() {
                               _farmReminderActivities = value;
@@ -420,7 +420,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
                           ),
                           trailing: Switch(
                             value: _farmRemindMeAt,
-                            activeColor: customGreen,
+                            activeThumbColor: customGreen,
                             onChanged: _farmReminderActivities
                                 ? (bool value) async {
                                     setState(() {

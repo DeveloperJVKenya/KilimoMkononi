@@ -1,24 +1,26 @@
+// lib/screens/home.dart
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
-//import 'package:kilimomkononi/screens/Alma%20Dairy/alma_dairy_home.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
 import 'package:kilimomkononi/screens/admin/admin_management_screen.dart';
 import 'package:kilimomkononi/screens/farm_management_screen.dart';
 import 'package:kilimomkononi/screens/farming_tips_widget.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kilimomkononi/screens/market_price_screen.dart';
 import 'package:kilimomkononi/screens/manuals_screen.dart';
 import 'package:kilimomkononi/screens/pests_diseases_home.dart';
-import 'package:kilimomkononi/screens/user_profile.dart';
 import 'package:kilimomkononi/screens/weather_screen.dart';
-import 'package:kilimomkononi/screens/market_price_prediction_widget.dart';
 import 'package:kilimomkononi/authentication/login.dart';
 import 'package:kilimomkononi/settings/notifications_settings_screen.dart';
 import 'package:kilimomkononi/settings/settings_screen.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+
+enum ScreenType { mobile, tablet, desktop }
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -28,12 +30,15 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // int _selectedIndex = 0;
+  int _selectedIndex = 0;
   Map<String, dynamic>? _userData;
   Uint8List? _profileImageBytes;
   bool _isMainAdmin = false;
   final logger = Logger(printer: PrettyPrinter());
   String? _userId;
+
+  // Use GlobalKey to control the Scaffold (fixes Scaffold.of() error)
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final List<String> _carouselImages = [
     'assets/weather_forecast.jpg',
@@ -48,26 +53,19 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    logger.i('HomePage initState called');
     _fetchUserData();
     _listenToUserAndAdminStatus();
     _listenToAuthState();
   }
 
-  // Helper method to determine screen type
   ScreenType _getScreenType(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    if (width < 600) {
-      return ScreenType.mobile;
-    } else if (width < 1200) {
-      return ScreenType.tablet;
-    } else {
-      return ScreenType.desktop;
-    }
+    if (width < 600) return ScreenType.mobile;
+    if (width < 1200) return ScreenType.tablet;
+    return ScreenType.desktop;
   }
 
-  // Helper method to get responsive values
-  double _getResponsiveValue(BuildContext context, {
+  double _getResponsiveValue({
     required double mobile,
     required double tablet,
     required double desktop,
@@ -82,828 +80,313 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  int _getCrossAxisCount(BuildContext context) {
-    switch (_getScreenType(context)) {
-      case ScreenType.mobile:
-        return 2;
-      case ScreenType.tablet:
-        return 3;
-      case ScreenType.desktop:
-        return 4;
-    }
-  }
-
+  // ────────────────────────────── USER DATA ──────────────────────────────
   Future<void> _fetchUserData() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      logger.i('Fetching data for user: ${user.email}, UID: ${user.uid}');
-      _userId = user.uid;
-      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _userId = user.uid;
+
+    try {
+      final userSnapshot = await FirebaseFirestore.instance
           .collection('Users')
           .doc(user.uid)
           .get();
 
-      if (userSnapshot.exists) {
-        AppUser appUser = AppUser.fromFirestore(userSnapshot as DocumentSnapshot<Map<String, dynamic>>, null);
-        if (appUser.isDisabled) {
-          await FirebaseAuth.instance.signOut();
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Your account is disabled. Contact an admin.')),
-            );
-          }
-          return;
+      if (!userSnapshot.exists) {
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
         }
+        return;
+      }
 
-        DocumentSnapshot adminSnapshot = await FirebaseFirestore.instance
-            .collection('Admins')
-            .doc(user.uid)
-            .get();
-        bool isAdmin = adminSnapshot.exists;
+      final appUser = AppUser.fromFirestore(userSnapshot, null);
 
-        String? profileImageBase64 = appUser.profileImage;
-        Uint8List? decodedImage;
-        if (profileImageBase64 != null) {
-          try {
-            decodedImage = base64Decode(profileImageBase64);
-          } catch (e) {
-            logger.e('Error decoding profile image: $e');
-          }
+      if (appUser.isDisabled == true) {
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Your account has been disabled by admin.')),
+          );
         }
+        return;
+      }
 
+      final adminSnapshot = await FirebaseFirestore.instance
+          .collection('Admins')
+          .doc(user.uid)
+          .get();
+
+      Uint8List? decodedImage;
+      if (appUser.profileImage != null && appUser.profileImage!.isNotEmpty) {
+        try {
+          decodedImage = base64Decode(appUser.profileImage!);
+        } catch (e) {
+          logger.e('Failed to decode profile image: $e');
+        }
+      }
+
+      if (mounted) {
         setState(() {
           _userData = appUser.toMap();
           _profileImageBytes = decodedImage;
-          _isMainAdmin = isAdmin;
-          logger.i('Initial fetch - UserId: $_userId, UserData: $_userData, IsAdmin: $_isMainAdmin');
-        });
-      } else {
-        logger.w('No user data found in Firestore for UID: ${user.uid}');
-        setState(() {
-          _userId = user.uid;
+          _isMainAdmin = adminSnapshot.exists;
         });
       }
-    } else {
-      logger.w('No user logged in');
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
+    } catch (e) {
+      logger.e('Error fetching user data: $e');
     }
   }
 
-  void _listenToAuthState() {
-    FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      if (user != null) {
-        logger.i('Auth state changed - User logged in: ${user.uid}');
-        setState(() {
-          _userId = user.uid;
-        });
-        _fetchUserData();
-      } else {
-        logger.w('Auth state changed - No user logged in');
+  void _listenToUserAndAdminStatus() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    FirebaseFirestore.instance.collection('Users').doc(user.uid).snapshots().listen((snapshot) {
+      if (!snapshot.exists || !mounted) return;
+      final appUser = AppUser.fromFirestore(snapshot, null);
+      if (appUser.isDisabled == true) {
+        FirebaseAuth.instance.signOut();
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account disabled by admin.')),
           );
         }
+      } else {
+        if (mounted) setState(() => _userData = appUser.toMap());
+      }
+    });
+
+    FirebaseFirestore.instance.collection('Admins').doc(user.uid).snapshots().listen((snapshot) {
+      if (mounted) setState(() => _isMainAdmin = snapshot.exists);
+    });
+  }
+
+  void _listenToAuthState() {
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user == null && mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
       }
     });
   }
 
-  void _listenToUserAndAdminStatus() {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      FirebaseFirestore.instance
-          .collection('Users')
-          .doc(user.uid)
-          .snapshots()
-          .listen((userSnapshot) {
-        if (userSnapshot.exists) {
-          AppUser appUser = AppUser.fromFirestore(userSnapshot, null);
-          if (appUser.isDisabled && mounted) {
-            FirebaseAuth.instance.signOut();
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Your account has been disabled. Contact an admin.')),
-            );
-          } else if (mounted) {
-            setState(() {
-              _userData = appUser.toMap();
-              logger.i('User data updated: $_userData');
-            });
-          }
-        }
-      });
-
-      FirebaseFirestore.instance
-          .collection('Admins')
-          .doc(user.uid)
-          .snapshots()
-          .listen((adminSnapshot) {
-        if (mounted) {
-          setState(() {
-            _isMainAdmin = adminSnapshot.exists;
-            logger.i('Admin status updated: $_isMainAdmin');
-          });
-        }
-      });
-    }
-  }
+  void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   Future<void> _handleLogout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (!mounted) return;
-      Navigator.pop(context);
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error logging out: $e')),
-        );
-      }
+    await FirebaseAuth.instance.signOut();
+    if (mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenType = _getScreenType(context);
-    final isDesktop = screenType == ScreenType.desktop;
+    if (_userData == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final fullName = _userData!['fullName'] ?? 'Farmer';
 
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(_getResponsiveValue(
-          context,
-          mobile: MediaQuery.of(context).size.height * 0.08,
-          tablet: MediaQuery.of(context).size.height * 0.07,
-          desktop: MediaQuery.of(context).size.height * 0.06,
-        )),
-        child: AppBar(
-          title: Text(
-            'KilimoMkononi',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: _getResponsiveValue(
-                context,
-                mobile: 18,
-                tablet: 20,
-                desktop: 22,
-              ),
-            ),
-          ),
-          backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-          leading: isDesktop ? null : Builder(
-            builder: (context) => IconButton(
-              icon: Icon(
-                Icons.menu,
-                color: Colors.white,
-                size: _getResponsiveValue(
-                  context,
-                  mobile: 40,
-                  tablet: 35,
-                  desktop: 30,
-                ),
-              ),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          ),
-          actions: [
+      key: _scaffoldKey, // This is the fix!
+      appBar: AppBar(
+        title: const Text('Kilimo Mkononi'),
+        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+        foregroundColor: Colors.white,
+        actions: [
+          if (_isMainAdmin)
             IconButton(
-              icon: Icon(
-                Icons.notifications,
-                color: Colors.white,
-                size: _getResponsiveValue(
-                  context,
-                  mobile: 40,
-                  tablet: 35,
-                  desktop: 30,
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const NotificationsSettingsScreen()),
-                );
-              },
+              icon: const Icon(Icons.admin_panel_settings),
+              tooltip: 'Admin Panel',
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminManagementScreen())),
             ),
-            IconButton(
-              icon: Icon(
-                Icons.search,
-                color: Colors.white,
-                size: _getResponsiveValue(
-                  context,
-                  mobile: 40,
-                  tablet: 35,
-                  desktop: 30,
-                ),
-              ),
-              onPressed: () {},
-            ),
-          ],
-        ),
-      ),
-      drawer: isDesktop ? null : _buildDrawer(),
-      body: Row(
-        children: [
-          // Desktop sidebar
-          if (isDesktop) _buildDesktopSidebar(),
-          // Main content
-          Expanded(
-            child: Container(
-              color: Colors.grey[200],
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _buildCarousel(),
-                    _buildClickableSections(),
-                    if (_isMainAdmin)
-                      _buildAdminButton()
-                    else if (!isDesktop)
-                      Builder(
-                        builder: (context) => _buildMenuButton(context),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
       ),
-      //bottomNavigationBar: _buildBottomNavigationBar(),
+      drawer: _buildDrawer(fullName),
+      body: [
+        _buildHomeContent(fullName),
+        const SettingsScreen(),
+        const NotificationsSettingsScreen(),
+      ][_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notifications'),
+        ],
+      ),
     );
   }
 
-  Widget _buildDesktopSidebar() {
-    return Container(
-      width: 280,
-      color: const Color.fromARGB(255, 3, 39, 4),
+  Widget _buildHomeContent(String fullName) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 30),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Profile section
-          Container(
-            padding: const EdgeInsets.all(20),
+          // Greeting
+          Padding(
+            padding: EdgeInsets.all(_getResponsiveValue(mobile: 16, tablet: 24, desktop: 32)),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.white,
-                  child: _profileImageBytes != null
-                      ? ClipOval(
-                          child: Image.memory(
-                            _profileImageBytes!,
-                            fit: BoxFit.cover,
-                            width: 80,
-                            height: 80,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.person, size: 40, color: Color.fromARGB(255, 3, 39, 4)),
-                          ),
-                        )
-                      : const Icon(Icons.person, size: 40, color: Color.fromARGB(255, 3, 39, 4)),
-                ),
-                const SizedBox(height: 10),
                 Text(
-                  _userData?['fullName'] ?? 'Loading...',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                  'Hello, $fullName!',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
                 ),
+                const SizedBox(height: 6),
+                Text('Welcome back to Kilimo Mkononi', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
               ],
             ),
           ),
-          const Divider(color: Colors.white24),
-          // Navigation items
-          Expanded(
-            child: ListView(
+
+          // Carousel
+          CarouselSlider(
+            options: CarouselOptions(
+            height: _getResponsiveValue(mobile: 200, tablet: 300, desktop: 400),
+            autoPlay: true,
+            enlargeCenterPage: true,
+            viewportFraction: _getResponsiveValue(mobile: 0.85, tablet: 0.6, desktop: 0.5),
+          ),
+          items: _carouselImages.map((path) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(path, fit: BoxFit.cover, width: double.infinity),
+            ),
+          )).toList(),
+        ),
+
+          const SizedBox(height: 30),
+
+          // Quick Access Title
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Quick Access', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 12),
+
+          // Only TWO cards
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
               children: [
-                _buildDesktopDrawerItem(Icons.home, 'Home', () {}),
-                _buildDesktopDrawerItem(Icons.cloud, 'Weather Forecast', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const WeatherScreen()));
-                }),
-                _buildDesktopDrawerItem(Icons.input, 'Field Data Input', () {
-                  logger.i('Navigating to FieldDataInputPage, userId: $_userId');
-                  if (_userId != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const FieldDataInputHomePage()),
-                    );
-                  } else {
-                    logger.w('User ID is null, attempting refresh');
-                    _fetchUserData();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('User ID not available. Retrying...')),
-                    );
-                  }
-                }),
-                _buildDesktopDrawerItem(Icons.pest_control, 'Manage Pests & Diseases', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PestDiseaseHomePage()));
-                }),
-                _buildDesktopDrawerItem(Icons.supervisor_account, 'Farm Management', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const FarmManagementScreen()));
-                }),
-                /*_buildDesktopDrawerItem(Icons.local_drink, 'Alma Dairy', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const AlmaDairyHome()));
-                }),*/
-                _buildDesktopDrawerItem(Icons.book, 'Manuals', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualsScreen()));
-                }),
-                _buildDesktopDrawerItem(Icons.settings, 'Settings', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
-                }),
-                if (_isMainAdmin)
-                  _buildDesktopDrawerItem(Icons.admin_panel_settings, 'Admin Management', () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminManagementScreen()));
-                  }),
-                _buildDesktopDrawerItem(Icons.logout, 'Logout', _handleLogout),
+                Expanded(child: _card(Icons.lightbulb, 'Farming Tips', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FarmingTipsWidget()));
+                })),
+                const SizedBox(width: 16),
+                Expanded(child: _card(Icons.price_check, 'Market Price', () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MarketPriceScreen()));
+                })),
               ],
             ),
           ),
+
+          const SizedBox(height: 30),
+
+          // "More Features" Button – Opens Drawer
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _scaffoldKey.currentState?.openDrawer(); // Now works!
+                },
+                icon: const Icon(Icons.menu, size: 28),
+                label: const Text('More Features', style: TextStyle(fontSize: 18)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[700],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 6,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  Widget _buildDesktopDrawerItem(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
-      onTap: onTap,
-      hoverColor: Colors.white24,
-    );
-  }
-
-  Widget _buildAdminButton() {
-    return Padding(
-      padding: EdgeInsets.all(_getResponsiveValue(
-        context,
-        mobile: 16.0,
-        tablet: 20.0,
-        desktop: 24.0,
-      )),
-      child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AdminManagementScreen()),
-          );
-        },
-        icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
-        label: Text(
-          'Admin Management',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: _getResponsiveValue(
-              context,
-              mobile: 14,
-              tablet: 16,
-              desktop: 18,
-            ),
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.symmetric(
-            horizontal: _getResponsiveValue(
-              context,
-              mobile: 20,
-              tablet: 25,
-              desktop: 30,
-            ),
-            vertical: _getResponsiveValue(
-              context,
-              mobile: 15,
-              tablet: 18,
-              desktop: 20,
-            ),
-          ),
-          backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuButton(BuildContext scaffoldContext) {
-    return Padding(
-      padding: EdgeInsets.all(_getResponsiveValue(
-        context,
-        mobile: 16.0,
-        tablet: 20.0,
-        desktop: 24.0,
-      )),
-      child: ElevatedButton.icon(
-        onPressed: () {
-          Scaffold.of(scaffoldContext).openDrawer();
-        },
-        icon: const Icon(Icons.menu, color: Colors.white),
-        label: Text(
-          'MENU',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: _getResponsiveValue(
-              context,
-              mobile: 14,
-              tablet: 16,
-              desktop: 18,
-            ),
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.symmetric(
-            horizontal: _getResponsiveValue(
-              context,
-              mobile: 20,
-              tablet: 25,
-              desktop: 30,
-            ),
-            vertical: _getResponsiveValue(
-              context,
-              mobile: 15,
-              tablet: 18,
-              desktop: 20,
-            ),
-          ),
-          backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCarousel() {
-    final carouselHeight = _getResponsiveValue(
-      context,
-      mobile: MediaQuery.of(context).size.height * 0.35,
-      tablet: MediaQuery.of(context).size.height * 0.4,
-      desktop: MediaQuery.of(context).size.height * 0.45,
-    );
-
-    return Container(
-      height: carouselHeight,
-      margin: EdgeInsets.symmetric(
-        vertical: _getResponsiveValue(
-          context,
-          mobile: 10,
-          tablet: 15,
-          desktop: 20,
-        ),
-      ),
-      child: CarouselSlider(
-        options: CarouselOptions(
-          height: carouselHeight,
-          autoPlay: true,
-          enlargeCenterPage: true,
-          aspectRatio: 16 / 9,
-          autoPlayCurve: Curves.fastOutSlowIn,
-          enableInfiniteScroll: true,
-          autoPlayAnimationDuration: const Duration(milliseconds: 800),
-          viewportFraction: _getResponsiveValue(
-            context,
-            mobile: 0.8,
-            tablet: 0.7,
-            desktop: 0.6,
-          ),
-        ),
-        items: _carouselImages.map((image) {
-          int index = _carouselImages.indexOf(image);
-          List<String> labels = [
-            'Get Weather Forecasts',
-            'Record Field Data Collected',
-            'Enhance Pest Management',
-            'Effectively Manage Farming funds',
-            'Explore Farming Information',
-            'Get Better Farming Tips',
-            'Understand Soil Information',
-          ];
-
-          return Stack(
+  Widget _card(IconData icon, String title, VoidCallback onTap) {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                margin: const EdgeInsets.all(5.0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10.0),
-                  image: DecorationImage(
-                    image: AssetImage(image),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 10,
-                left: 10,
-                right: 10,
-                child: Container(
-                  color: Colors.black54,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  child: Text(
-                    labels[index],
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: _getResponsiveValue(
-                        context,
-                        mobile: 14,
-                        tablet: 16,
-                        desktop: 18,
-                      ),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
+              Icon(icon, size: 50, color: const Color.fromARGB(255, 3, 39, 4)),
+              const SizedBox(height: 12),
+              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildClickableSections() {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        vertical: _getResponsiveValue(
-          context,
-          mobile: 20,
-          tablet: 25,
-          desktop: 30,
-        ),
-        horizontal: _getResponsiveValue(
-          context,
-          mobile: 16,
-          tablet: 20,
-          desktop: 24,
-        ),
-      ),
-      child: GridView.count(
-        crossAxisCount: _getCrossAxisCount(context),
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        childAspectRatio: _getResponsiveValue(
-          context,
-          mobile: 1.0,
-          tablet: 1.1,
-          desktop: 1.2,
-        ),
-        mainAxisSpacing: _getResponsiveValue(
-          context,
-          mobile: 10,
-          tablet: 15,
-          desktop: 20,
-        ),
-        crossAxisSpacing: _getResponsiveValue(
-          context,
-          mobile: 10,
-          tablet: 15,
-          desktop: 20,
-        ),
-        children: [
-          _buildClickableCard('Farming Tips', Icons.lightbulb, () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => FarmingTipsWidget()));
-          }),
-          _buildClickableCard('Market Prices', Icons.shopping_cart, () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => MarketPricePredictionWidget()));
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClickableCard(String title, IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(_getResponsiveValue(
-          context,
-          mobile: 15,
-          tablet: 20,
-          desktop: 25,
-        )),
-        decoration: BoxDecoration(
-          color: const Color.fromRGBO(76, 175, 80, 0.1),
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: const Color.fromRGBO(128, 128, 128, 0.5),
-              spreadRadius: 1,
-              blurRadius: 5,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: _getResponsiveValue(
-                context,
-                mobile: 35,
-                tablet: 40,
-                desktop: 45,
-              ),
-              color: const Color.fromARGB(255, 3, 39, 4),
-            ),
-            SizedBox(height: _getResponsiveValue(
-              context,
-              mobile: 8,
-              tablet: 10,
-              desktop: 12,
-            )),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: _getResponsiveValue(
-                  context,
-                  mobile: 14,
-                  tablet: 16,
-                  desktop: 18,
-                ),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /*Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Manuals'),
-        BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Community'),
-        BottomNavigationBarItem(icon: Icon(Icons.article), label: 'Blog'),
-      ],
-      currentIndex: _selectedIndex,
-      selectedItemColor: const Color.fromARGB(255, 3, 39, 4),
-      unselectedItemColor: Colors.grey,
-      onTap: (index) {
-        setState(() {
-          _selectedIndex = index;
-        });
-      },
-    );
-  }*/
-
-  Widget _buildDrawer() {
+  // Full-featured drawer
+  Widget _buildDrawer(String fullName) {
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const UserProfileScreen()));
-            },
-            child: UserAccountsDrawerHeader(
+      child: Container(
+        color: Colors.white,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
               decoration: const BoxDecoration(color: Color.fromARGB(255, 3, 39, 4)),
-              accountName: Text(
-                _userData?['fullName'] ?? 'Loading...',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: _getResponsiveValue(
-                    context,
-                    mobile: 16,
-                    tablet: 18,
-                    desktop: 20,
-                  ),
-                ),
-              ),
+              accountName: Text(fullName, style: const TextStyle(fontSize: 18)),
               currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                radius: _getResponsiveValue(
-                  context,
-                  mobile: 30,
-                  tablet: 35,
-                  desktop: 40,
-                ),
-                child: _profileImageBytes != null
-                    ? ClipOval(
-                        child: Image.memory(
-                          _profileImageBytes!,
-                          fit: BoxFit.cover,
-                          width: _getResponsiveValue(
-                            context,
-                            mobile: 60,
-                            tablet: 70,
-                            desktop: 80,
-                          ),
-                          height: _getResponsiveValue(
-                            context,
-                            mobile: 60,
-                            tablet: 70,
-                            desktop: 80,
-                          ),
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(
-                                Icons.person,
-                                size: _getResponsiveValue(
-                                  context,
-                                  mobile: 35,
-                                  tablet: 40,
-                                  desktop: 45,
-                                ),
-                                color: const Color.fromARGB(255, 3, 39, 4),
-                              ),
-                        ),
-                      )
-                    : Icon(
-                        Icons.person,
-                        size: _getResponsiveValue(
-                          context,
-                          mobile: 35,
-                          tablet: 40,
-                          desktop: 45,
-                        ),
-                        color: const Color.fromARGB(255, 3, 39, 4),
-                      ),
+                radius: 40,
+                backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                child: _profileImageBytes == null ? const Icon(Icons.person, size: 40, color: Colors.white70) : null,
               ),
               accountEmail: null,
             ),
-          ),
-          _buildDrawerItem(Icons.home, 'Home', () {
-            Navigator.pop(context);
-            setState(() {});
-          }),
-          _buildDrawerItem(Icons.cloud, 'Weather Forecast', () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const WeatherScreen()));
-          }),
-          _buildDrawerItem(Icons.input, 'Field Data Input', () {
-            logger.i('Navigating to FieldDataInputPage, userId: $_userId');
-            if (_userId != null) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const FieldDataInputHomePage()),
-              );
-            } else {
-              logger.w('User ID is null, attempting refresh');
-              _fetchUserData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('User ID not available. Retrying...')),
-              );
-            }
-          }),
-          _buildDrawerItem(Icons.pest_control, 'Manage Pests & Diseases', () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const PestDiseaseHomePage()));
-          }),
-          _buildDrawerItem(Icons.supervisor_account, 'Farm Management', () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const FarmManagementScreen()));
-          }),
-          /*_buildDrawerItem(Icons.local_drink, 'Alma Dairy', () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const AlmaDairyHome()));
-          }),*/
-          _buildDrawerItem(Icons.book, 'Manuals', () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManualsScreen()));
-          }),
-          _buildDrawerItem(Icons.settings, 'Settings', () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
-          }),
-          _buildDrawerItem(Icons.logout, 'Logout', _handleLogout),
-        ],
+            _drawerItem(Icons.home, 'Home', () => Navigator.pop(context)),
+            _drawerItem(Icons.cloud, 'Weather Forecast', () => _navigateTo(const WeatherScreen())),
+            _drawerItem(Icons.input, 'Field Data Input', () => _navigateTo(const FieldDataInputHomePage())),
+            _drawerItem(Icons.bug_report, 'Pests & Diseases', () => _navigateTo(const PestDiseaseHomePage())),
+            _drawerItem(Icons.account_balance_wallet, 'Farm Management', () => _navigateTo(const FarmManagementScreen())),
+            _drawerItem(Icons.book, 'Manuals', () => _navigateTo(const ManualsScreen())),
+            _drawerItem(Icons.settings, 'Settings', () => _navigateTo(const SettingsScreen())),
+            const Divider(),
+            _drawerItem(Icons.logout, 'Logout', _handleLogout),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
+  void _navigateTo(Widget page) {
+    Navigator.pop(context); // Close drawer first
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  ListTile _drawerItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
-      leading: Icon(
-        icon,
-        size: _getResponsiveValue(
-          context,
-          mobile: 24,
-          tablet: 26,
-          desktop: 28,
-        ),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: _getResponsiveValue(
-            context,
-            mobile: 14,
-            tablet: 16,
-            desktop: 18,
-          ),
-        ),
-      ),
+      leading: Icon(icon, color: const Color.fromARGB(255, 3, 39, 4)),
+      title: Text(title),
       onTap: onTap,
     );
   }
 }
-
-enum ScreenType { mobile, tablet, desktop }

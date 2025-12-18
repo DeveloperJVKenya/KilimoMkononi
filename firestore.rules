@@ -1,0 +1,242 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper functions
+    // ──────────────────────────────────────────────────────────────
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/Admins/$(request.auth.uid));
+    }
+
+    function isTeacher() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/EducationUsers/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function isStudent() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/EducationUsers/$(request.auth.uid)).data.role == 'student';
+    }
+
+    function getUserDoc(uid) {
+      return get(/databases/$(database)/documents/EducationUsers/$(uid)).data;
+    }
+
+    function teacherSchool() {
+      return getUserDoc(request.auth.uid).schoolName;
+    }
+
+    function teacherClassIds() {
+      let ids = getUserDoc(request.auth.uid).classIds;
+      return ids is list ? ids : [];
+    }
+
+    function ownsGrade(schoolId, gradeId) {
+      let ids = teacherClassIds();
+      return isTeacher() && (
+        (schoolId + '_primary_' + gradeId) in ids ||
+        (schoolId + '_junior_' + gradeId) in ids ||
+        (schoolId + '_senior_' + gradeId) in ids ||
+        (schoolId + '_eightfourfour_' + gradeId) in ids
+      );
+    }
+
+    function inGrade(schoolId, gradeId) {
+      let current = getUserDoc(request.auth.uid).currentClassId;
+      return isStudent() && current != null && current.startsWith(schoolId) && (
+        current.endsWith('_primary_' + gradeId) ||
+        current.endsWith('_junior_' + gradeId) ||
+        current.endsWith('_senior_' + gradeId) ||
+        current.endsWith('_eightfourfour_' + gradeId)
+      );
+    }
+
+    function isValidContentType(contentType) {
+      return contentType in [
+        'farming_content',
+        'market_content',
+        'weather_content',
+        'field_content',
+        'pest_content',
+        'disease_content',
+        'farm_management_content'
+      ];
+    }
+
+    function canCreateContent(schoolId, gradeId) {
+      return isValidContentType(request.resource.data.contentType) &&
+             ownsGrade(schoolId, gradeId) &&
+             request.resource.data.type in ['quiz', 'simulation'] &&
+             request.resource.data.data is string &&
+             request.resource.data.createdAt is timestamp;
+    }
+
+    function canListContent(schoolId, gradeId) {
+      return inGrade(schoolId, gradeId) &&
+             request.query.where != null &&
+             request.query.where.size() == 1 &&
+             request.query.where[0][0] == 'type' &&
+             request.query.where[0][2] in ['quiz', 'simulation'];
+    }
+
+    function canUpdateCounters(schoolId, gradeId) {
+      return ownsGrade(schoolId, gradeId) &&
+             request.resource.data.keys().hasOnly([
+               'studentCount', 'quizCount', 'simulationCount', 'newQuiz', 'newSimulation', 'updatedAt'
+             ]);
+    }
+
+    function canCreateFeed(schoolId, gradeId) {
+      let userData = getUserDoc(request.auth.uid);
+      return ownsGrade(schoolId, gradeId) &&
+             request.resource.data.senderName == userData.fullName &&
+             request.resource.data.message is string &&
+             request.resource.data.timestamp is timestamp;
+    }
+
+    function canCreateSubmission() {
+      let userData = getUserDoc(request.auth.uid);
+      return isStudent() &&
+             request.resource.data.studentId == request.auth.uid &&
+             request.resource.data.gradeId == userData.currentClassId &&
+             request.resource.data.type in ['quiz', 'simulation'] &&
+             request.resource.data.score is int &&
+             request.resource.data.submittedAt is timestamp &&
+             request.resource.data.answers is map;
+    }
+
+    function canReadSubmission() {
+      let classIds = teacherClassIds();
+      return request.auth.uid == resource.data.studentId ||
+             (isTeacher() && (resource.data.gradeId in classIds));
+    }
+
+    function canListSubmissions() {
+      let classIds = teacherClassIds();
+      return isTeacher() && (resource.data.gradeId in classIds) ||
+             (isStudent() && request.query.where != null &&
+              request.query.where.size() == 1 &&
+              request.query.where[0] == ['studentId', '==', request.auth.uid]);
+    }
+
+    function canUpdateSubmission() {
+      let classIds = teacherClassIds();
+      return isTeacher() && (resource.data.gradeId in classIds) &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+               'score', 'gradedBy', 'gradedAt', 'feedback'
+             ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Default deny
+    // ──────────────────────────────────────────────────────────────
+    match /{document=**} { allow read, write: if false; }
+
+    // ──────────────────────────────────────────────────────────────
+    // Admins
+    // ──────────────────────────────────────────────────────────────
+    match /Admins/{uid} { allow read, write: if isAdmin(); }
+
+    // ──────────────────────────────────────────────────────────────
+    // Users (farmers)
+    // ──────────────────────────────────────────────────────────────
+    match /Users/{userId} { 
+      allow read, write: if request.auth.uid == userId || isAdmin(); 
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Education Users
+    // ──────────────────────────────────────────────────────────────
+    match /EducationUsers/{userId} {
+      allow read, write: if request.auth.uid == userId || isAdmin();
+      allow list: if isTeacher() || isAdmin();
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Farmer Data (UNCHANGED)
+    // ──────────────────────────────────────────────────────────────
+    match /fielddata/{doc} {
+      allow read: if request.auth != null && (resource == null || request.auth.uid == resource.data.userId);
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth.uid == resource.data.userId;
+      allow read, write: if isAdmin();
+    }
+
+    match /marketdata/{doc} {
+      allow read: if request.auth != null && (resource == null || request.auth.uid == resource.data.userId);
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth.uid == resource.data.userId;
+      allow read, write: if isAdmin();
+    }
+
+    match /pestinterventiondata/{doc} {
+      allow read: if request.auth != null && (resource == null || (request.auth.uid == resource.data.userId && resource.data.isDeleted == false));
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth.uid == resource.data.userId;
+      allow delete: if isAdmin();
+      allow read, write: if isAdmin();
+    }
+
+    match /diseaseinterventiondata/{doc} {
+      allow read: if request.auth != null && (resource == null || (request.auth.uid == resource.data.userId && resource.data.isDeleted == false));
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth.uid == resource.data.userId;
+      allow delete: if isAdmin();
+      allow read, write: if isAdmin();
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Logs & Manuals
+    // ──────────────────────────────────────────────────────────────
+    match /admin_logs/{id} { allow read, write: if isAdmin(); }
+    match /User_logs/{id} { allow create: if request.auth != null; allow read, write: if isAdmin(); }
+    match /Manuals/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /ManualRequests/{userId} {
+      allow create: if request.auth.uid == userId;
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow update: if isAdmin();
+      match /messages/{messageId} {
+        allow create: if request.auth.uid == userId || isAdmin();
+        allow read: if request.auth.uid == userId || isAdmin();
+        allow update: if isAdmin();
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Schools → Grades
+    // ──────────────────────────────────────────────────────────────
+    match /schools/{schoolId}/grades/{gradeId} {
+      allow read: if isAdmin() || ownsGrade(schoolId, gradeId) || inGrade(schoolId, gradeId);
+      allow create: if isAdmin();
+      allow update: if isAdmin() || canUpdateCounters(schoolId, gradeId);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Content: All 7 modules (quizzes + simulations)
+    // ──────────────────────────────────────────────────────────────
+    match /schools/{schoolId}/grades/{gradeId}/{contentType}/{docId} {
+      allow read: if isAdmin() || ownsGrade(schoolId, gradeId) || inGrade(schoolId, gradeId);
+      allow create, update, delete: if isAdmin() || canCreateContent(schoolId, gradeId);
+      allow list: if isAdmin() || ownsGrade(schoolId, gradeId) || canListContent(schoolId, gradeId);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Class Feed (Questions & Answers)
+    // ──────────────────────────────────────────────────────────────
+    match /schools/{schoolId}/grades/{gradeId}/feed/{msgId} {
+      allow read: if isAdmin() || ownsGrade(schoolId, gradeId) || inGrade(schoolId, gradeId);
+      allow create: if canCreateFeed(schoolId, gradeId);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Submissions (Quiz & Simulation Results)
+    // ──────────────────────────────────────────────────────────────
+    match /submissions/{subId} {
+      allow create: if canCreateSubmission();
+      allow get: if canReadSubmission();
+      allow list: if canListSubmissions();
+      allow update: if canUpdateSubmission();
+    }
+  }
+}

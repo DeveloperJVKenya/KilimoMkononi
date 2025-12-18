@@ -1,0 +1,262 @@
+[
+  {
+    "crop": "Tomatoes",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Cutworms may sever seedlings",
+    "likely_type": "Pest",
+    "identity": "Cutworms",
+    "visible_signs": [
+      "severed stems",
+      "chewing damage"
+    ],
+    "short_code": "tomatoes_seedling_cutworms"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Damping-off: stem collapse at soil line",
+    "likely_type": "Disease",
+    "identity": "Damping-off",
+    "visible_signs": [
+      "collapsed stems",
+      "water-soaked base"
+    ],
+    "short_code": "tomatoes_seedling_dampingoff"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Aphids: curling leaves, sticky honeydew",
+    "likely_type": "Pest",
+    "identity": "Aphids",
+    "visible_signs": [
+      "curled leaves",
+      "honeydew",
+      "sooty mould"
+    ],
+    "short_code": "tomatoes_vegetative_aphids"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Whitefly: yellowing, sticky residue",
+    "likely_type": "Pest",
+    "identity": "Whitefly",
+    "visible_signs": [
+      "white insects underside",
+      "sticky residue"
+    ],
+    "short_code": "tomatoes_vegetative_whitefly"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Early blight: concentric rings on lower leaves",
+    "likely_type": "Disease",
+    "identity": "Early blight (Alternaria solani)",
+    "visible_signs": [
+      "concentric rings",
+      "brown lesions"
+    ],
+    "short_code": "tomatoes_vegetative_earlyblight"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Septoria leaf spot: small spots with grey centers",
+    "likely_type": "Disease",
+    "identity": "Septoria leaf spot",
+    "visible_signs": [
+      "small spots",
+      "grey centers"
+    ],
+    "short_code": "tomatoes_vegetative_septoria"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Whole plant",
+    "symptom_label": "Tomato mosaic virus: mottled leaves, stunting",
+    "likely_type": "Disease",
+    "identity": "Tomato mosaic virus",
+    "visible_signs": [
+      "mottled leaves",
+      "stunted growth"
+    ],
+    "short_code": "tomatoes_vegetative_mosaicvirus"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Roots",
+    "symptom_label": "Root-knot nematodes: galls on roots, stunting",
+    "likely_type": "Nematode",
+    "identity": "Root-knot nematodes",
+    "visible_signs": [
+      "root galls"
+    ],
+    "short_code": "tomatoes_vegetative_nematodes"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Nutrient deficiencies: interveinal chlorosis (Mg) or uniform yellowing (N)",
+    "likely_type": "Abiotic",
+    "identity": "Nutrient deficiencies (N/Mg)",
+    "visible_signs": [
+      "interveinal chlorosis",
+      "yellow leaves"
+    ],
+    "short_code": "tomatoes_vegetative_nutrient_deficiency"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Fruits",
+    "symptom_label": "Tomato fruitworm / leafminer larvae: entry holes in fruit, frass inside",
+    "likely_type": "Pest",
+    "identity": "Tomato fruitworm / Tuta absoluta",
+    "visible_signs": [
+      "entry holes",
+      "frass inside",
+      "tunnels in fruit"
+    ],
+    "short_code": "tomatoes_flowering_fruitworm"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Fruits",
+    "symptom_label": "Stink bugs: sunken spots on fruit and internal discoloration",
+    "likely_type": "Pest",
+    "identity": "Stink bugs",
+    "visible_signs": [
+      "sunken spots",
+      "internal discoloration"
+    ],
+    "short_code": "tomatoes_flowering_stinkbugs"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Leaves",
+    "symptom_label": "Late blight: large water-soaked lesions, white fuzzy sporulation underside",
+    "likely_type": "Disease",
+    "identity": "Late blight (Phytophthora infestans)",
+    "visible_signs": [
+      "water-soaked lesions",
+      "white sporulation"
+    ],
+    "short_code": "tomatoes_flowering_lateblight"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Whole plant",
+    "symptom_label": "Bacterial canker / wilt: wilting, stem cankers, ooze, bird’s-eye spots on fruit",
+    "likely_type": "Disease",
+    "identity": "Bacterial canker (Clavibacter) / wilt (Ralstonia)",
+    "visible_signs": [
+      "wilting",
+      "stem cankers",
+      "ooze",
+      "bird’s-eye spots"
+    ],
+    "short_code": "tomatoes_flowering_bacterialcanker"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Fruits",
+    "symptom_label": "Anthracnose on ripe fruit: sunken circular lesions",
+    "likely_type": "Disease",
+    "identity": "Anthracnose",
+    "visible_signs": [
+      "sunken circular lesions"
+    ],
+    "short_code": "tomatoes_flowering_anthracnose"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Fruits",
+    "symptom_label": "Blossom end rot: sunken black patch at blossom end",
+    "likely_type": "Abiotic",
+    "identity": "Blossom end rot (Ca deficiency)",
+    "visible_signs": [
+      "sunken black patch"
+    ],
+    "short_code": "tomatoes_flowering_blossomendrot"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Roots",
+    "symptom_label": "Stunting + poor root mass during fruiting reducing yields",
+    "likely_type": "Nematode",
+    "identity": "Root-knot nematodes",
+    "visible_signs": [
+      "stunted plants",
+      "poor root mass"
+    ],
+    "short_code": "tomatoes_flowering_nematodes"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Flowering",
+    "plant_part": "Fruits",
+    "symptom_label": "Sunscald on exposed fruit: white/bleached spots",
+    "likely_type": "Abiotic",
+    "identity": "Sunscald",
+    "visible_signs": [
+      "white bleached spots"
+    ],
+    "short_code": "tomatoes_flowering_sunscald"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Fruits",
+    "symptom_label": "Post-harvest fruit borers in storage",
+    "likely_type": "Pest",
+    "identity": "Fruit borers",
+    "visible_signs": [
+      "holes in fruits",
+      "larvae"
+    ],
+    "short_code": "tomatoes_storage_borers"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Fruits",
+    "symptom_label": "Soft rots (Erwinia), alternaria rot, rapid fruit rot in high humidity",
+    "likely_type": "Disease",
+    "identity": "Soft rots (Erwinia/Alternaria)",
+    "visible_signs": [
+      "soft rotting",
+      "foul odour"
+    ],
+    "short_code": "tomatoes_storage_softrots"
+  },
+  {
+    "crop": "Tomatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Fruits",
+    "symptom_label": "Uneven ripening, catfacing from cold or heat stress during blossom",
+    "likely_type": "Abiotic",
+    "identity": "Uneven ripening / catfacing",
+    "visible_signs": [
+      "uneven color",
+      "scarring on fruit"
+    ],
+    "short_code": "tomatoes_storage_unevenripening"
+  }
+]

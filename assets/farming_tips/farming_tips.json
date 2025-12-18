@@ -1,0 +1,348 @@
+{
+  "maize": {
+    "icon": "🌽",
+    "general": "- Plant at onset of reliable rains\n- Use certified seed\n- Scout early for Fall Armyworm\n- Critical moisture at tasseling & grain filling",
+    "image_general": "farming_tips/images/maize_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Plough or rip to break hardpans\n- Create a fine seedbed\n- Ridge on sloping land\n- Incorporate manure in drought-prone areas",
+        "image": "farming_tips/images/maize_land_prep.jpg"
+      },
+      "Planting & Spacing": {
+        "tips": "- Plant 3–7 cm deep\n- Standard hybrids: 75 × 30 cm\n- High-density hybrids: 75 × 25 cm\n- OPVs: 90 × 30–35 cm",
+        "image": "farming_tips/images/maize_spacing.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Apply basal DAP/TSP: 50–100 kg/ha\n- Top-dress with CAN/Urea twice:\n  • At 4–6 weeks\n  • At knee-high stage\n- Total N: 100–200 kg/ha for hybrids",
+        "image": "farming_tips/images/maize_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Most critical stages:\n  • Seedling establishment\n  • Tasseling & silking\n  • Grain filling\n- Even drought-tolerant varieties need moisture at flowering",
+        "image": "farming_tips/images/maize_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Use FAW-tolerant varieties (reduces damage)\n- Scout fields weekly\n- Apply recommended insecticides early if needed\n- For MLN: use certified seed + crop rotation",
+        "image": "farming_tips/images/maize_pest.jpg"
+      },
+      "Harvest & Storage": {
+        "tips": "- Harvest when grain moisture is ~20%\n- Dry grains to ≤13% moisture content\n- Store in hermetic bags (e.g. PICS, SuperGrain bags)\n- Keep storage area clean and dry",
+        "image": "farming_tips/images/maize_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "KDH414 / Ukamez-1 (Drought-tolerant)": {
+        "best_for": "Dry & marginal rainfall areas",
+        "tips": "- Excellent moisture conservation\n- Use mulching and minimum tillage\n- Apply moderate fertilizer rates\n- Split nitrogen applications",
+        "image": "farming_tips/images/maize_kdh414.jpg"
+      },
+      "FAWTH2001–2003 (FAW-tolerant)": {
+        "best_for": "Fall Armyworm hotspot areas",
+        "tips": "- Built-in tolerance reduces damage\n- Still scout weekly\n- Combine with pheromone traps & biopesticides\n- Strong foundation for IPM",
+        "image": "farming_tips/images/maize_fawth.jpg"
+      },
+      "Katumani composites / OPVs": {
+        "best_for": "Low-input & seed-saving farmers",
+        "tips": "- Wider spacing: 90 × 30–35 cm\n- Lower fertilizer requirement\n- Excellent for marginal lands\n- Farmers can recycle seed",
+        "image": "farming_tips/images/maize_opvs.jpg"
+      },
+      "ADC 6-series / High-altitude hybrids": {
+        "best_for": "Cool highlands with reliable rainfall",
+        "tips": "- High yield potential\n- Respond well to fertilizer (high input)\n- Spacing: 75 × 25 cm\n- Good tolerance to rust and GLS",
+        "image": "farming_tips/images/maize_adc6.jpg"
+      }
+    }
+  },
+  "beans": {
+    "icon": "🫘",
+    "general": "- Inoculate seed with rhizobium (especially on new fields)\n- Avoid excess nitrogen fertilizer\n- Critical moisture needed at flowering & pod filling",
+    "image_general": "farming_tips/images/beans_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Achieve fine tilth\n- Incorporate well-decomposed compost or manure\n- Avoid wet or cloddy seedbeds",
+        "image": "farming_tips/images/beans_land_prep.jpg"
+      },
+      "Planting & Spacing": {
+        "tips": "- Plant 3–4 cm deep\n- Bush beans: 45–60 × 10–15 cm\n- Climbing beans: 75 × 30 cm + staking",
+        "image": "farming_tips/images/beans_spacing.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Phosphorus is usually most limiting\n- Apply TSP or DAP at planting\n- Minimal nitrogen needed (especially if inoculated)\n- Rhizobium inoculation highly recommended",
+        "image": "farming_tips/images/beans_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Very sensitive to drought during flowering & pod filling\n- Nyota variety has better drought tolerance\n- Ensure consistent moisture during critical stages",
+        "image": "farming_tips/images/beans_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Watch for bean fly, aphids, and anthracnose\n- Use certified clean seed\n- Practice crop rotation\n- Remove and burn affected plants",
+        "image": "farming_tips/images/beans_pest.jpg"
+      },
+      "Harvest": {
+        "tips": "- Harvest when pods are dry and seeds rattle\n- Dry in shade to maintain seed color\n- Thresh carefully to avoid splitting",
+        "image": "farming_tips/images/beans_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "Nyota (KAD-02)": {
+        "best_for": "Low-rainfall & food security areas",
+        "tips": "- Matures in 60–70 days\n- High iron and zinc content\n- Good drought tolerance\n- Fast harvest = early income",
+        "image": "farming_tips/images/beans_nyota.jpg"
+      },
+      "Angaza (KMR-11)": {
+        "best_for": "Nutrition-focused programs",
+        "tips": "- Biofortified with iron and zinc\n- Mid-maturity: 75–80 days\n- Good yield under moderate management",
+        "image": "farming_tips/images/beans_angaza.jpg"
+      },
+      "Metameta (KMR-12)": {
+        "best_for": "Farmer groups & cooperatives",
+        "tips": "- Uniform maturity\n- Easy synchronized harvesting\n- Good for group marketing",
+        "image": "farming_tips/images/beans_metameta.jpg"
+      }
+    }
+  },
+  "tomatoes": {
+    "icon": "🍅",
+    "general": "- Stake and prune indeterminate varieties\n- Avoid wetting leaves during irrigation\n- Apply calcium foliar sprays to prevent blossom-end rot",
+    "image_general": "farming_tips/images/tomato_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Use raised beds in heavy soils\n- Incorporate well-rotted manure\n- Ensure good drainage",
+        "image": "farming_tips/images/tomato_land_prep.jpg"
+      },
+      "Nursery & Transplanting": {
+        "tips": "- Raise seedlings for 4–6 weeks\n- Transplant at 4–6 true leaves stage\n- Determinate: 60 × 45 cm\n- Indeterminate: 90 × 60 cm",
+        "image": "farming_tips/images/tomato_nursery.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Apply basal NPK at planting\n- Increase potassium during fruiting stage\n- Regular calcium foliar sprays\n- Monitor for micronutrient deficiencies",
+        "image": "farming_tips/images/tomato_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Provide even, frequent irrigation\n- Drip irrigation is ideal\n- Avoid water stress during flowering and fruit set",
+        "image": "farming_tips/images/tomato_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Major threats: Tuta absoluta, whitefly, TYLCV, bacterial wilt\n- Use resistant hybrids where possible\n- Practice integrated pest management (IPM)\n- Remove and destroy infected plants",
+        "image": "farming_tips/images/tomato_pest.jpg"
+      },
+      "Harvest": {
+        "tips": "- Harvest at breaker stage for long-distance transport\n- Firm hybrids have better shelf life\n- Handle carefully to avoid bruising",
+        "image": "farming_tips/images/tomato_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "Onyx F1": {
+        "best_for": "Fresh market & long-distance transport",
+        "tips": "- Firm oval fruits\n- Maturity: ~70 days\n- Excellent shelf life and transport tolerance",
+        "image": "farming_tips/images/tomato_onyx.jpg"
+      },
+      "Rio Grande": {
+        "best_for": "Processing & synchronized harvest",
+        "tips": "- Determinate growth habit\n- Heat tolerant\n- Uniform ripening",
+        "image": "farming_tips/images/tomato_rio.jpg"
+      },
+      "Tylka F1 / Buena Vista F1": {
+        "best_for": "Virus & bacterial wilt hotspots",
+        "tips": "- Strong resistance to TYLCV and bacterial wilt\n- Vigorous plant growth\n- High yield potential",
+        "image": "farming_tips/images/tomato_tylka.jpg"
+      }
+    }
+  },
+  "carrots": {
+    "icon": "🥕",
+    "general": "- Requires deep, stone-free soil (>30 cm)\n- Needs continuous moisture\n- Thin seedlings early\n- Never use fresh manure",
+    "image_general": "farming_tips/images/carrots_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Dig deeply (>30 cm)\n- Remove all stones and debris\n- Create fine, level seedbed\n- Use only well-rotted compost",
+        "image": "farming_tips/images/carrots_land_prep.jpg"
+      },
+      "Planting & Spacing": {
+        "tips": "- Direct sow 1–2 cm deep\n- Thin to 5–10 cm between plants\n- Rows 25–30 cm apart",
+        "image": "farming_tips/images/carrots_spacing.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Apply moderate NPK at planting\n- Avoid excess nitrogen (causes forking)\n- Boron is critical to prevent hollow heart",
+        "image": "farming_tips/images/carrots_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Maintain even soil moisture throughout growth\n- Avoid fluctuations (prevents cracking & forking)\n- Light, frequent irrigation works best",
+        "image": "farming_tips/images/carrots_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Carrot fly: use row covers or companion planting\n- Nematodes: rotate with non-host crops\n- Maintain healthy, loose soil",
+        "image": "farming_tips/images/carrots_pest.jpg"
+      },
+      "Harvest": {
+        "tips": "- Harvest 70–110 days depending on variety\n- Lift carefully to avoid breakage\n- Cool immediately after harvest",
+        "image": "farming_tips/images/carrots_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "Nantes": {
+        "best_for": "General purpose & fresh market favorite",
+        "tips": "- Sweet flavor\n- Cylindrical shape\n- Good shelf life\n- Maturity: 80–100 days",
+        "image": "farming_tips/images/carrots_nantes.jpg"
+      },
+      "Kuroda / Super Kuroda": {
+        "best_for": "Warmer growing areas",
+        "tips": "- Heat tolerant\n- Thicker roots\n- Good uniformity",
+        "image": "farming_tips/images/carrots_kuroda.jpg"
+      },
+      "Chantenay": {
+        "best_for": "Heavy or shallow soils",
+        "tips": "- Shorter, stumpier roots\n- Early maturity\n- Good for home gardens",
+        "image": "farming_tips/images/carrots_chantenay.jpg"
+      },
+      "Nebula F1 / Sunrise F1": {
+        "best_for": "Premium uniform roots",
+        "tips": "- Hybrid vigor\n- Excellent disease tolerance\n- High marketable yield",
+        "image": "farming_tips/images/carrots_nebula.jpg"
+      }
+    }
+  },
+  "cabbage": {
+    "icon": "🥬",
+    "general": "- Transplant when seedlings have 4–6 true leaves\n- Maintain consistent moisture\n- Apply boron to ensure good head formation",
+    "image_general": "farming_tips/images/cabbage_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Deep plough the field\n- Incorporate 8–10 t/ha well-decomposed manure\n- Form raised beds if drainage is poor",
+        "image": "farming_tips/images/cabbage_land_prep.jpg"
+      },
+      "Nursery & Transplanting": {
+        "tips": "- Raise seedlings for 4–6 weeks\n- Harden off before transplanting\n- Spacing for hybrids: 60 × 45 cm",
+        "image": "farming_tips/images/cabbage_nursery.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Apply basal manure + NPK at planting\n- Top-dress nitrogen at 3 weeks and 6 weeks\n- Ensure boron availability",
+        "image": "farming_tips/images/cabbage_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Keep soil consistently moist for crisp heads\n- Drip irrigation reduces fungal diseases\n- Avoid water stress during head formation",
+        "image": "farming_tips/images/cabbage_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Diamondback moth, aphids, black rot common\n- Use Bt sprays, neem, or approved insecticides\n- Practice crop rotation and field hygiene",
+        "image": "farming_tips/images/cabbage_pest.jpg"
+      },
+      "Harvest": {
+        "tips": "- Harvest when heads are firm and compact\n- Cut with a sharp knife\n- Cool immediately after harvest",
+        "image": "farming_tips/images/cabbage_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "Gloria F1 / Queen F1": {
+        "best_for": "Large uniform heads for premium markets",
+        "tips": "- High yielding\n- Excellent head weight\n- Invest in good nursery and fertilizer",
+        "image": "farming_tips/images/cabbage_gloria.jpg"
+      },
+      "Pruktor F1": {
+        "best_for": "Fusarium yellows-prone areas",
+        "tips": "- Strong resistance to fusarium wilt\n- Reliable performance in warm areas",
+        "image": "farming_tips/images/cabbage_pruktor.jpg"
+      },
+      "Copenhagen Market (OPV)": {
+        "best_for": "Budget-conscious growers",
+        "tips": "- Reliable open-pollinated variety\n- Good head size\n- Lower seed cost",
+        "image": "farming_tips/images/cabbage_copenhagen.jpg"
+      }
+    }
+  },
+  "kales": {
+    "icon": "🥬",
+    "general": "- Allows multiple harvests (ratooning)\n- Plant densely for higher yields\n- Pick outer leaves regularly to encourage new growth",
+    "image_general": "farming_tips/images/kale_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Incorporate plenty of manure\n- Achieve fine tilth for good germination",
+        "image": "farming_tips/images/kale_land_prep.jpg"
+      },
+      "Planting & Spacing": {
+        "tips": "- Can direct sow or transplant\n- Spacing: 30–45 × 30 cm\n- Closer spacing = more tender leaves",
+        "image": "farming_tips/images/kale_spacing.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Heavy feeder – loves nitrogen\n- Apply basal manure + top-dress CAN twice\n- Responds well to split applications",
+        "image": "farming_tips/images/kale_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Moderately drought tolerant\n- Yields drop significantly without water\n- Regular irrigation = continuous harvest",
+        "image": "farming_tips/images/kale_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Aphids and diamondback moth common\n- Use neem oil, wood ash, or Bt sprays\n- Remove old leaves to reduce hiding spots",
+        "image": "farming_tips/images/kale_pest.jpg"
+      },
+      "Harvest": {
+        "tips": "- Start picking 4–6 weeks after transplanting\n- Harvest outer leaves regularly\n- Maintain fertility for continuous production",
+        "image": "farming_tips/images/kale_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "Collards / Thousand Headed": {
+        "best_for": "Smallholder continuous income",
+        "tips": "- Very cheap seed\n- Extremely productive\n- Long harvesting period",
+        "image": "farming_tips/images/kale_collards.jpg"
+      },
+      "Mfalme F1 / Marrow Stem": {
+        "best_for": "Premium dark green leaves",
+        "tips": "- Higher market price\n- Darker, more attractive leaves\n- Higher yield than traditional types",
+        "image": "farming_tips/images/kale_mfalme.jpg"
+      }
+    }
+  },
+  "onions": {
+    "icon": "🧅",
+    "general": "- Transplant when seedlings are pencil-thick\n- Reduce watering 2–3 weeks before harvest\n- Cure bulbs properly for long storage",
+    "image_general": "farming_tips/images/onions_general.jpg",
+    "stages": {
+      "Land Preparation": {
+        "tips": "- Deep cultivation for bulb development\n- Create fine, level seedbed\n- Form raised beds for drainage\n- Incorporate 8–15 t/ha manure",
+        "image": "farming_tips/images/onions_land_prep.jpg"
+      },
+      "Nursery & Transplanting": {
+        "tips": "- Raise seedlings for 6–8 weeks\n- Transplant at pencil thickness\n- Spacing: 30 × 8–10 cm",
+        "image": "farming_tips/images/onions_nursery.jpg"
+      },
+      "Fertilizer": {
+        "tips": "- Apply basal NPK at planting\n- Top-dress with CAN + Sulphate of Potash (SOP)\n- Sulphur improves pungency and storage",
+        "image": "farming_tips/images/onions_fertilizer.jpg"
+      },
+      "Water & Irrigation": {
+        "tips": "- Provide light, frequent irrigation\n- Stop watering 2–3 weeks before harvest\n- Allows proper bulb curing in field",
+        "image": "farming_tips/images/onions_water.jpg"
+      },
+      "Pest & Disease": {
+        "tips": "- Thrips: use blue sticky traps + neem\n- Downy mildew: ensure good airflow\n- Practice crop rotation",
+        "image": "farming_tips/images/onions_pest.jpg"
+      },
+      "Harvest & Storage": {
+        "tips": "- Harvest when 50–70% tops fall over\n- Cure bulbs in shade for 7–14 days\n- Store long-keeping varieties in well-ventilated area\n- Trim tops after full curing",
+        "image": "farming_tips/images/onions_harvest.jpg"
+      }
+    },
+    "varieties": {
+      "Bombay Red": {
+        "best_for": "Dry & hot areas",
+        "tips": "- Heat tolerant\n- Excellent keeper\n- Good for long storage",
+        "image": "farming_tips/images/onions_bombay.jpg"
+      },
+      "Red Creole / Tropicana": {
+        "best_for": "Long-term storage",
+        "tips": "- Pungent flavor\n- Very good keeper\n- Performs well in dry zones",
+        "image": "farming_tips/images/_onions_red.jpg"
+      },
+      "Jambar F1 / Neptune F1": {
+        "best_for": "High uniformity & premium markets",
+        "tips": "- Hybrid vigor\n- Early maturity\n- Large, uniform bulbs\n- High marketable yield",
+        "image": "farming_tips/images/onions_neptune.jpg"
+      },
+      "Texas Grano 502": {
+        "best_for": "Sweet onions & fresh market",
+        "tips": "- Large, mild-flavored bulbs\n- Short-day variety\n- Great for salads and fresh use",
+        "image": "farming_tips/images/onions_texas.jpg"
+      }
+    }
+  }
+}

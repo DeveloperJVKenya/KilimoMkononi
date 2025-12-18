@@ -11,6 +11,7 @@ class AppUser {
   final String phoneNumber;
   final String? profileImage;
   final bool isDisabled;
+  final Timestamp? createdAt;
 
   AppUser({
     required this.id,
@@ -22,10 +23,12 @@ class AppUser {
     required this.phoneNumber,
     this.profileImage,
     this.isDisabled = false,
+    this.createdAt,
   });
 
   Map<String, dynamic> toMap() {
     return {
+      'userId': id,                            // REQUIRED for rules
       'fullName': fullName,
       'email': email,
       'county': county,
@@ -34,21 +37,26 @@ class AppUser {
       'phoneNumber': phoneNumber,
       'profileImage': profileImage,
       'isDisabled': isDisabled,
+      'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     };
   }
 
-  factory AppUser.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snapshot, SnapshotOptions? options) {
-    final data = snapshot.data();
+  factory AppUser.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> snapshot,
+    SnapshotOptions? options,
+  ) {
+    final data = snapshot.data() ?? {};
     return AppUser(
       id: snapshot.id,
-      fullName: data?['fullName'] ?? '',
-      email: data?['email'] ?? '',
-      county: data?['county'] ?? '',
-      constituency: data?['constituency'] ?? '',
-      ward: data?['ward'] ?? '',
-      phoneNumber: data?['phoneNumber'] ?? '',
-      profileImage: data?['profileImage'] as String?,
-      isDisabled: data?['isDisabled'] as bool? ?? false,
+      fullName: data['fullName'] ?? '',
+      email: data['email'] ?? '',
+      county: data['county'] ?? '',
+      constituency: data['constituency'] ?? '',
+      ward: data['ward'] ?? '',
+      phoneNumber: data['phoneNumber'] ?? '',
+      profileImage: data['profileImage'] as String?,
+      isDisabled: data['isDisabled'] as bool? ?? false,
+      createdAt: data['createdAt'] as Timestamp?,
     );
   }
 }

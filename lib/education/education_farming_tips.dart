@@ -1,0 +1,1030 @@
+// education_farming_tips.dart - FINAL FIXED VERSION
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:confetti/confetti.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:kilimomkononi/utils/firestore_helper.dart';
+import '../utils/class_id_notifier.dart';
+import '../models/education_user.dart';
+
+const Color primaryGreen = Color(0xFF032704);
+
+extension StringExt on String {
+  String capitalize() => isNotEmpty ? '${this[0].toUpperCase()}${substring(1)}' : this;
+}
+
+extension TextEditingControllerExt on TextEditingController {
+  String get safeText => text.trim();
+}
+
+class EducationFarmingTips extends StatefulWidget {
+  final EduRole role;
+  final String schoolName;
+  final String classId;
+
+  const EducationFarmingTips({
+    super.key,
+    required this.role,
+    required this.schoolName,
+    required this.classId,
+  });
+
+  @override
+  State<EducationFarmingTips> createState() => _EducationFarmingTipsState();
+}
+
+class _EducationFarmingTipsState extends State<EducationFarmingTips> {
+  late String _schoolId;
+  late String _gradeId;
+  final String _contentType = 'farming_content';
+  late Future<Map<String, dynamic>> _tipsFuture;
+  final Map<String, bool> _expandedCrops = {};
+  String? _selectedCrop;
+
+  @override
+  void initState() {
+    super.initState();
+    final match = RegExp(r'^(.*)_(\d+)$').firstMatch(widget.classId);
+    if (match != null) {
+      _schoolId = match.group(1)!;
+      _gradeId = match.group(2)!;
+      classIdNotifier.value = widget.classId;
+    }
+
+    _tipsFuture = rootBundle
+        .loadString('assets/farming_tips/farming_tips.json')
+        .then((jsonStr) => json.decode(jsonStr) as Map<String, dynamic>);
+  }
+
+  void _showQuizBuilder() => showDialog(
+        context: context,
+        builder: (_) => FarmingQuizBuilder(onSave: (d) => _save('quiz', d)),
+      );
+
+  void _showSimBuilder() => showDialog(
+        context: context,
+        builder: (_) => FarmingSimulationBuilder(onSave: (d) => _save('simulation', d)),
+      );
+
+  Future<void> _save(String type, Map<String, dynamic> data) async {
+    if (_selectedCrop == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please expand a crop first to create its quiz/simulation')),
+      );
+      return;
+    }
+
+    final String title = data['title'] as String? ?? '$_selectedCrop ${type.capitalize()}';
+
+    await FirestoreHelper.ensureGradeExists(widget.classId);
+
+    final collection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (collection == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid class configuration')),
+      );
+      return;
+    }
+
+    try {
+      await collection.add({
+        'type': type,
+        'title': title,
+        'crop': _selectedCrop,
+        'data': jsonEncode(type == 'quiz' ? data['questions'] : data['steps']),
+        'createdAt': FieldValue.serverTimestamp(),
+        'userId': FirebaseAuth.instance.currentUser!.uid,
+        'schoolId': _schoolId,
+        'gradeId': _gradeId,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$title saved successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Widget _buildImage(String assetPath, double maxHeight) {
+    return Container(
+      width: double.infinity,
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      child: Card(
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            assetPath,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) => Container(
+              height: 180,
+              color: Colors.grey[200],
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                  SizedBox(height: 8),
+                  Text('Image not found', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _markdownCard(String text) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: MarkdownBody(
+          data: text,
+          styleSheet: MarkdownStyleSheet(
+            p: const TextStyle(fontSize: 15.5, height: 1.6),
+            listBullet: const TextStyle(fontSize: 15.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _launchContent(String type, String docId) async {
+    final rawCollection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (rawCollection == null) return;
+
+    try {
+      final doc = await rawCollection.doc(docId).get();
+      final dataMap = doc.data() as Map<String, dynamic>?;
+
+      if (dataMap == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load content')),
+        );
+        return;
+      }
+
+      final title = dataMap['title'] is String && (dataMap['title'] as String).trim().isNotEmpty
+          ? (dataMap['title'] as String).trim()
+          : '$_selectedCrop ${type.capitalize()}';
+
+      final payload = jsonDecode(dataMap['data'] as String);
+
+      final fullPayload = {
+        'id': doc.id,
+        'title': title,
+        'crop': _selectedCrop,
+        if (type == 'quiz') 'questions': payload,
+        if (type == 'simulation') 'steps': payload,
+      };
+
+      if (mounted) {
+        final screen = type == 'quiz'
+            ? FarmingQuizScreen(payload: fullPayload, classId: widget.classId)
+            : FarmingSimulationScreen(payload: fullPayload, classId: widget.classId);
+
+        Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double width = MediaQuery.of(context).size.width;
+    final double imageHeight = width > 1000 ? 400.0 : width > 600 ? 320.0 : 260.0;
+    final bool isTeacher = widget.role == EduRole.teacher;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Farming Tips'),
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        automaticallyImplyLeading: false,
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _tipsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator(color: primaryGreen));
+          }
+
+          final tipsData = snapshot.data!;
+
+          return ListView.builder(
+            padding: EdgeInsets.symmetric(horizontal: width > 1000 ? 64 : 16, vertical: 16),
+            itemCount: tipsData.keys.length,
+            itemBuilder: (context, index) {
+              final cropKey = tipsData.keys.elementAt(index);
+              final crop = tipsData[cropKey] as Map<String, dynamic>;
+              final bool isExpanded = _expandedCrops[cropKey] ?? false;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 16),
+                elevation: 8,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ExpansionTile(
+                  initiallyExpanded: isExpanded,
+                  onExpansionChanged: (expanded) {
+                    setState(() {
+                      _expandedCrops[cropKey] = expanded;
+                      if (expanded) {
+                        _selectedCrop = cropKey;
+                      } else if (_selectedCrop == cropKey) {
+                        _selectedCrop = null;
+                      }
+                    });
+                  },
+                  leading: CircleAvatar(
+                    backgroundColor: primaryGreen.withOpacity(0.15),
+                    child: Text(crop['icon'] ?? '🌱', style: const TextStyle(fontSize: 32)),
+                  ),
+                  title: Text(
+                    cropKey.capitalize(),
+                    style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: primaryGreen),
+                  ),
+                  childrenPadding: EdgeInsets.symmetric(horizontal: width > 800 ? 32 : 20, vertical: 12),
+                  children: [
+                    // PROMINENT ACTIVITIES SECTION FOR STUDENTS
+                    // PROMINENT ACTIVITIES SECTION — ONLY FOR STUDENTS
+if (widget.role == EduRole.student && isExpanded)
+  Padding(
+    padding: const EdgeInsets.only(bottom: 24),
+    child: Card(
+      color: Colors.green.shade50,
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: primaryGreen, width: 2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.assignment_turned_in, size: 32, color: primaryGreen),
+                const SizedBox(width: 12),
+                Text(
+                  'Practice Activities',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: primaryGreen,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Test your knowledge on $_selectedCrop!',
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildActivitySection('quiz', Icons.quiz)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildActivitySection('simulation', Icons.play_circle)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+
+                    // ORIGINAL TIPS CONTENT
+                    if (crop['general'] != null) ...[
+                      const Text("General Tips", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      const SizedBox(height: 12),
+                      if (crop['image_general'] != null) _buildImage(crop['image_general'] as String, imageHeight),
+                      const SizedBox(height: 12),
+                      _markdownCard(crop['general'] as String),
+                      const Divider(height: 40),
+                    ],
+                    if (crop['stages'] != null) ...[
+                      const Text("Growth Stages", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      const SizedBox(height: 16),
+                      ...(crop['stages'] as Map<String, dynamic>).entries.map((e) {
+                        final stageName = e.key;
+                        final value = e.value as Map<String, dynamic>;
+                        final tips = value['tips'] as String;
+                        final image = value['image'] as String?;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(stageName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: primaryGreen)),
+                              const SizedBox(height: 10),
+                              if (image != null) _buildImage(image, imageHeight * 0.9),
+                              const SizedBox(height: 12),
+                              _markdownCard(tips),
+                            ],
+                          ),
+                        );
+                      }),
+                      const Divider(height: 40),
+                    ],
+                    if (crop['varieties'] != null) ...[
+                      const Text("Popular Varieties in Kenya", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      const SizedBox(height: 16),
+                      ...(crop['varieties'] as Map<String, dynamic>).entries.map((e) {
+                        final name = e.key;
+                        final v = e.value as Map<String, dynamic>;
+                        final bestFor = v['best_for'] as String? ?? '';
+                        final tips = v['tips'] as String? ?? '';
+                        final image = v['image'] as String?;
+
+                        return Card(
+                          color: Colors.green.shade50,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ExpansionTile(
+                            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: bestFor.isNotEmpty
+                                ? Text("Best for: $bestFor", style: const TextStyle(color: Colors.green))
+                                : null,
+                            children: [
+                              if (image != null) Padding(padding: const EdgeInsets.all(16), child: _buildImage(image, imageHeight)),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                                child: _markdownCard(tips),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+      bottomNavigationBar: widget.role == EduRole.headteacher
+          ? null
+          : Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.grey[50],
+              child: Row(
+                children: isTeacher
+                    ? [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _selectedCrop == null ? null : _showQuizBuilder,
+                            icon: const Icon(Icons.quiz),
+                            label: Text('Create ${_selectedCrop ?? ''} Quiz'),
+                            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, padding: const EdgeInsets.symmetric(vertical: 18)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _selectedCrop == null ? null : _showSimBuilder,
+                            icon: const Icon(Icons.play_circle),
+                            label: Text('Create ${_selectedCrop ?? ''} Simulation'),
+                            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, padding: const EdgeInsets.symmetric(vertical: 18)),
+                          ),
+                        ),
+                      ]
+                    : [],
+              ),
+            ),
+    );
+  }
+
+  // FIXED: Activity buttons in the header
+  Widget _buildActivitySection(String type, IconData icon) {
+    final raw = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (raw == null) {
+      return ElevatedButton.icon(
+        onPressed: null,
+        icon: Icon(icon),
+        label: Text(type == 'quiz' ? 'Quizzes' : 'Simulations'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+      );
+    }
+
+    final coll = raw.withConverter<Map<String, dynamic>>(
+      fromFirestore: (s, _) => s.data()!,
+      toFirestore: (d, _) => d,
+    );
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: coll
+          .where('type', isEqualTo: type)
+          .where('crop', isEqualTo: _selectedCrop)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int total = snapshot.data?.docs.length ?? 0;
+
+        return ElevatedButton.icon(
+          onPressed: total == 0 ? null : () => _showActivityList(type),
+          icon: Icon(icon, size: 28),
+          label: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(type == 'quiz' ? 'Quizzes' : 'Simulations', style: const TextStyle(fontSize: 18)),
+              if (total > 0) Text('$total available', style: const TextStyle(fontSize: 14)),
+            ],
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryGreen,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showActivityList(String type) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.8,
+        maxChildSize: 0.95,
+        minChildSize: 0.6,
+        expand: false,
+        builder: (_, controller) => _buildContentList(type, scrollController: controller),
+      ),
+    );
+  }
+
+  // FIXED: Full list in modal with proper typing and no const interpolation
+  Widget _buildContentList(String type, {ScrollController? scrollController}) {
+    final rawCollection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (rawCollection == null) {
+      return const Center(child: Text('Invalid configuration'));
+    }
+
+    final CollectionReference<Map<String, dynamic>> collection = rawCollection.withConverter<Map<String, dynamic>>(
+      fromFirestore: (snapshot, _) => snapshot.data()!,
+      toFirestore: (data, _) => data,
+    );
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            '${type.capitalize()}s for $_selectedCrop',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryGreen),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: collection
+                .where('type', isEqualTo: type)
+                .where('crop', isEqualTo: _selectedCrop)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: primaryGreen));
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No ${type}s available yet',
+                    style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: Colors.grey),
+                  ),
+                );
+              }
+
+              final userId = FirebaseAuth.instance.currentUser!.uid;
+              final submissionsColl = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
+
+              return FutureBuilder<Set<String>>(
+                future: submissionsColl == null
+                    ? Future.value(<String>{})
+                    : submissionsColl
+                        .where('userId', isEqualTo: userId)
+                        .where('type', isEqualTo: type)
+                        .get()
+                        .then((s) => s.docs
+                            .map((d) {
+                              final data = d.data();
+                              if (data is Map<String, dynamic>) {
+                                return data['${type}Id'] as String?;
+                              }
+                              return null;
+                            })
+                            .whereType<String>()
+                            .toSet()),
+                builder: (context, completedSnap) {
+                  final completedIds = completedSnap.data ?? <String>{};
+
+                  final availableDocs = snapshot.data!.docs.where((doc) => !completedIds.contains(doc.id)).toList();
+
+                  if (availableDocs.isEmpty) {
+                    return const Center(
+                      child: Text('All completed! Great job! 🎉', style: TextStyle(fontSize: 18)),
+                    );
+                  }
+
+                  return ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: availableDocs.length,
+                    itemBuilder: (context, index) {
+                      final doc = availableDocs[index];
+                      final data = doc.data();
+                      final title = data['title'] as String? ?? 'Untitled ${type.capitalize()}';
+                      final createdAt = data['createdAt'] as Timestamp?;
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 4,
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: primaryGreen,
+                            child: Icon(type == 'quiz' ? Icons.quiz : Icons.play_circle, color: Colors.white),
+                          ),
+                          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: createdAt != null ? Text('Created: ${_formatDate(createdAt.toDate())}') : null,
+                          trailing: const Icon(Icons.arrow_forward_ios),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _launchContent(type, doc.id);
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// QUIZ & SIMULATION SCREENS + BUILDERS (YOUR ORIGINAL ONES - UNCHANGED)
+class FarmingQuizScreen extends StatefulWidget {
+  final Map<String, dynamic> payload;
+  final String classId;
+
+  const FarmingQuizScreen({super.key, required this.payload, required this.classId});
+
+  @override
+  State<FarmingQuizScreen> createState() => _FarmingQuizScreenState();
+}
+
+class _FarmingQuizScreenState extends State<FarmingQuizScreen> {
+  int _idx = 0;
+  int _score = 0;
+  late final ConfettiController _conf = ConfettiController(duration: const Duration(seconds: 2));
+
+  void _ans(int sel) {
+    final correctIndex = (widget.payload['questions'][_idx]['correct'] as num).toInt();
+    if (sel == correctIndex) {
+      _score++;
+      _conf.play();
+    }
+    if (_idx < widget.payload['questions'].length - 1) {
+      setState(() => _idx++);
+    } else {
+      _submitQuiz();
+    }
+  }
+
+  Future<void> _submitQuiz() async {
+    final submissionsCollection = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
+    if (submissionsCollection != null) {
+      await submissionsCollection.add({
+        'type': 'quiz',
+        'quizId': widget.payload['id'],
+        'crop': widget.payload['crop'],
+        'title': widget.payload['title'],
+        'score': _score,
+        'total': widget.payload['questions'].length,
+        'userId': FirebaseAuth.instance.currentUser!.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text('${widget.payload['crop']} Quiz Complete!'),
+          content: Text('Score: $_score / ${widget.payload['questions'].length}\n\nYour submission has been saved!'),
+          actions: [TextButton(onPressed: () => Navigator.of(context)..pop()..pop(), child: const Text('Done'))],
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _conf.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = widget.payload['questions'][_idx];
+    return Scaffold(
+      appBar: AppBar(title: Text('${widget.payload['crop']} Quiz'), backgroundColor: primaryGreen, foregroundColor: Colors.white),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          ConfettiWidget(confettiController: _conf, blastDirectionality: BlastDirectionality.explosive),
+          const SizedBox(height: 30),
+          Text(q['question'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          const SizedBox(height: 40),
+          ...(q['options'] as List).asMap().entries.map((e) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: ElevatedButton(
+                  onPressed: () => _ans(e.key),
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 56)),
+                  child: Text('${String.fromCharCode(65 + e.key)}. ${e.value}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                ),
+              )),
+        ]),
+      ),
+    );
+  }
+}
+
+class FarmingSimulationScreen extends StatefulWidget {
+  final Map<String, dynamic> payload;
+  final String classId;
+
+  const FarmingSimulationScreen({super.key, required this.payload, required this.classId});
+
+  @override
+  State<FarmingSimulationScreen> createState() => _FarmingSimulationScreenState();
+}
+
+class _FarmingSimulationScreenState extends State<FarmingSimulationScreen> {
+  int _step = 0;
+  int? _sel;
+  bool _show = false;
+  late final ConfettiController _conf = ConfettiController(duration: const Duration(seconds: 2));
+
+  void _submit() {
+    if (_sel == null) return;
+    final s = widget.payload['steps'][_step];
+    final correct = (s['options'] as List).indexWhere((o) => o['correct'] == true);
+    if (_sel == correct) {
+      _conf.play();
+      if (_step < widget.payload['steps'].length - 1) {
+        setState(() { _step++; _sel = null; _show = false; });
+      } else {
+        _submitSimulation();
+      }
+    } else {
+      setState(() => _show = true);
+    }
+  }
+
+  Future<void> _submitSimulation() async {
+    final submissionsCollection = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
+    if (submissionsCollection != null) {
+      await submissionsCollection.add({
+        'type': 'simulation',
+        'simulationId': widget.payload['id'],
+        'crop': widget.payload['crop'],
+        'title': widget.payload['title'],
+        'completed': true,
+        'userId': FirebaseAuth.instance.currentUser!.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text('${widget.payload['crop']} Simulation Complete!'),
+          content: const Text('Excellent! You handled the farming scenario perfectly.\n\nYour submission has been saved!'),
+          actions: [TextButton(onPressed: () => Navigator.popUntil(context, (r) => r.isFirst), child: const Text('Done'))],
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _conf.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.payload['steps'][_step];
+    return Scaffold(
+      appBar: AppBar(title: Text('${widget.payload['crop']} Simulation'), backgroundColor: primaryGreen, foregroundColor: Colors.white),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          ConfettiWidget(confettiController: _conf, blastDirectionality: BlastDirectionality.explosive),
+          const SizedBox(height: 30),
+          Text(s['prompt'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          const SizedBox(height: 40),
+          ...(s['options'] as List).asMap().entries.map((e) => RadioListTile<int>(
+                value: e.key,
+                groupValue: _sel,
+                onChanged: (v) => setState(() => _sel = v),
+                title: Text(e.value['text']),
+                activeColor: primaryGreen,
+              )),
+          if (_show)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Text(s['explanation']?.isNotEmpty == true ? s['explanation'] : 'Try again!', style: const TextStyle(color: Colors.red)),
+              ),
+            ),
+          const SizedBox(height: 30),
+          ElevatedButton(
+            onPressed: _submit,
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 56)),
+            child: const Text('Submit Choice', style: TextStyle(fontSize: 18, color: Colors.white)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class FarmingQuizBuilder extends StatefulWidget {
+  final Function(Map<String, dynamic>) onSave;
+  const FarmingQuizBuilder({super.key, required this.onSave});
+  @override
+  State<FarmingQuizBuilder> createState() => _FarmingQuizBuilderState();
+}
+
+class _FarmingQuizBuilderState extends State<FarmingQuizBuilder> {
+  final _titleCtrl = TextEditingController();
+  final List<Map<String, dynamic>> _questions = [];
+
+  void _addQuestion() {
+    final questionCtrl = TextEditingController();
+    final optionCtrls = List.generate(4, (_) => TextEditingController());
+    int correctIndex = 0;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Question'),
+        content: StatefulBuilder(
+          builder: (context, setStateInner) => SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: questionCtrl, decoration: const InputDecoration(labelText: 'Question')),
+              const SizedBox(height: 12),
+              ...optionCtrls.asMap().entries.map((e) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      Radio<int>(
+                        value: e.key,
+                        groupValue: correctIndex,
+                        onChanged: (v) => setStateInner(() => correctIndex = v ?? 0),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: e.value,
+                          decoration: InputDecoration(labelText: 'Option ${e.key + 1}'),
+                        ),
+                      ),
+                    ]),
+                  )),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: () {
+              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
+              if (questionCtrl.safeText.isEmpty || filled.isEmpty) return;
+              setState(() {
+                _questions.add({
+                  'question': questionCtrl.safeText,
+                  'options': filled.map((c) => c.safeText).toList(),
+                  'correct': correctIndex,
+                });
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Add', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Create Farming Quiz'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Quiz Title')),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(onPressed: _addQuestion, icon: const Icon(Icons.add), label: const Text('Add Question')),
+            const SizedBox(height: 16),
+            ..._questions.asMap().entries.map((e) {
+              final q = e.value;
+              final correctIndex = (q['correct'] as num).toInt();
+              final correctLetter = String.fromCharCode(65 + correctIndex);
+              return Card(
+                child: ListTile(
+                  title: Text(q['question']),
+                  subtitle: Text('Correct: $correctLetter. ${(q['options'] as List)[correctIndex]}',
+                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _questions.removeAt(e.key))),
+                ),
+              );
+            }),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: _questions.isEmpty
+                ? null
+                : () {
+                    widget.onSave({
+                      'title': _titleCtrl.safeText.isEmpty ? 'Farming Quiz' : _titleCtrl.safeText,
+                      'questions': _questions,
+                    });
+                    Navigator.pop(context);
+                  },
+            child: const Text('Save Quiz', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      );
+}
+
+class FarmingSimulationBuilder extends StatefulWidget {
+  final Function(Map<String, dynamic>) onSave;
+  const FarmingSimulationBuilder({super.key, required this.onSave});
+  @override
+  State<FarmingSimulationBuilder> createState() => _FarmingSimulationBuilderState();
+}
+
+class _FarmingSimulationBuilderState extends State<FarmingSimulationBuilder> {
+  final _titleCtrl = TextEditingController();
+  final List<Map<String, dynamic>> _steps = [];
+
+  void _addStep() {
+    final promptCtrl = TextEditingController();
+    final optionCtrls = List.generate(4, (_) => TextEditingController());
+    int correctIndex = 0;
+    final explanationCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Simulation Step'),
+        content: StatefulBuilder(
+          builder: (context, setStateInner) => SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: promptCtrl, decoration: const InputDecoration(labelText: 'Situation / Prompt')),
+              const SizedBox(height: 12),
+              ...optionCtrls.asMap().entries.map((e) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      Checkbox(
+                        value: correctIndex == e.key,
+                        onChanged: (v) => setStateInner(() => correctIndex = v == true ? e.key : correctIndex),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: e.value,
+                          decoration: InputDecoration(labelText: 'Option ${e.key + 1}'),
+                        ),
+                      ),
+                    ]),
+                  )),
+              const SizedBox(height: 12),
+              TextField(
+                controller: explanationCtrl,
+                decoration: const InputDecoration(labelText: 'Explanation if wrong (optional)'),
+                maxLines: 3,
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: () {
+              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
+              if (promptCtrl.safeText.isEmpty || filled.isEmpty) return;
+              final options = filled.map((c) => {'text': c.safeText, 'correct': filled.indexOf(c) == correctIndex}).toList();
+              setState(() {
+                _steps.add({
+                  'prompt': promptCtrl.safeText,
+                  'options': options,
+                  'explanation': explanationCtrl.safeText,
+                });
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Add Step', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Create Farming Simulation'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Simulation Title')),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(onPressed: _addStep, icon: const Icon(Icons.add), label: const Text('Add Step')),
+            const SizedBox(height: 16),
+            ..._steps.asMap().entries.map((e) {
+              final s = e.value;
+              final correctOpt = (s['options'] as List).firstWhere((o) => o['correct'] == true, orElse: () => {'text': 'None'});
+              final letter = String.fromCharCode(65 + (s['options'] as List).indexOf(correctOpt));
+              return Card(
+                child: ListTile(
+                  title: Text(s['prompt']),
+                  subtitle: Text('Correct: $letter. ${correctOpt['text']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _steps.removeAt(e.key))),
+                ),
+              );
+            }),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+            onPressed: _steps.isEmpty
+                ? null
+                : () {
+                    widget.onSave({
+                      'title': _titleCtrl.safeText.isEmpty ? 'Farming Simulation' : _titleCtrl.safeText,
+                      'steps': _steps,
+                    });
+                    Navigator.pop(context);
+                  },
+            child: const Text('Save Simulation', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      );
+}

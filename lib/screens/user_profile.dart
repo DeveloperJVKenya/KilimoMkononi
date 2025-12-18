@@ -1,359 +1,327 @@
-// lib/screens/user_profile_screen.dart
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'dart:io';
+// lib/screens/user_profile.dart
 import 'dart:convert';
-import 'package:kilimomkononi/models/user_model.dart';
+import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
+
+/// ---------------------------------------------------------------
+/// UserProfileScreen – works for Farmer, Teacher, and Student
+/// ---------------------------------------------------------------
 class UserProfileScreen extends StatefulWidget {
-  const UserProfileScreen({super.key});
+  /// Optional: pre-loaded image bytes
+  final Uint8List? profileImageBytes;
+
+  /// Optional: full name (will load from Firestore if null)
+  final String? fullName;
+
+  /// Optional: school name (only for teacher/student)
+  final String? schoolName;
+
+  /// Optional: role (farmer, teacher, student)
+  final String? role;
+
+  const UserProfileScreen({
+    super.key,
+    this.profileImageBytes,
+    this.fullName,
+    this.schoolName,
+    this.role,
+  });
 
   @override
-  UserProfileScreenState createState() => UserProfileScreenState();
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
 }
 
-class UserProfileScreenState extends State<UserProfileScreen> {
-  final User? user = FirebaseAuth.instance.currentUser;
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _countyController = TextEditingController();
-  final TextEditingController _constituencyController = TextEditingController();
-  final TextEditingController _wardController = TextEditingController();
-  final TextEditingController _phoneNumberController = TextEditingController();
-  File? _imageFile;
-  String? _currentPhotoUrl; // Stores Base64 string
-  bool _isLoading = false;
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ImagePicker _picker = ImagePicker();
 
-  late Stream<DocumentSnapshot> _userStream;
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _schoolCtrl;
+  late final TextEditingController _countyCtrl;
+  late final TextEditingController _constituencyCtrl;
+  late final TextEditingController _wardCtrl;
+
+  File? _pickedImageFile;
+  Uint8List? _displayedImageBytes;
+  bool _isLoading = false;
+  bool _isEducationUser = false;
+  String? _resolvedFullName;
 
   @override
   void initState() {
     super.initState();
-    if (user != null) {
-      _userStream = _firestore.collection('Users').doc(user!.uid).snapshots();
-      _loadUserProfile();
+    _displayedImageBytes = widget.profileImageBytes;
+    _resolvedFullName = widget.fullName;
+    _isEducationUser = widget.role == 'teacher' || widget.role == 'student';
+
+    _nameCtrl = TextEditingController(text: _resolvedFullName ?? '');
+    _emailCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _schoolCtrl = TextEditingController(text: widget.schoolName ?? '');
+    _countyCtrl = TextEditingController();
+    _constituencyCtrl = TextEditingController();
+    _wardCtrl = TextEditingController();
+
+    if (_currentUser != null) {
+      _loadUserData();
     }
   }
 
-  Future<void> _loadUserProfile() async {
+  Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
     try {
-      DocumentSnapshot<Map<String, dynamic>> doc =
-          await _firestore.collection('Users').doc(user!.uid).get();
-      if (doc.exists) {
-        AppUser appUser = AppUser.fromFirestore(doc, null);
-        setState(() {
-          _nameController.text = appUser.fullName;
-          _emailController.text = appUser.email;
-          _countyController.text = appUser.county;
-          _constituencyController.text = appUser.constituency;
-          _wardController.text = appUser.ward;
-          _phoneNumberController.text = appUser.phoneNumber;
-          _currentPhotoUrl = appUser.profileImage; // Base64 string or null
-        });
+      // Try EducationUsers first
+      final eduSnap = await _firestore
+          .collection('EducationUsers')
+          .doc(_currentUser!.uid)
+          .get();
+
+      if (eduSnap.exists) {
+        final data = eduSnap.data()!;
+        final imgBase64 = data['profileImage'] as String?;
+        final name = data['fullName'] as String?;
+        final phone = data['phone'] as String?;
+
+        if (imgBase64 != null && imgBase64.isNotEmpty) {
+          _displayedImageBytes = base64Decode(imgBase64);
+        }
+        if (mounted) {
+          setState(() {
+            _resolvedFullName = name;
+            _nameCtrl.text = name ?? '';
+            _emailCtrl.text = data['email'] ?? '';
+            _phoneCtrl.text = phone ?? '';
+            _isEducationUser = true;
+          });
+        }
+        return;
+      }
+
+      // Then try regular Users
+      final userSnap = await _firestore.collection('Users').doc(_currentUser.uid).get();
+      if (userSnap.exists) {
+        final data = userSnap.data()!;
+        final imgBase64 = data['profileImage'] as String?;
+        final name = data['fullName'] as String?;
+
+        if (imgBase64 != null && imgBase64.isNotEmpty) {
+          _displayedImageBytes = base64Decode(imgBase64);
+        }
+        if (mounted) {
+          setState(() {
+            _resolvedFullName = name;
+            _nameCtrl.text = name ?? '';
+            _emailCtrl.text = data['email'] ?? '';
+            _phoneCtrl.text = data['phoneNumber'] ?? '';
+            _countyCtrl.text = data['county'] ?? '';
+            _constituencyCtrl.text = data['constituency'] ?? '';
+            _wardCtrl.text = data['ward'] ?? '';
+          });
+        }
       }
     } catch (e) {
-      _showErrorSnackBar('Error loading profile: $e');
+      debugPrint('Profile load error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-    setState(() => _isLoading = false);
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 75,
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+
+    final file = File(picked.path);
+    final compressed = await FlutterImageCompress.compressWithFile(
+      file.absolute.path,
+      minWidth: 800,
+      minHeight: 800,
+      quality: 85,
     );
 
-    if (pickedFile != null) {
+    if (compressed != null) {
       setState(() {
-        _imageFile = File(pickedFile.path);
+        _pickedImageFile = file;
+        _displayedImageBytes = compressed;
       });
-      await _updateProfile(imageOnly: true); // Update only image
     }
   }
 
-  Future<String> _convertImageToBase64(File imageFile) async {
-    try {
-      List<int>? compressedImage = await FlutterImageCompress.compressWithFile(
-        imageFile.absolute.path,
-        quality: 70,
-        minWidth: 1024,
-        minHeight: 1024,
+  Future<void> _updateProfile() async {
+    if (_nameCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name is required')),
       );
-
-      double sizeInMb = compressedImage!.length / (1024 * 1024);
-      if (sizeInMb > 0.7) {
-        compressedImage = await FlutterImageCompress.compressWithFile(
-          imageFile.absolute.path,
-          quality: 40,
-          minWidth: 800,
-          minHeight: 800,
-        );
-
-        sizeInMb = compressedImage!.length / (1024 * 1024);
-        if (sizeInMb > 0.7) {
-          compressedImage = await FlutterImageCompress.compressWithFile(
-            imageFile.absolute.path,
-            quality: 20,
-            minWidth: 600,
-            minHeight: 600,
-          );
-
-          if (compressedImage!.length / (1024 * 1024) > 0.7) {
-            throw Exception('Image too large even after compression');
-          }
-        }
-      }
-      return base64Encode(compressedImage);
-    } catch (e) {
-      throw Exception('Error converting image: $e');
+      return;
     }
-  }
-
-  Future<void> _updateProfile({bool imageOnly = false}) async {
-    if (!mounted) return;
 
     setState(() => _isLoading = true);
-
     try {
-      String? photoBase64;
-
-      if (_imageFile != null) {
-        photoBase64 = await _convertImageToBase64(_imageFile!);
-        _currentPhotoUrl = photoBase64; // Update local Base64 string
+      String? base64Image;
+      if (_pickedImageFile != null || _displayedImageBytes != null) {
+        final bytes = _pickedImageFile != null
+            ? await _pickedImageFile!.readAsBytes()
+            : _displayedImageBytes!;
+        base64Image = base64Encode(bytes);
       }
 
-      // Create or update Firestore document
-      AppUser updatedUser = AppUser(
-        id: user!.uid,
-        fullName: _nameController.text,
-        email: _emailController.text,
-        county: _countyController.text,
-        constituency: _constituencyController.text,
-        ward: _wardController.text,
-        phoneNumber: _phoneNumberController.text,
-        profileImage: photoBase64 ?? _currentPhotoUrl, // Use new or existing Base64
-      );
-
-      // Use set() with merge to create/update document
-      await _firestore.collection('Users').doc(user!.uid).set(
-            updatedUser.toMap(),
-            SetOptions(merge: true), // Merge to avoid overwriting unchanged fields
-          );
-
-      if (!imageOnly && _emailController.text != user?.email) {
-        String? password = await _promptForPassword();
-        if (password != null) {
-          await _updateEmail(password);
-        }
+      if (_isEducationUser) {
+        await _firestore.collection('EducationUsers').doc(_currentUser!.uid).update({
+          'fullName': _nameCtrl.text.trim(),
+          'profileImage': base64Image,
+        });
+      } else {
+        await _firestore.collection('Users').doc(_currentUser!.uid).update({
+          'fullName': _nameCtrl.text.trim(),
+          'profileImage': base64Image,
+          'phoneNumber': _phoneCtrl.text.trim(),
+          'county': _countyCtrl.text.trim(),
+          'constituency': _constituencyCtrl.text.trim(),
+          'ward': _wardCtrl.text.trim(),
+        });
       }
-
-      await user?.reload();
-
-      if (!mounted) return;
-
-      setState(() => _isLoading = false);
-      _showSuccessSnackBar('Profile updated successfully!');
-    } catch (e) {
-      setState(() => _isLoading = false);
-      _showErrorSnackBar('Error updating profile: $e');
-    }
-  }
-
-  Future<void> _updateEmail(String password) async {
-    try {
-      AuthCredential credential = EmailAuthProvider.credential(
-        email: user!.email!,
-        password: password,
-      );
-
-      await user?.reauthenticateWithCredential(credential);
-      await user?.verifyBeforeUpdateEmail(_emailController.text);
 
       if (mounted) {
-        _showSuccessSnackBar('Verification email sent to ${_emailController.text}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully!')),
+        );
       }
     } catch (e) {
-      throw Exception('Failed to update email: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showSuccessSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
+  Widget _editableField(TextEditingController ctrl, String label, IconData icon) {
+    return TextFormField(
+      controller: ctrl,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  Future<String?> _promptForPassword() async {
-    String? password;
-    await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Password'),
-          content: TextField(
-            onChanged: (value) => password = value,
-            obscureText: true,
-            decoration: const InputDecoration(
-              hintText: 'Enter your current password',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, password),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
-    );
-    return password;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('User Profile'),
+        title: const Text('My Profile'),
         backgroundColor: const Color.fromARGB(255, 3, 39, 4),
         foregroundColor: Colors.white,
       ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: _userStream,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Stack(
-                  children: [
-                    Hero(
-                      tag: 'userImage',
-                      child: CircleAvatar(
-                        radius: 70,
-                        backgroundColor: Colors.grey[300],
-                        backgroundImage: _getProfileImage(),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: _pickImage,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color.fromARGB(255, 1, 39, 6),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            color: Colors.white,
-                            size: 24,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Profile Picture
+                  Center(
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundImage: _displayedImageBytes != null
+                              ? MemoryImage(_displayedImageBytes!)
+                              : null,
+                          child: _displayedImageBytes == null
+                              ? const Icon(Icons.person, size: 60)
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: IconButton(
+                            icon: const Icon(Icons.camera_alt, color: Colors.white),
+                            onPressed: _pickImage,
+                            style: IconButton.styleFrom(backgroundColor: Colors.teal),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _buildEditableField(_nameController, 'Full Name', Icons.person),
-                const SizedBox(height: 16),
-                _buildEditableField(_emailController, 'Email', Icons.email),
-                const SizedBox(height: 16),
-                _buildEditableField(_countyController, 'County', Icons.location_city),
-                const SizedBox(height: 16),
-                _buildEditableField(_constituencyController, 'Constituency', Icons.map),
-                const SizedBox(height: 16),
-                _buildEditableField(_wardController, 'Ward', Icons.place),
-                const SizedBox(height: 16),
-                _buildEditableField(_phoneNumberController, 'Phone Number', Icons.phone),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : () => _updateProfile(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Update Profile', style: TextStyle(fontSize: 18, color: Colors.white)),
-                ),
-              ],
+                  const SizedBox(height: 30),
+
+                  // Name
+                  _editableField(_nameCtrl, 'Full Name', Icons.person),
+                  const SizedBox(height: 16),
+
+                  // Email (read-only)
+                  TextFormField(
+                    controller: _emailCtrl,
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Phone
+                  _editableField(_phoneCtrl, 'Phone Number', Icons.phone),
+                  const SizedBox(height: 24),
+
+                  // Role-Specific Fields
+                  if (_isEducationUser) ...[
+                    _editableField(_schoolCtrl, 'School Name', Icons.school),
+                  ] else ...[
+                    _editableField(_countyCtrl, 'County', Icons.location_city),
+                    const SizedBox(height: 16),
+                    _editableField(_constituencyCtrl, 'Constituency', Icons.map),
+                    const SizedBox(height: 16),
+                    _editableField(_wardCtrl, 'Ward', Icons.place),
+                  ],
+
+                  const SizedBox(height: 40),
+
+                  // Update Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _updateProfile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Update Profile', style: TextStyle(fontSize: 18)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
-      ),
     );
   }
 
-  ImageProvider? _getProfileImage() {
-    if (_imageFile != null) {
-      return FileImage(_imageFile!);
-    } else if (_currentPhotoUrl != null && _currentPhotoUrl!.isNotEmpty) {
-      // Decode Base64 string to display image
-      if (_currentPhotoUrl!.startsWith('data:image')) {
-        // Handle if Base64 includes MIME type prefix
-        final base64String = _currentPhotoUrl!.split(',')[1];
-        return MemoryImage(base64Decode(base64String));
-      }
-      return MemoryImage(base64Decode(_currentPhotoUrl!));
-    }
-    return null;
-  }
-
-  Widget _buildEditableField(TextEditingController controller, String label, IconData icon) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.edit),
-          onPressed: () {
-            FocusScope.of(context).requestFocus(FocusNode());
-            controller.selection = TextSelection(
-              baseOffset: 0,
-              extentOffset: controller.text.length,
-            );
-          },
-        ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _schoolCtrl.dispose();
+    _countyCtrl.dispose();
+    _constituencyCtrl.dispose();
+    _wardCtrl.dispose();
+    super.dispose();
   }
 }

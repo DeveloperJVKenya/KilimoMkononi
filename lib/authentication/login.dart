@@ -1,8 +1,8 @@
+// lib/authentication/login.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/authentication/registration.dart';
-import 'package:kilimomkononi/home.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,75 +26,116 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleEmailLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
+    setState(() => _isLoading = true);
+
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      final uid = cred.user!.uid;
+
+      // STEP 1: Prevent Education users from logging into Farmer app
+      final eduDoc = await FirebaseFirestore.instance
+          .collection('EducationUsers')
+          .doc(uid)
+          .get();
+
+      if (eduDoc.exists) {
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Wrong app! Please use "Education (Schools)" mode to log in.'),
+            backgroundColor: Colors.orange,
+          ),
         );
-        final uid = userCredential.user?.uid;
-        if (uid != null) {
-          final userDoc = await FirebaseFirestore.instance.collection('Users').doc(uid).get();
-          if (userDoc.exists && userDoc['isDisabled'] == true) {
-            await FirebaseAuth.instance.signOut();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Account Disabled, please contact admin')),
-              );
-            }
-          } else if (mounted) {
-            Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomePage()));
-          }
-        }
-      } on FirebaseAuthException catch (e) {
-        String message;
-        if (e.code == 'user-not-found') {
-          message = 'No user found for that email.';
-        } else if (e.code == 'wrong-password') {
-          message = 'Wrong password provided for that user.';
-        } else {
+        return;
+      }
+
+      // STEP 2: Check if Farmer account exists
+      final farmerDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(uid)
+          .get();
+
+      if (!farmerDoc.exists) {
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No farmer account found. Please register first.')),
+        );
+        return;
+      }
+
+      // STEP 3: Check if account is disabled
+      final data = farmerDoc.data()!;
+      if (data['isDisabled'] == true) {
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account disabled. Contact admin.')),
+        );
+        return;
+      }
+
+      // SUCCESS → Go to Farmer Home
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/home');
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No account found with this email.';
+          break;
+        case 'wrong-password':
+          message = 'Incorrect password.';
+          break;
+        case 'invalid-credential':
+          message = 'Invalid email or password.';
+          break;
+        default:
           message = 'Login failed: ${e.message}';
-        }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
 
   Future<void> _handleForgotPassword() async {
-    if (_emailController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your email address')));
+    if (_emailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your email')),
+      );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: _emailController.text.trim());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset email sent. Check your inbox.')));
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent!')),
+      );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send password reset email: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: $e')),
+      );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -106,14 +147,14 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.all(20.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
+            children: [
               Image.asset('assets/login.png', width: 200.0),
               const SizedBox(height: 20.0),
               const Text(
-                'User Login',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.teal),
+                'Farmer Login',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 30.0),
               Form(
                 key: _formKey,
                 child: Column(
@@ -121,63 +162,61 @@ class _LoginScreenState extends State<LoginScreen> {
                     _buildTextField(
                       controller: _emailController,
                       label: 'Email',
-                      hintText: 'Enter your email address',
-                      validator: (value) {
-                        if (value == null || value.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                          return 'Please enter a valid email address';
-                        }
-                        return null;
-                      },
+                      hintText: 'Enter your email',
+                      validator: (v) =>
+                          v == null || !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)
+                              ? 'Enter valid email'
+                              : null,
                     ),
-                    const SizedBox(height: 15.0),
+                    const SizedBox(height: 16),
                     _buildTextField(
                       controller: _passwordController,
                       label: 'Password',
                       hintText: 'Enter your password',
                       obscureText: _obscureText,
                       suffixIcon: IconButton(
-                        icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off, color: Colors.teal),
-                        onPressed: () {
-                          setState(() {
-                            _obscureText = !_obscureText;
-                          });
-                        },
+                        icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => _obscureText = !_obscureText),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your registered password';
-                        }
-                        return null;
-                      },
+                      validator: (v) => v == null || v.isEmpty ? 'Password required' : null,
                     ),
-                    const SizedBox(height: 10.0),
+                    const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: _isLoading ? null : _handleForgotPassword,
-                        child: const Text('Forgot Password?', style: TextStyle(color: Colors.teal)),
+                        child: const Text('Forgot Password?', style: TextStyle(color: Colors.green)),
                       ),
                     ),
-                    const SizedBox(height: 20.0),
+                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
-                      child: _buildElevatedButton(
+                      child: ElevatedButton.icon(
                         onPressed: _isLoading ? null : _handleEmailLogin,
-                        icon: const Icon(Icons.email, color: Colors.white),
-                        label: 'Login',
+                        icon: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Icon(Icons.login, color: Colors.white),
+                        label: Text(
+                          _isLoading ? 'Logging in...' : 'Login',
+                          style: const TextStyle(fontSize: 20, color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 10.0),
+              const SizedBox(height: 20),
               TextButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const RegistrationScreen()),
-                  );
-                },
-                child: const Text('Do not have an account? Sign Up', style: TextStyle(color: Colors.teal, fontSize: 16.0)),
+                onPressed: () => Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegistrationScreen()),
+                ),
+                child: const Text('No account? Sign Up', style: TextStyle(color: Colors.green, fontSize: 16)),
               ),
             ],
           ),
@@ -197,33 +236,16 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
+      keyboardType: label == 'Email' ? TextInputType.emailAddress : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-        suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.grey[200],
+        fillColor: Colors.green[50],
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+        suffixIcon: suffixIcon,
       ),
       validator: validator,
-    );
-  }
-
-  Widget _buildElevatedButton({
-    required VoidCallback? onPressed,
-    required String label,
-    Widget? icon,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: icon ?? const SizedBox.shrink(),
-      label: Text(label, style: const TextStyle(fontSize: 20.0, color: Colors.white)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.teal,
-        padding: const EdgeInsets.symmetric(vertical: 15.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
-        elevation: 5,
-      ),
     );
   }
 }

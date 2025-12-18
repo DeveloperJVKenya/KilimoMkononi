@@ -1,0 +1,341 @@
+[
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Cutworms or flea beetles may damage sprouts",
+    "likely_type": "Pest",
+    "identity": "Cutworms / flea beetles",
+    "visible_signs": [
+      "damaged sprouts",
+      "small holes"
+    ],
+    "short_code": "potatoes_seedling_cutworms"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Rhizoctonia stem canker: brown sunken lesions on stem",
+    "likely_type": "Disease",
+    "identity": "Rhizoctonia stem canker",
+    "visible_signs": [
+      "brown sunken lesions"
+    ],
+    "short_code": "potatoes_seedling_rhizoctonia"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Blackleg: soft stem base and rot near soil line",
+    "likely_type": "Disease",
+    "identity": "Blackleg (Pectobacterium)",
+    "visible_signs": [
+      "soft stem base",
+      "rot near soil"
+    ],
+    "short_code": "potatoes_seedling_blackleg"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Seedling",
+    "plant_part": "Whole plant",
+    "symptom_label": "Poor emergence due to planting depth/cool soils",
+    "likely_type": "Abiotic",
+    "identity": "Planting depth / cool soils",
+    "visible_signs": [
+      "delayed emergence"
+    ],
+    "short_code": "potatoes_seedling_poor_emergence"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Colorado beetle and other defoliators: severe defoliation",
+    "likely_type": "Pest",
+    "identity": "Colorado potato beetle",
+    "visible_signs": [
+      "striped beetles",
+      "defoliation"
+    ],
+    "short_code": "potatoes_vegetative_coloradobeetle"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Tuber moth larvae feeding on foliage and later on tubers",
+    "likely_type": "Pest",
+    "identity": "Tuber moth",
+    "visible_signs": [
+      "larvae on leaves",
+      "mines in foliage"
+    ],
+    "short_code": "potatoes_vegetative_tubermoth"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Aphids transmitting viruses: mosaic, curling",
+    "likely_type": "Pest",
+    "identity": "Aphids (virus vectors)",
+    "visible_signs": [
+      "aphid clusters",
+      "mosaic patterns"
+    ],
+    "short_code": "potatoes_vegetative_aphids_virus"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Late blight: water-soaked lesions on leaves with white sporulation",
+    "likely_type": "Disease",
+    "identity": "Late blight (Phytophthora infestans)",
+    "visible_signs": [
+      "water-soaked lesions",
+      "white sporulation"
+    ],
+    "short_code": "potatoes_vegetative_lateblight"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Early blight: brown concentric rings on leaves",
+    "likely_type": "Disease",
+    "identity": "Early blight",
+    "visible_signs": [
+      "brown concentric rings"
+    ],
+    "short_code": "potatoes_vegetative_earlyblight"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Virus mosaic & leaf roll: mottling and poor growth",
+    "likely_type": "Disease",
+    "identity": "Potato virus Y / leaf roll",
+    "visible_signs": [
+      "mottled leaves",
+      "rolled leaves"
+    ],
+    "short_code": "potatoes_vegetative_virusmosaic"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Tubers",
+    "symptom_label": "Black scurf: dark scab-like sclerotia on tuber surface",
+    "likely_type": "Disease",
+    "identity": "Black scurf (Rhizoctonia)",
+    "visible_signs": [
+      "dark scab-like sclerotia"
+    ],
+    "short_code": "potatoes_vegetative_blackscurf"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Roots",
+    "symptom_label": "Potato cyst nematode or root-knot: reduced vigor, root damage",
+    "likely_type": "Nematode",
+    "identity": "Potato cyst / root-knot nematodes",
+    "visible_signs": [
+      "root damage",
+      "cysts on roots"
+    ],
+    "short_code": "potatoes_vegetative_nematodes"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Nutrient imbalances causing leaf yellowing or bronzing",
+    "likely_type": "Abiotic",
+    "identity": "Nutrient imbalances",
+    "visible_signs": [
+      "yellowing leaves",
+      "bronzing"
+    ],
+    "short_code": "potatoes_vegetative_nutrient_imbalance"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Tuber moth: mines and tunnels inside tubers",
+    "likely_type": "Pest",
+    "identity": "Tuber moth",
+    "visible_signs": [
+      "mines in tubers",
+      "tunnels"
+    ],
+    "short_code": "potatoes_tuber_tubermoth"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Wireworms: deep holes in tubers from soil-dwelling larvae",
+    "likely_type": "Pest",
+    "identity": "Wireworms",
+    "visible_signs": [
+      "deep holes",
+      "larvae in soil"
+    ],
+    "short_code": "potatoes_tuber_wireworms"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Common scab: corky raised scabs on tuber surface",
+    "likely_type": "Disease",
+    "identity": "Common scab (Streptomyces)",
+    "visible_signs": [
+      "corky scabs"
+    ],
+    "short_code": "potatoes_tuber_commonscab"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Pink rot: watery decay of tuber tissue starting at stolon end",
+    "likely_type": "Disease",
+    "identity": "Pink rot (Phytophthora erythroseptica)",
+    "visible_signs": [
+      "watery decay",
+      "pink discoloration"
+    ],
+    "short_code": "potatoes_tuber_pinkrot"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Silver scurf: superficial dark patches on tuber skin",
+    "likely_type": "Disease",
+    "identity": "Silver scurf",
+    "visible_signs": [
+      "dark patches on skin"
+    ],
+    "short_code": "potatoes_tuber_silverscurf"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Fusarium dry rot: sunken dry rots in storage",
+    "likely_type": "Disease",
+    "identity": "Fusarium dry rot",
+    "visible_signs": [
+      "sunken dry rots"
+    ],
+    "short_code": "potatoes_tuber_fusariumrot"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Whole plant",
+    "symptom_label": "Bacterial wilt: wilting and brown vascular discoloration, ooze when cut",
+    "likely_type": "Disease",
+    "identity": "Bacterial wilt",
+    "visible_signs": [
+      "wilting",
+      "brown vascular tissue",
+      "ooze"
+    ],
+    "short_code": "potatoes_tuber_bacterialwilt"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Hollow heart: internal cavity due to rapid growth",
+    "likely_type": "Abiotic",
+    "identity": "Hollow heart (rapid growth)",
+    "visible_signs": [
+      "internal cavity"
+    ],
+    "short_code": "potatoes_tuber_hollowheart"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Tuber initiation",
+    "plant_part": "Tubers",
+    "symptom_label": "Growth cracks from irregular water",
+    "likely_type": "Abiotic",
+    "identity": "Irregular water",
+    "visible_signs": [
+      "growth cracks"
+    ],
+    "short_code": "potatoes_tuber_growthcracks"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Tubers",
+    "symptom_label": "Tuber moths and rodents in storage; larvae tunneling",
+    "likely_type": "Pest",
+    "identity": "Tuber moths / rodents",
+    "visible_signs": [
+      "tunnels in tubers",
+      "larvae"
+    ],
+    "short_code": "potatoes_storage_moths"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Tubers",
+    "symptom_label": "Soft rot and bacterial rots in storage: wet, smelly",
+    "likely_type": "Disease",
+    "identity": "Soft rot / bacterial rots",
+    "visible_signs": [
+      "wet smelly rot"
+    ],
+    "short_code": "potatoes_storage_softrot"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Tubers",
+    "symptom_label": "Fusarium dry rot in storage",
+    "likely_type": "Disease",
+    "identity": "Fusarium dry rot",
+    "visible_signs": [
+      "dry sunken rots"
+    ],
+    "short_code": "potatoes_storage_fusarium"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Tubers",
+    "symptom_label": "Black scurf persisting, reducing marketability",
+    "likely_type": "Disease",
+    "identity": "Black scurf",
+    "visible_signs": [
+      "dark sclerotia on surface"
+    ],
+    "short_code": "potatoes_storage_blackscurf"
+  },
+  {
+    "crop": "Irish Potatoes",
+    "stage": "Harvest/Storage",
+    "plant_part": "Tubers",
+    "symptom_label": "Sprouting in storage from high temperatures",
+    "likely_type": "Abiotic",
+    "identity": "High temperature storage",
+    "visible_signs": [
+      "sprouts on tubers"
+    ],
+    "short_code": "potatoes_storage_sprouting"
+  }
+]

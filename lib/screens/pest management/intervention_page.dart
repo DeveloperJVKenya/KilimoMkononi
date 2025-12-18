@@ -114,7 +114,7 @@ class _InterventionPageState extends State<InterventionPage> {
                 title: const Text('Use Square Meters (SQM)', style: TextStyle(color: Colors.black87)),
                 value: _useSQM,
                 onChanged: (value) => setState(() => _useSQM = value),
-                activeColor: Colors.green[300],
+                activeThumbColor: Colors.green[300],
               ),
               const SizedBox(height: 24),
               Column(

@@ -13,6 +13,12 @@ class PlotSummaryTab extends StatefulWidget {
 
 class _PlotSummaryTabState extends State<PlotSummaryTab> {
   @override
+  void initState() {
+    super.initState();
+    print('PlotSummaryTab User ID: ${widget.userId}'); // Log userId
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -33,24 +39,34 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
             .orderBy('timestamp', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          // Loading state
+          print('StreamBuilder state: ${snapshot.connectionState}'); // Log state
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Error state
           if (snapshot.hasError) {
-            return const Center(
-              child: Text(
-                'Unable to load saved data. Please try again later.',
-                style: TextStyle(fontSize: 16, color: Colors.red),
-                textAlign: TextAlign.center,
+            print('Firestore Error: ${snapshot.error}'); // Log error
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error loading data: ${snapshot.error}',
+                    style: const TextStyle(fontSize: 16, color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}), // Retry
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
             );
           }
 
-          // No data state
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            print('No fielddata documents found for userId: ${widget.userId}'); // Log no data
             return const Center(
               child: Text(
                 'No saved data available. Please save data to view your history.',
@@ -60,19 +76,40 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
             );
           }
 
-          // Data available state
-          final entries = snapshot.data!.docs
-              .map((doc) => FieldData.fromMap(doc.data() as Map<String, dynamic>))
-              .toList();
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return _buildPlotCard(entry, snapshot.data!.docs[index].id);
-            },
-          );
+          try {
+            final entries = snapshot.data!.docs.map((doc) {
+              print('Parsing document: ${doc.id}, data: ${doc.data()}'); // Log raw document
+              return FieldData.fromMap(doc.data() as Map<String, dynamic>);
+            }).toList();
+            print('Parsed ${entries.length} entries successfully'); // Log success
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: entries.length,
+              itemBuilder: (context, index) {
+                final entry = entries[index];
+                return _buildPlotCard(entry, snapshot.data!.docs[index].id);
+              },
+            );
+          } catch (e, stackTrace) {
+            print('Parsing Error: $e\nStackTrace: $stackTrace'); // Log parsing error
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error parsing data: $e',
+                    style: const TextStyle(fontSize: 16, color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}), // Retry
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
         },
       ),
     );
@@ -179,10 +216,9 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
         TextEditingController(text: plot.npk['P']?.toString());
     final TextEditingController potassiumController =
         TextEditingController(text: plot.npk['K']?.toString());
-    final List<TextEditingController> microNutrientControllers = plot.microNutrients
-        .map((m) => TextEditingController(text: m))
-        .toList()
-      ..add(TextEditingController());
+    final List<TextEditingController> microNutrientControllers =
+        plot.microNutrients.map((m) => TextEditingController(text: m)).toList()
+          ..add(TextEditingController());
 
     List<Map<String, String>> editedCrops = List.from(plot.crops);
     List<String> editedMicroNutrients = List.from(plot.microNutrients);
@@ -249,18 +285,39 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
                 ),
                 const SizedBox(height: 8),
                 Column(
-                  children: microNutrientControllers.map((controller) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(labelText: 'Micro-Nutrient'),
-                      onSubmitted: (value) {
-                        if (value.isNotEmpty && !editedMicroNutrients.contains(value)) {
-                          setState(() => editedMicroNutrients.add(value));
-                        }
-                      },
-                    ),
-                  )).toList(),
+                  children: microNutrientControllers.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final controller = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controller,
+                              decoration: const InputDecoration(labelText: 'Micro-Nutrient'),
+                              onChanged: (value) {
+                                if (value.isNotEmpty && !editedMicroNutrients.contains(value)) {
+                                  setState(() => editedMicroNutrients.add(value));
+                                }
+                              },
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                microNutrientControllers.removeAt(idx);
+                                if (controller.text.isNotEmpty) {
+                                  editedMicroNutrients.remove(controller.text);
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
                 ElevatedButton(
                   onPressed: () =>
@@ -272,8 +329,12 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
                   children: editedMicroNutrients
                       .map((m) => Chip(
                             label: Text(m),
-                            onDeleted: () =>
-                                setState(() => editedMicroNutrients.remove(m)),
+                            onDeleted: () => setState(() {
+                              editedMicroNutrients.remove(m);
+                              final controller = microNutrientControllers
+                                  .firstWhere((c) => c.text == m, orElse: () => TextEditingController());
+                              microNutrientControllers.remove(controller);
+                            }),
                           ))
                       .toList(),
                 ),
@@ -312,16 +373,16 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
         userId: widget.userId,
         plotId: plot.plotId,
         crops: editedCrops,
-        area: areaController.text.isNotEmpty ? double.parse(areaController.text) : null,
+        area: areaController.text.isNotEmpty ? double.tryParse(areaController.text) : null,
         npk: {
           'N': nitrogenController.text.isNotEmpty
-              ? double.parse(nitrogenController.text)
+              ? double.tryParse(nitrogenController.text)
               : null,
           'P': phosphorusController.text.isNotEmpty
-              ? double.parse(phosphorusController.text)
+              ? double.tryParse(phosphorusController.text)
               : null,
           'K': potassiumController.text.isNotEmpty
-              ? double.parse(potassiumController.text)
+              ? double.tryParse(potassiumController.text)
               : null,
         },
         microNutrients: editedMicroNutrients,

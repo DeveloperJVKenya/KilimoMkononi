@@ -1,0 +1,258 @@
+[
+  {
+    "crop": "Carrots",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Cutworms may damage sprouts",
+    "likely_type": "Pest",
+    "identity": "Cutworms",
+    "visible_signs": [
+      "severed stems",
+      "chewing damage"
+    ],
+    "short_code": "carrots_seedling_cutworms"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Seedling",
+    "plant_part": "Leaves",
+    "symptom_label": "Damping-off: failed emergence, cotyledon rot",
+    "likely_type": "Disease",
+    "identity": "Damping-off",
+    "visible_signs": [
+      "rotted cotyledons",
+      "collapsed seedlings"
+    ],
+    "short_code": "carrots_seedling_dampingoff"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Seedling",
+    "plant_part": "Whole plant",
+    "symptom_label": "Crusting soil or poor seedbed leading to patchy emergence",
+    "likely_type": "Abiotic",
+    "identity": "Soil crusting / poor seedbed",
+    "visible_signs": [
+      "patchy emergence"
+    ],
+    "short_code": "carrots_seedling_poor_emergence"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Aphids: curling, sticky tops, possible virus spread",
+    "likely_type": "Pest",
+    "identity": "Aphids",
+    "visible_signs": [
+      "curled leaves",
+      "sticky honeydew"
+    ],
+    "short_code": "carrots_vegetative_aphids"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Leaf-miners: serpentine mines in leaves",
+    "likely_type": "Pest",
+    "identity": "Leaf-miners (Liriomyza spp.)",
+    "visible_signs": [
+      "serpentine mines"
+    ],
+    "short_code": "carrots_vegetative_leafminers"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Alternaria leaf blight: small brown lesions on leaf petioles and blades",
+    "likely_type": "Disease",
+    "identity": "Alternaria leaf blight",
+    "visible_signs": [
+      "brown lesions",
+      "concentric rings"
+    ],
+    "short_code": "carrots_vegetative_alternaria"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Cercospora leaf spot: tan/grey spots with darker borders on leaves",
+    "likely_type": "Disease",
+    "identity": "Cercospora leaf spot",
+    "visible_signs": [
+      "tan/grey spots",
+      "darker borders"
+    ],
+    "short_code": "carrots_vegetative_cercospora"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Powdery mildew: white dusty coating on leaves",
+    "likely_type": "Disease",
+    "identity": "Powdery mildew",
+    "visible_signs": [
+      "white dusty coating"
+    ],
+    "short_code": "carrots_vegetative_powderymildew"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Whole plant",
+    "symptom_label": "Aster yellows: yellowing, witch’s broom of foliage, proliferation of small roots",
+    "likely_type": "Disease",
+    "identity": "Aster yellows (phytoplasma)",
+    "visible_signs": [
+      "yellowing foliage",
+      "witch’s broom"
+    ],
+    "short_code": "carrots_vegetative_asteryellows"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Roots",
+    "symptom_label": "Root-knot nematodes: galling and distorted roots, poor yield",
+    "likely_type": "Nematode",
+    "identity": "Root-knot nematodes",
+    "visible_signs": [
+      "root galls",
+      "distorted roots"
+    ],
+    "short_code": "carrots_vegetative_nematodes"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Vegetative",
+    "plant_part": "Whole plant",
+    "symptom_label": "Nutrient deficiencies causing poor top growth and small roots",
+    "likely_type": "Abiotic",
+    "identity": "Nutrient deficiencies",
+    "visible_signs": [
+      "yellow leaves",
+      "small roots"
+    ],
+    "short_code": "carrots_vegetative_nutrient_deficiency"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Root development",
+    "plant_part": "Roots",
+    "symptom_label": "Carrot fly: brown tunnelling in roots with frass, maggots visible",
+    "likely_type": "Pest",
+    "identity": "Carrot fly (Psila rosae)",
+    "visible_signs": [
+      "brown tunnels",
+      "frass",
+      "maggots in roots"
+    ],
+    "short_code": "carrots_root_carrotfly"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Root development",
+    "plant_part": "Roots",
+    "symptom_label": "Wireworms: small round holes in roots and stunted roots",
+    "likely_type": "Pest",
+    "identity": "Wireworms",
+    "visible_signs": [
+      "round holes",
+      "stunted roots"
+    ],
+    "short_code": "carrots_root_wireworms"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Root development",
+    "plant_part": "Roots",
+    "symptom_label": "Bacterial soft rot: soft, watery breakdown of root tissue, foul odour",
+    "likely_type": "Disease",
+    "identity": "Bacterial soft rot",
+    "visible_signs": [
+      "watery breakdown",
+      "foul odour"
+    ],
+    "short_code": "carrots_root_softrot"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Root development",
+    "plant_part": "Roots",
+    "symptom_label": "Sclerotinia (white mould): white cottony mycelium and hard black sclerotia",
+    "likely_type": "Disease",
+    "identity": "Sclerotinia white mould",
+    "visible_signs": [
+      "white cottony mycelium",
+      "black sclerotia"
+    ],
+    "short_code": "carrots_root_sclerotinia"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Root development",
+    "plant_part": "Roots",
+    "symptom_label": "Cavity spot: small sunken spots on root surface",
+    "likely_type": "Disease",
+    "identity": "Cavity spot (Pythium spp.)",
+    "visible_signs": [
+      "sunken spots"
+    ],
+    "short_code": "carrots_root_cavityspot"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Root development",
+    "plant_part": "Roots",
+    "symptom_label": "Forked or hairy roots due to rocky soils, nematodes, or inconsistent moisture",
+    "likely_type": "Abiotic",
+    "identity": "Soil issues / inconsistent moisture",
+    "visible_signs": [
+      "forked roots",
+      "hairy roots"
+    ],
+    "short_code": "carrots_root_forked"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Harvest/Storage",
+    "plant_part": "Roots",
+    "symptom_label": "Root maggots at harvest causing holes and entry for secondary rots",
+    "likely_type": "Pest",
+    "identity": "Root maggots",
+    "visible_signs": [
+      "holes in roots",
+      "maggots"
+    ],
+    "short_code": "carrots_storage_maggots"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Harvest/Storage",
+    "plant_part": "Roots",
+    "symptom_label": "Storage rots (soft rot, Sclerotinia), blackening from chill damage",
+    "likely_type": "Disease",
+    "identity": "Storage rots (soft rot/Sclerotinia)",
+    "visible_signs": [
+      "soft rot",
+      "blackening"
+    ],
+    "short_code": "carrots_storage_rots"
+  },
+  {
+    "crop": "Carrots",
+    "stage": "Harvest/Storage",
+    "plant_part": "Roots",
+    "symptom_label": "Shrivelling from low humidity storage",
+    "likely_type": "Abiotic",
+    "identity": "Low humidity storage",
+    "visible_signs": [
+      "shriveled roots"
+    ],
+    "short_code": "carrots_storage_shriveling"
+  }
+]

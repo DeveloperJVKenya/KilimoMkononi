@@ -1,0 +1,197 @@
+{
+  "cbcPrimary": [
+    {
+      "title": "What is a Market?",
+      "icon": "Icons.store",
+      "explanation": "A market is a place where buyers and sellers meet to exchange goods, especially fresh farm produce.",
+      "full_content": "# What is a Market?\n\nImagine a big open space full of **color, noise, and wonderful smells**.\n\nWomen in bright kitenges arrange mountains of oranges, mangoes, and avocados.\nMen shout **\"Ndizi mbivu! Bei poa!\"** while weighing bananas.\n\nSome sellers sit under umbrellas, others on sacks. There are permanent stalls with iron roofs and temporary ones made of sticks and polythene.\n\n**Markets are the heart of every village and town** because they connect:\n- The farmer who wakes up at 4 a.m. to harvest\n- With the mama who needs fresh food for her family’s lunch and supper\n\nWithout markets, farmers would have nowhere to sell and families would have no fresh food.",
+      "key_points": [
+        "Markets connect farmers directly to customers",
+        "You get fresher and cheaper food than in supermarkets",
+        "There are daily markets (e.g. in towns) and weekly markets (e.g. Tuesday Market, Friday Market)",
+        "Markets sell food, clothes, household items, and even livestock",
+        "Most markets open from 6 a.m. to 6 p.m."
+      ],
+      "image": "market_tips/images/market.jpg",
+      "image_alt": "Busy Kenyan open-air market full of fresh produce"
+    },
+    {
+      "title": "Buying and Selling",
+      "icon": "Icons.swap_horiz",
+      "explanation": "The farmer brings produce to sell. The customer brings money to buy. They agree on a price and exchange.",
+      "full_content": "# Buying and Selling\n\nGood sellers wake up early, choose only the **best produce**, and arrange it beautifully.\n\nThey greet every passer-by with a smile and **\"Karibu sana!\"**\n\n### How bargaining works:\n- Customer: *\"Mango ngapi?\"*\n- Seller: *\"Hamsini kwa moja, lakini nikupe tatu kwa mia.\"*\n→ Customer smiles and buys!\n\n**Honest weighing is very important** — customers hate being cheated even by 100 grams.\n\nWhen a seller is **kind + honest + gives good prices**, customers become regulars and even bring their friends.",
+      "key_points": [
+        "Always greet and smile at customers",
+        "Bargaining (kununua bei poa) is normal and expected",
+        "Use clean, accurate weighing scales",
+        "Give small gifts sometimes (e.g. free dhania or one extra tomato)",
+        "Happy customers come back again and again"
+      ],
+      "image": "market_tips/images/exchange.jpg",
+      "image_alt": "Happy transaction between farmer and customer"
+    },
+    {
+      "title": "Money and Prices",
+      "icon": "Icons.attach_money",
+      "explanation": "Every item has a price decided by the seller. Prices change every day depending on season and quantity available.",
+      "full_content": "# Money and Prices\n\nPrices are **never fixed forever**.\n\nA seller decides price based on:\n- Cost of seeds/fertilizer\n- Transport cost\n- What others are charging\n- What customers are willing to pay\n\n### Real prices in Kenya (2024–2025)\n| Crop          | In Season (Cheap)     | Off Season (Expensive) |\n|---------------|------------------------|-------------------------|\n| Tomatoes      | Dec–Feb: 30–60 KSh/kg  | Jul–Aug: 120–200 KSh/kg |\n| Sukuma Wiki   | Always 10–30 KSh/bunch | —                       |\n| Onions        | 80 KSh/kg              | Up to 180 KSh/kg        |\n\n**Smart sellers check neighbouring stalls and go slightly lower to attract more customers.**\n\nM-Pesa is now accepted in almost all markets!",
+      "key_points": [
+        "Prices change daily and seasonally",
+        "High quality, big size, clean produce = higher price",
+        "In-season crops are cheap, off-season crops are expensive",
+        "Always check prices from several sellers before buying in bulk",
+        "M-Pesa is accepted in almost all markets now"
+      ],
+      "image": "market_tips/images/prices.jpg",
+      "image_alt": "Kenyan shillings and fresh vegetables"
+    },
+    {
+      "title": "Saving Money",
+      "icon": "Icons.savings",
+      "explanation": "Instead of spending all money earned at the market, keep some aside for future needs.",
+      "full_content": "# Saving Money\n\nMany farmers spend everything they earn the same day — soda, clothes, airtime.\n\n**Successful farmers separate money into 3 parts**:\n1. Family food & daily expenses\n2. Farm costs (seeds, fertilizer)\n3. **Savings**\n\n### Popular saving methods in Kenya\n- Village table banking (merry-go-round)\n- SACCOs (Harambee, Kenya Women, etc.)\n- M-Shwari / KCB M-Pesa / Fuliza savings\n- Locked metal box at home\n\n**The golden rule**: Save first, spend what remains.\n\nEven **100–200 KSh saved every market day** can become school fees, new seeds, or even a cow in one year!",
+      "key_points": [
+        "Save at least 10–20% of everything you earn",
+        "Never touch savings for daily expenses",
+        "Join a trusted group or SACCO for higher interest",
+        "Small daily savings become big money over time",
+        "Savings protect you when crops fail or someone gets sick"
+      ],
+      "image": "market_tips/images/saving_money.jpg",
+      "image_alt": "Child saving coins in a piggy bank"
+    }
+  ],
+
+  "cbcJunior": [
+    {
+      "title": "Market Practices",
+      "icon": "Icons.storefront",
+      "explanation": "Simple habits that make customers choose your stall over others.",
+      "full_content": "# Market Practices\n\nProfessional sellers treat the market like a **real shop**.\n\nThey:\n- Sweep around their area\n- Arrange produce by type and size\n- Write prices clearly on cardboard\n- Wear clean clothes or apron\n- Never argue with customers\n\nThey separate:\n- **Grade A** → perfect → higher price\n- **Grade B** → smaller/slight damage → lower price\n\nMany even help carry heavy loads to the boda boda for free.\n\nThese small things make customers feel **respected** and they always come back!",
+      "key_points": [
+        "Arrive before 7 a.m. to get the best spot",
+        "Display produce in clean crates or on raised mats (not on bare ground)",
+        "Write prices clearly to avoid constant questions",
+        "Sort and grade your produce (big, medium, small)",
+        "Smile, greet in Swahili and local language, say thank you",
+        "Accept M-Pesa – many customers have no cash"
+      ],
+      "image": "market_tips/images/market_practices.jpg"
+    },
+    {
+      "title": "Demand and Supply",
+      "icon": "Icons.balance",
+      "explanation": "When something is scarce → price high. When something is plenty → price low.",
+      "full_content": "# Demand and Supply\n\nThis simple rule controls **every price** in the market.\n\n### Maize price example:\n- Jan–Mar (after harvest) → 90kg bag = 2,200–3,000 KSh\n- Jun–Aug (hunger season) → same bag = 5,500–7,000 KSh\n\nSame for beans, potatoes, onions, etc.\n\n**Smart farmers**:\n- Sell some immediately\n- Dry and store the rest properly\n- Sell when price is highest → earn 2–3× more!\n\nNever flood the market with everything at once.",
+      "key_points": [
+        "Scarce = expensive, Plenty = cheap",
+        "Check last year’s price pattern to plan this year",
+        "Store at least 20–30% of harvest for off-season sale",
+        "Good storage (hermetic bags) prevents insects and rot",
+        "You can make more money by timing than by farming harder"
+      ],
+      "image": "market_tips/images/supply_demand.jpg"
+    },
+    {
+      "title": "Post-Harvest Handling",
+      "icon": "Icons.inventory_2",
+      "explanation": "Everything you do to crops after harvest to prevent loss and keep quality high.",
+      "full_content": "# Post-Harvest Handling\n\nPoor handling = **30–50% loss**.\nGood handling = **double income**.\n\n### Steps for maize & beans\n1. Harvest when fully dry (maize black layer visible)\n2. Shell carefully (don’t break grains)\n3. Dry on tarpaulin until moisture <13.5% (bite test: should crack)\n4. Clean – remove dirt, bad grains, stones\n5. Use **PICS bags** or metal silos (no chemicals needed)\n6. Store on raised platform in cool dry room\n\nWith these steps → store safely for **12–18 months** and sell when price is highest!",
+      "key_points": [
+        "Dry until grain cracks when bitten",
+        "Use PICS bags or metal silos – no need for chemicals",
+        "Keep storage room dry and raised off ground",
+        "Check bags every month for weevils",
+        "Proper storage = sell at 2–3× price later"
+      ],
+      "image": "market_tips/images/post_harvest_handling.jpg"
+    },
+    {
+      "title": "Keeping Records",
+      "icon": "Icons.receipt_long",
+      "explanation": "Writing down every shilling you earn and spend so you know real profit.",
+      "full_content": "# Keeping Records\n\nMost farmers **guess** profit → many actually lose money!\n\nUse a notebook or phone app. Every day write:\n- Date\n- Crop sold\n- Quantity (kg/crates)\n- Price per unit\n- Total income\n- Expenses (transport, market fee, labour, sacks)\n\nAt end of month: **Income − Expenses = REAL PROFIT**\n\nYou’ll be shocked how much goes on transport or snacks!\n\n**Good records also help you get bank loans** — banks trust farmers with books.",
+      "key_points": [
+        "Record the same day – never trust memory",
+        "Separate farm money from family money",
+        "Calculate profit at least monthly",
+        "Records show which crop makes most money",
+        "Banks and SACCOs love farmers with record books"
+      ],
+      "image": "market_tips/images/record_keeping.jpg"
+    }
+  ],
+
+  "cbcSenior": [
+    {
+      "title": "Agricultural Marketing & Value Addition",
+      "icon": "Icons.trending_up",
+      "explanation": "Turning ordinary farm produce into higher-value products that earn 50–300% more money.",
+      "full_content": "# Value Addition = More Money!\n\nSimple examples:\n- Wash & bundle sukuma wiki in 5kg packs → schools pay **300 KSh** instead of 150 KSh\n- Sort avocados + pack 12 in carton with sticker → Naivas pays **1,200 KSh** instead of 400 KSh\n- Dry mango slices in 200g branded bags → sell at **300 KSh** instead of 40 KSh/kg fresh\n- Make peanut butter → **900 KSh/kg** instead of 200 KSh raw\n\n**Little capital → huge profit!**",
+      "key_points": [
+        "Clean + graded + packed = 2–4× price",
+        "Put your name & phone number on every package",
+        "Start small – even bundling vegetables adds value",
+        "Supermarkets, hotels schools love ready-to-use produce",
+        "Simple processing (drying juicing flour) multiplies income"
+      ],
+      "image": "market_tips/images/agricultural_marketing.jpg"
+    },
+    {
+      "title": "Price Determination & Market Information",
+      "icon": "Icons.price_check",
+      "explanation": "Knowing real-time prices in different markets so you sell where you earn most.",
+      "full_content": "# Market Information = Money\n\nA farmer with information earns **double** the farmer who sells blindly.\n\n### Free price sources:\n- Ratim App / Mkulima Price App\n- Radio market bulletins\n- County WhatsApp groups\n- Sokopepe iCow Digifarm\n- KAMIS website\n\n**Call buyers directly!** Many supermarkets and exporters have hotlines.\n\nExample: Potatoes 4,000 KSh/bag in Nairobi vs 2,200 KSh locally → hire a truck and become rich!",
+      "key_points": [
+        "Check prices in at least 3 markets before selling",
+        "Transport cost must be less than price difference",
+        "Avoid brokers – call final buyers directly",
+        "Join your county WhatsApp price group today",
+        "Information = money in farming"
+      ],
+      "image": "market_tips/images/market_infor.jpg"
+    },
+    {
+      "title": "Farmer Cooperatives & Group Marketing",
+      "icon": "Icons.groups",
+      "explanation": "Farmers unite to sell in bulk, buy inputs cheaply, and access loans and big buyers.",
+      "full_content": "# Power of Cooperatives\n\nOne farmer = weak voice  \n**500 farmers together = powerful voice!**\n\nCooperatives:\n- Collect produce store grade together\n- Sell whole lorry to WFP schools exporters\n- Buy fertilizer by the tonne (much cheaper)\n- Give loans using produce as security\n\nSuccessful examples:\n- Githunguri Dairy (Fresher’s milk)\n- Meru Greens Horticulture\n- New KPCU coffee\n- Mwea Rice Growers\n\n**Start or join one today!**",
+      "key_points": [
+        "Bulk selling = 20–50% higher price",
+        "Bulk buying fertilizer/seeds = 15–30% cheaper",
+        "Cooperatives help members get bank loans",
+        "Group certification for export is cheaper",
+        "Strong cooperatives can even own trucks and warehouses"
+      ],
+      "image": "market_tips/images/farmer_coop.jpg"
+    },
+    {
+      "title": "Digital Marketing for Farmers",
+      "icon": "Icons.phone_android",
+      "explanation": "Using phone and internet to sell directly to buyers all over Kenya and avoid brokers.",
+      "full_content": "# Sell Online – No Broker Needed!\n\nSteps:\n1. Take bright photos (early morning or shade)\n2. Write: Crop | Variety | Quantity | Location | Price | Your name & phone\n3. Post in 5–10 active groups daily\n4. Answer calls/messages fast\n5. Use **WhatsApp Business** (free catalogue)\n\nPopular platforms:\n- Twiga Foods\n- Taimba\n- M-Farm\n- Sokopepe\n- Facebook groups\n\nMany farmers now earn **30–70% more** selling digitally!",
+      "key_points": [
+        "Clear photos + accurate description = fast sale",
+        "Post every day in multiple groups",
+        "Answer messages within minutes",
+        "Use WhatsApp catalogue to look professional",
+        "You can sell to buyers 500 km away without moving"
+      ],
+      "image": "market_tips/images/digital_marketing.jpg"
+    },
+    {
+      "title": "Export Standards & Certification",
+      "icon": "Icons.flight_takeoff",
+      "explanation": "Rules and certificates needed to sell Kenyan fruits and vegetables to Europe, Middle East, and USA.",
+      "full_content": "# Export = 3–10× Local Price!\n\nTop export crops:\n- Avocados (Hass/Fuerte)\n- French beans snow peas\n- Mangoes passion fruit\n- Flowers\n\nRequirements:\n- GlobalGAP or KenyaGAP certification\n- Phytosanitary certificate (KEPHIS)\n- No banned chemicals (MRL testing)\n- Cold chain 0–7°C from farm to airport\n- Proper cartons with traceability codes\n\nCertified farmers sell Hass avocados at **120–200 KSh/kg** instead of 40–80 KSh locally!",
+      "key_points": [
+        "Export price often 3–10× local price",
+        "GlobalGAP costs money but pays back fast",
+        "You can join a group for cheaper certification",
+        "Keep spray records for every chemical used",
+        "Cold truck from farm → airport is mandatory"
+      ],
+      "image": "market_tips/images/export.jpg"
+    }
+  ]
+}

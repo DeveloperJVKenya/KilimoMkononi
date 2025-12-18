@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/screens/pest%20management/pest_management.dart';
-import 'package:kilimomkononi/screens/disease_management_page.dart';
+import 'package:kilimomkononi/screens/disease%20management/disease_management_page.dart';
 import 'package:kilimomkononi/screens/symptom_checker_page.dart';
 
 class PestDiseaseHomePage extends StatelessWidget {
@@ -8,7 +8,7 @@ class PestDiseaseHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ScaffoldMessenger.of(context); 
+    ScaffoldMessenger.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -37,7 +37,10 @@ class PestDiseaseHomePage extends StatelessWidget {
               Icons.bug_report,
               () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const PestManagementPage()),
+                MaterialPageRoute(
+                  builder: (context) =>
+                      PestManagementPage(selectedSymptoms: const []), // ✅ empty list
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -47,17 +50,22 @@ class PestDiseaseHomePage extends StatelessWidget {
               Icons.local_hospital,
               () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const DiseaseManagementPage()),
+                MaterialPageRoute(
+                  builder: (context) =>
+                      DiseaseManagementPage(selectedSymptoms: const []), // ✅ empty list
+                ),
               ),
             ),
             const SizedBox(height: 20),
             _buildOptionCard(
               context,
-              'Identify Issue by Symptoms',
+              'Symptom Checker',
               Icons.search,
               () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SymptomCheckerPage()),
+                MaterialPageRoute(
+                  builder: (context) => const SymptomCheckerPage(),
+                ),
               ),
             ),
           ],
@@ -66,7 +74,8 @@ class PestDiseaseHomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildOptionCard(BuildContext context, String title, IconData icon, VoidCallback onTap) {
+  Widget _buildOptionCard(
+      BuildContext context, String title, IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Card(
@@ -82,7 +91,8 @@ class PestDiseaseHomePage extends StatelessWidget {
               const SizedBox(width: 16),
               Text(
                 title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),

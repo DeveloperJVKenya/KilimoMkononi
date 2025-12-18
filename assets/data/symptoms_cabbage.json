@@ -1,0 +1,274 @@
+[
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Seedling",
+    "plant_part": "Leaves",
+    "symptom_label": "Flea beetles: many small shot-holes on cotyledons and young leaves",
+    "likely_type": "Pest",
+    "identity": "Flea beetles",
+    "visible_signs": [
+      "small shot-holes",
+      "beetles jumping"
+    ],
+    "short_code": "cabbage_seedling_fleabeetles"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Cutworms: severed seedlings",
+    "likely_type": "Pest",
+    "identity": "Cutworms",
+    "visible_signs": [
+      "severed stems",
+      "chewing damage"
+    ],
+    "short_code": "cabbage_seedling_cutworms"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Seedling",
+    "plant_part": "Stem",
+    "symptom_label": "Damping-off: collapsed seedlings, blackened stems",
+    "likely_type": "Disease",
+    "identity": "Damping-off",
+    "visible_signs": [
+      "collapsed seedlings",
+      "blackened stems"
+    ],
+    "short_code": "cabbage_seedling_dampingoff"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Seedling",
+    "plant_part": "Leaves",
+    "symptom_label": "Seedling scorch from herbicide drift",
+    "likely_type": "Abiotic",
+    "identity": "Herbicide drift",
+    "visible_signs": [
+      "scorched leaves",
+      "yellowing edges"
+    ],
+    "short_code": "cabbage_seedling_herbicide"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Diamondback moth: fine windowing, small holes, small green larvae",
+    "likely_type": "Pest",
+    "identity": "Diamondback moth",
+    "visible_signs": [
+      "windowing on leaves",
+      "small holes",
+      "green larvae"
+    ],
+    "short_code": "cabbage_vegetative_diamondback"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Cabbage white caterpillar: larger irregular holes and rapid defoliation",
+    "likely_type": "Pest",
+    "identity": "Cabbage white caterpillar",
+    "visible_signs": [
+      "irregular holes",
+      "caterpillar frass"
+    ],
+    "short_code": "cabbage_vegetative_caterpillar"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Aphids: clusters on underside causing curling, sticky residue",
+    "likely_type": "Pest",
+    "identity": "Aphids",
+    "visible_signs": [
+      "aphid clusters",
+      "curled leaves",
+      "sticky residue"
+    ],
+    "short_code": "cabbage_vegetative_aphids"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Flea beetles (continued): shot-holing",
+    "likely_type": "Pest",
+    "identity": "Flea beetles",
+    "visible_signs": [
+      "shot-holes on leaves"
+    ],
+    "short_code": "cabbage_vegetative_fleabeetles"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Black rot: V-shaped marginal yellowing progressing to blackened veins",
+    "likely_type": "Disease",
+    "identity": "Black rot (Xanthomonas campestris)",
+    "visible_signs": [
+      "V-shaped yellowing",
+      "blackened veins"
+    ],
+    "short_code": "cabbage_vegetative_blackrot"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Downy mildew: pale upper surface patches and grey/white down on underside",
+    "likely_type": "Disease",
+    "identity": "Downy mildew (Hyaloperonospora parasitica)",
+    "visible_signs": [
+      "pale patches",
+      "grey/white down on underside"
+    ],
+    "short_code": "cabbage_vegetative_downymildew"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Alternaria leaf spot: concentric-ring lesions, often large and coalescing",
+    "likely_type": "Disease",
+    "identity": "Alternaria leaf spot",
+    "visible_signs": [
+      "concentric rings",
+      "coalescing lesions"
+    ],
+    "short_code": "cabbage_vegetative_alternaria"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Leaves",
+    "symptom_label": "Ring spot / bacterial diseases: circular lesions",
+    "likely_type": "Disease",
+    "identity": "Bacterial ring spot",
+    "visible_signs": [
+      "circular lesions"
+    ],
+    "short_code": "cabbage_vegetative_ringsspot"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Roots",
+    "symptom_label": "Root galling, poor uptake leading to stunting",
+    "likely_type": "Nematode",
+    "identity": "Root-knot nematodes",
+    "visible_signs": [
+      "root galls",
+      "stunted plants"
+    ],
+    "short_code": "cabbage_vegetative_nematodes"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Vegetative",
+    "plant_part": "Heads",
+    "symptom_label": "Calcium deficiency: tip burn or internal browning in heads",
+    "likely_type": "Abiotic",
+    "identity": "Calcium deficiency",
+    "visible_signs": [
+      "tip burn",
+      "internal browning"
+    ],
+    "short_code": "cabbage_vegetative_ca_deficiency"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Heading",
+    "plant_part": "Heads",
+    "symptom_label": "Caterpillars feeding inside heads leaving frass",
+    "likely_type": "Pest",
+    "identity": "Caterpillars (various)",
+    "visible_signs": [
+      "holes in heads",
+      "frass inside"
+    ],
+    "short_code": "cabbage_heading_caterpillars"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Heading",
+    "plant_part": "Roots",
+    "symptom_label": "Clubroot: swollen distorted roots, wilting in dry periods",
+    "likely_type": "Disease",
+    "identity": "Clubroot (Plasmodiophora brassicae)",
+    "visible_signs": [
+      "swollen roots",
+      "distorted galls"
+    ],
+    "short_code": "cabbage_heading_clubroot"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Heading",
+    "plant_part": "Heads",
+    "symptom_label": "Black rot inside head: internal vein blackening and rotting",
+    "likely_type": "Disease",
+    "identity": "Black rot",
+    "visible_signs": [
+      "internal blackening",
+      "rotting veins"
+    ],
+    "short_code": "cabbage_heading_blackrot_internal"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Heading",
+    "plant_part": "Whole plant",
+    "symptom_label": "Bolting due to temperature stress causing poor head quality",
+    "likely_type": "Abiotic",
+    "identity": "Temperature stress (bolting)",
+    "visible_signs": [
+      "premature flowering",
+      "loose heads"
+    ],
+    "short_code": "cabbage_heading_bolting"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Harvest/Storage",
+    "plant_part": "Heads",
+    "symptom_label": "Storage moths / larvae creating holes",
+    "likely_type": "Pest",
+    "identity": "Storage moths/larvae",
+    "visible_signs": [
+      "holes in heads",
+      "larvae present"
+    ],
+    "short_code": "cabbage_storage_moths"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Harvest/Storage",
+    "plant_part": "Heads",
+    "symptom_label": "Post-harvest soft rots, bacterial soft rot, head rot",
+    "likely_type": "Disease",
+    "identity": "Bacterial soft rot",
+    "visible_signs": [
+      "soft rotting",
+      "foul odour"
+    ],
+    "short_code": "cabbage_storage_softrot"
+  },
+  {
+    "crop": "Cabbage & Kales",
+    "stage": "Harvest/Storage",
+    "plant_part": "Heads",
+    "symptom_label": "Internal browning from cold damage or storage stress",
+    "likely_type": "Abiotic",
+    "identity": "Cold/storage stress",
+    "visible_signs": [
+      "internal browning"
+    ],
+    "short_code": "cabbage_storage_browning"
+  }
+]
