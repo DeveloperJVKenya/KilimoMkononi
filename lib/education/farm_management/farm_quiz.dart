@@ -1,4 +1,6 @@
 // lib/education/farm_management/farm_quiz.dart
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';
@@ -199,13 +201,8 @@ class _FarmQuizScreenState extends State<FarmQuizScreen> {
   Widget build(BuildContext context) {
     final bool isTeacher = widget.role == EduRole.teacher;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Farm Quiz'),
-        backgroundColor: primaryGreen,
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
+    // No AppBar - parent (farm_management_screen) provides everything
+    return SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -286,8 +283,8 @@ class _FarmQuizScreenState extends State<FarmQuizScreen> {
             );
           },
         ),
-      ),
-    );
+      );
+    
   }
 }
 

@@ -1,4 +1,6 @@
 // lib/education/utils/education_utils.dart
+// ignore_for_file: unused_element
+
 String _normalizeSchool(String s) => s.trim().replaceAll(' ', '_');
 
 /// Returns (gradeId, contentType) — school handled separately

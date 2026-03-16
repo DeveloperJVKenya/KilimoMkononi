@@ -1,5 +1,7 @@
 // lib/education/pest/pest_disease_all_school_data.dart
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
@@ -97,7 +99,7 @@ class _PestDiseaseAllSchoolDataState extends State<PestDiseaseAllSchoolData> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: DropdownButtonFormField<String>(
-                value: _selectedClassId,
+                initialValue: _selectedClassId,
                 decoration: const InputDecoration(
                   labelText: 'Select Class',
                   border: OutlineInputBorder(),

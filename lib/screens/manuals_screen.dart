@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
@@ -153,20 +155,6 @@ class _ManualsScreenState extends State<ManualsScreen> {
     if (lower.contains('potato')) return 'irish potatoes';
     if (lower.contains('maize') || lower.contains('corn')) return 'maize';
     return 'maize';
-  }
-
-  IconData _getFileIcon(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
-    if (ext == 'pdf') return Icons.picture_as_pdf;
-    if (ext.contains('doc')) return Icons.description;
-    return Icons.insert_drive_file;
-  }
-
-  Color _getFileIconColor(String fileName) {
-    final ext = fileName.toLowerCase().split('.').last;
-    if (ext == 'pdf') return Colors.red;
-    if (ext.contains('doc')) return Colors.blue;
-    return Colors.green;
   }
 
   // ==================== UPLOAD & ACTIONS ====================

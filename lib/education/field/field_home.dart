@@ -1,10 +1,12 @@
 // lib/education/field/field_home.dart
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'field_data_input.dart';
 import 'field_quiz.dart';
-import 'field_simulation.dart';
+import 'simulations/field_operations_simulation.dart';
 import 'field_all_school_data.dart';
 
 const Color primaryGreen = Color(0xFF032704);
@@ -28,72 +30,58 @@ class FieldHome extends StatefulWidget {
 class _FieldHomeState extends State<FieldHome> {
   int _currentTab = 0;
 
+  void _launchSimulation() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (BuildContext context) => FieldOperationsSimulation(
+          onComplete: () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Field operations simulation completed! 🎉'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isHeadteacher = widget.role == EduRole.headteacher;
+    final bool _ = widget.role == EduRole.teacher;
+    final double width = MediaQuery.of(context).size.width;
+    final bool isMobile = width < 600;
+
+    // When on the quiz tab, back button goes to data entry (not menu)
+    final bool onQuizTab = !isHeadteacher && _currentTab == 1;
 
     late final List<Widget> tabs;
-    late final List<BottomNavigationBarItem> navItems;
     late final String appBarTitle;
 
     if (isHeadteacher) {
-      // Headteacher: 2 tabs
       tabs = [
-        FieldDataInput(
-          role: widget.role,
-          schoolName: widget.schoolName,
-          classId: '', // Read-only, classId not needed
-        ),
-        FieldAllSchoolData(
-          schoolName: widget.schoolName, // Only schoolName needed for dropdown + data
-        ),
-      ];
-      navItems = const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.visibility),
-          label: 'View Form',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt),
-          label: 'All Entries',
-        ),
+        FieldDataInput(role: widget.role, schoolName: widget.schoolName, classId: ''),
+        FieldAllSchoolData(schoolName: widget.schoolName),
       ];
       appBarTitle = _currentTab == 0 ? 'View Field Data Form' : 'All School Entries';
     } else {
-      // Teacher & Student: Original 3 tabs
       tabs = [
-        FieldDataInput(
-          role: widget.role,
-          schoolName: widget.schoolName,
-          classId: widget.classId,
-        ),
-        FieldQuizScreen(
-          role: widget.role,
-          schoolName: widget.schoolName,
-          classId: widget.classId,
-        ),
-        FieldSimulationScreen(
-          role: widget.role,
-          schoolName: widget.schoolName,
-          classId: widget.classId,
-        ),
+        FieldDataInput(role: widget.role, schoolName: widget.schoolName, classId: widget.classId),
+        FieldQuizScreen(role: widget.role, schoolName: widget.schoolName, classId: widget.classId),
       ];
-      navItems = const [
-        BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Field Data'),
-        BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
-        BottomNavigationBarItem(icon: Icon(Icons.science), label: 'Simulation'),
-      ];
-      appBarTitle = _currentTab == 0
-          ? 'Field Data Entry'
-          : _currentTab == 1
-              ? 'Field Quiz'
-              : 'Field Simulation';
+      appBarTitle = _currentTab == 0 ? 'Field Data Entry' : 'Field Quiz';
     }
 
     return WillPopScope(
       onWillPop: () async {
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
+        // Android back gesture: on quiz tab → go to data tab first
+        if (onQuizTab && isMobile) {
+          setState(() => _currentTab = 0);
           return false;
         }
         return true;
@@ -103,19 +91,54 @@ class _FieldHomeState extends State<FieldHome> {
           title: Text(appBarTitle),
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
+          automaticallyImplyLeading: false,
+          leading: isMobile
+              ? (onQuizTab
+                  // Quiz tab → back to data entry tab
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Back to Field Data',
+                      onPressed: () => setState(() => _currentTab = 0),
+                    )
+                  // Data tab → back to menu/sidebar
+                  : IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ))
+              : null, // Desktop/tablet: sidebar handles navigation
         ),
-        body: IndexedStack(
-          index: _currentTab,
-          children: tabs,
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentTab,
-          onTap: (index) => setState(() => _currentTab = index),
-          items: navItems,
-          selectedItemColor: primaryGreen,
-          unselectedItemColor: Colors.grey,
-          type: BottomNavigationBarType.fixed,
-        ),
+        body: IndexedStack(index: _currentTab, children: tabs),
+        bottomNavigationBar: isHeadteacher
+            ? BottomNavigationBar(
+                currentIndex: _currentTab,
+                onTap: (i) => setState(() => _currentTab = i),
+                items: const [
+                  BottomNavigationBarItem(icon: Icon(Icons.visibility), label: 'View Form'),
+                  BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'All Entries'),
+                ],
+                selectedItemColor: primaryGreen,
+                unselectedItemColor: Colors.grey,
+                type: BottomNavigationBarType.fixed,
+              )
+            : BottomNavigationBar(
+                currentIndex: _currentTab,
+                onTap: (i) {
+                  if (i == 2) {
+                    _launchSimulation();
+                  } else if (i < 2) {
+                    setState(() => _currentTab = i);
+                  }
+                },
+                items: [
+                  const BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Field Data'),
+                  const BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
+                  const BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
+                ],
+                selectedItemColor: primaryGreen,
+                unselectedItemColor: Colors.grey,
+                type: BottomNavigationBarType.fixed,
+              ),
       ),
     );
   }

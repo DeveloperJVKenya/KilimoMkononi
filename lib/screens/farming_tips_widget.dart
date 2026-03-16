@@ -1,3 +1,6 @@
+// farming_tips_widget.dart - UPDATED WITH Image.asset
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -117,33 +120,43 @@ class _FarmingTipsWidgetState extends State<FarmingTipsWidget> {
         child: ExpansionTile(
           initiallyExpanded: isExpanded,
           onExpansionChanged: (expanded) => setState(() => _expandedCrops[cropKey] = expanded),
-          leading: Text(cropData['icon'] ?? 'Seedling', style: const TextStyle(fontSize: 40)),
+          leading: CircleAvatar(
+            backgroundColor: Colors.green.withOpacity(0.1),
+            child: Text(cropData['icon'] ?? '🌱', style: const TextStyle(fontSize: 28)),
+          ),
           title: Text(
             cropKey.capitalize(),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color.fromARGB(255, 3, 39, 4)),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           childrenPadding: const EdgeInsets.all(16),
           children: [
             // General Tips
             if (cropData['general'] != null) ...[
-              const Text("General Tips", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color.fromARGB(255, 3, 39, 4))),
+              const Text("General Tips", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color.fromARGB(255, 3,39,4))),
               const SizedBox(height: 12),
-              if (cropData['image_general'] != null)
+              if (cropData['image_general'] != null) 
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    cropData['image_general'],
-                    height: 200,
+                  child: Image.asset(  // Changed to Image.asset
+                    'assets/${cropData['image_general'] as String}',
+                    height: 180,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    loadingBuilder: (c, child, progress) => progress == null
-                        ? child
-                        : Container(height: 200, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
-                    errorBuilder: (_, __, ___) => Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 60)),
+                    errorBuilder: (_, err, _) => Container(
+                      height: 180, 
+                      color: Colors.grey[200],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.broken_image),
+                          Text('Failed: $err', style: TextStyle(color: Colors.red, fontSize: 12)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              const SizedBox(height: 16),
-              MarkdownBody(data: cropData['general'], styleSheet: MarkdownStyleSheet(p: const TextStyle(fontSize: 16, height: 1.6))),
+              const SizedBox(height: 12),
+              MarkdownBody(data: cropData['general'].replaceAll('- ', '\n- ')),
               const Divider(height: 40),
             ],
 
@@ -167,15 +180,22 @@ class _FarmingTipsWidgetState extends State<FarmingTipsWidget> {
                       if (image != null)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            image,
+                          child: Image.asset(  // Changed to Image.asset
+                            'assets/$image',
                             height: 180,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            loadingBuilder: (c, child, progress) => progress == null
-                                ? child
-                                : Container(height: 180, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
-                            errorBuilder: (_, __, ___) => Container(height: 180, color: Colors.grey[200], child: const Icon(Icons.broken_image)),
+                            errorBuilder: (_, err, _) => Container(
+                              height: 180, 
+                              color: Colors.grey[200],
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.broken_image),
+                                  Text('Failed: $err', style: TextStyle(color: Colors.red, fontSize: 12)),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       const SizedBox(height: 12),
@@ -212,14 +232,22 @@ class _FarmingTipsWidgetState extends State<FarmingTipsWidget> {
                           padding: const EdgeInsets.all(12),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              image,
+                            child: Image.asset(  // Changed to Image.asset
+                              'assets/$image',
                               height: 160,
                               width: double.infinity,
                               fit: BoxFit.cover,
-                              loadingBuilder: (c, child, progress) => progress == null
-                                  ? child
-                                  : Container(height: 160, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
+                              errorBuilder: (_, err, _) => Container(
+                                height: 160, 
+                                color: Colors.grey[200],
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.broken_image),
+                                    Text('Failed: $err', style: TextStyle(color: Colors.red, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),

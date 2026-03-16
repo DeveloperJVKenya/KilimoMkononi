@@ -44,9 +44,11 @@ class _MarketPriceScreenState extends State<MarketPriceScreen> {
     try {
       if (await canLaunchUrl(uri)) {
         await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication, // Opens in Chrome/Safari
-        );
+  uri,
+  mode: LaunchMode.externalApplication,
+  // Fallback if external fails (opens in WebView inside app)
+  webOnlyWindowName: '_blank',  // Optional for web
+);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

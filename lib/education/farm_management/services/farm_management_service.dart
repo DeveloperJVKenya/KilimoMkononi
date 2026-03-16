@@ -1,4 +1,6 @@
 // lib/education/farm_management/services/farm_management_service.dart
+// ignore_for_file: unused_element
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';

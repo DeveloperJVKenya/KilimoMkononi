@@ -18,19 +18,28 @@ import 'package:kilimomkononi/education/education_home.dart';
 // Auth State Service
 import 'package:kilimomkononi/services/auth_state_service.dart';
 
+// Policy screens (used in registration links + settings)
+import 'package:kilimomkononi/settings/terms_and_conditions_screen.dart';
+import 'package:kilimomkononi/settings/privacy_policy_screen.dart';
+
+// ADD THIS — matches the import already in edit_profile_screen.dart
+import 'package:kilimomkononi/settings/providers/user_profile_provider.dart';
+
 import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthStateService(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthStateService()),
+        ChangeNotifierProvider(create: (_) => UserProfile()), // ADD THIS
+      ],
       child: const MyApp(),
     ),
   );
@@ -51,16 +60,17 @@ class MyApp extends StatelessWidget {
       ),
       home: const SplashScreen(),
       routes: {
-        // ── FARMER (ENTERPRISE) ─────────────────────────────────────
         '/login': (_) => const LoginScreen(),
         '/register1': (_) => const RegistrationScreen(),
         '/home': (_) => const HomePage(),
-
-        // ── EDUCATION ───────────────────────────────────────────────
         '/mode_selection': (_) => const ModeSelectionScreen(),
         '/edu_login': (_) => const EducationLoginScreen(),
         '/edu_register': (_) => const EducationRegistrationScreen(),
         '/edu_home': (_) => const EducationHomeScreen(),
+
+        // Policy routes — linked from registration checkboxes
+        '/terms': (_) => const TermsAndConditionsScreen(isEducation: false),
+        '/privacy': (_) => const PrivacyPolicyScreen(isEducation: false),
       },
     );
   }

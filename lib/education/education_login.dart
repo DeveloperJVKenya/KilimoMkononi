@@ -1,4 +1,6 @@
 // lib/education/education_login.dart
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -105,7 +107,7 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
                 height: 160,
                 fit: BoxFit.contain,
                 repeat: true,
-                errorBuilder: (_, __, ___) => const Icon(Icons.school, size: 90, color: Colors.teal),
+                errorBuilder: (_, _, _) => const Icon(Icons.school, size: 90, color: Colors.teal),
               ),
             ),
 

@@ -1,4 +1,7 @@
 // lib/screens/education_registration.dart
+// ignore_for_file: avoid_print
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -31,6 +34,7 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
   bool _obscure = true;
   List<String> _availableSchools = [];
   bool _loadingSchools = false;
+  bool _hasAcceptedTerms = false;
 
   @override
   void initState() {
@@ -48,13 +52,17 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
     super.dispose();
   }
 
-  /// Load existing schools from EducationUsers collection
+  /// NEW VERSION: Only show schools from APPROVED headteachers
   Future<void> _loadAvailableSchools() async {
     setState(() => _loadingSchools = true);
     
     try {
-      // Get all unique school names from EducationUsers
-      final snapshot = await _firestore.collection('EducationUsers').get();
+      // Only show schools from APPROVED headteachers
+      final snapshot = await _firestore
+          .collection('EducationUsers')
+          .where('role', isEqualTo: 'headteacher')           // only headteachers
+          .where('approvalStatus', isEqualTo: 'approved')    // only approved ones
+          .get();
       
       final schools = <String>{};
       for (var doc in snapshot.docs) {
@@ -69,6 +77,17 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
         _availableSchools = schools.toList()..sort();
         _loadingSchools = false;
       });
+
+      if (_availableSchools.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No schools available yet. Ask your school headteacher to register first.'),
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
     } catch (e) {
       setState(() => _loadingSchools = false);
       if (mounted) {
@@ -76,6 +95,7 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
           SnackBar(content: Text('Error loading schools: $e')),
         );
       }
+      print('School load error: $e');
     }
   }
 
@@ -134,6 +154,7 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
           'approvalStatus': _role == EduRole.headteacher ? 'pending' : 'pending', 
           'isDisabled': false,
           'createdAt': FieldValue.serverTimestamp(),
+          'termsAcceptedAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
@@ -262,7 +283,7 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
                               const SizedBox(width: 12),
                               const Expanded(
                                 child: Text(
-                                  'No schools available yet. Please contact a Headteacher to register their school first.',
+                                  'No schools available yet. Ask your school headteacher to register first.',
                                   style: TextStyle(fontSize: 13),
                                 ),
                               ),
@@ -379,14 +400,62 @@ class _EducationRegistrationScreenState extends State<EducationRegistrationScree
               ),
               const SizedBox(height: 16),
 
+              // Terms & Conditions Checkbox
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _hasAcceptedTerms,
+                    activeColor: Colors.teal,
+                    onChanged: (val) => setState(() => _hasAcceptedTerms = val ?? false),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: RichText(
+                        text: TextSpan(
+                          style: const TextStyle(color: Colors.black87, fontSize: 14),
+                          children: [
+                            const TextSpan(text: 'I have read and agree to the '),
+                            TextSpan(
+                              text: 'Terms & Conditions',
+                              style: const TextStyle(
+                                color: Colors.teal,
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => Navigator.pushNamed(context, '/terms'),
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: const TextStyle(
+                                color: Colors.teal,
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () => Navigator.pushNamed(context, '/privacy'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Create Account Button – disabled until terms accepted
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
+                    backgroundColor: _hasAcceptedTerms ? Colors.teal : Colors.grey,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  onPressed: _loading ? null : _register,
+                  onPressed: (_loading || !_hasAcceptedTerms) ? null : _register,
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text('Create Account', style: TextStyle(fontSize: 18)),

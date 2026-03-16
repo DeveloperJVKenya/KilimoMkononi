@@ -1,4 +1,5 @@
 // lib/screens/registration.dart
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,6 +35,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
   String? _ward;
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _hasAcceptedTerms = false;
 
   List<String> _currentConstituencies = [];
   List<String> _currentWards = [];
@@ -225,11 +227,58 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   const SizedBox(height: 20.0),
 
-                  // Sign Up Button
+                  // Terms & Conditions Checkbox
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: _hasAcceptedTerms,
+                        activeColor: Colors.teal,
+                        onChanged: (val) => setState(() => _hasAcceptedTerms = val ?? false),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
+                          child: RichText(
+                            text: TextSpan(
+                              style: const TextStyle(color: Colors.black87, fontSize: 14),
+                              children: [
+                                const TextSpan(text: 'I have read and agree to the '),
+                                TextSpan(
+                                  text: 'Terms & Conditions',
+                                  style: const TextStyle(
+                                    color: Colors.teal,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () => Navigator.pushNamed(context, '/terms'),
+                                ),
+                                const TextSpan(text: ' and '),
+                                TextSpan(
+                                  text: 'Privacy Policy',
+                                  style: const TextStyle(
+                                    color: Colors.teal,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () => Navigator.pushNamed(context, '/privacy'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16.0),
+
+                  // Sign Up Button – disabled until terms accepted
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isLoading
+                      onPressed: (_isLoading || !_hasAcceptedTerms)
                           ? null
                           : () {
                               if (_formKey.currentState!.validate()) {
@@ -238,7 +287,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                               }
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
+                        backgroundColor: _hasAcceptedTerms ? Colors.teal : Colors.grey,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
                         padding: const EdgeInsets.symmetric(vertical: 15.0),
                       ),
@@ -284,7 +333,9 @@ class RegistrationScreenState extends State<RegistrationScreen> {
         phoneNumber: _phoneNumber!,
       );
 
-      await _firestore.collection('Users').doc(appUser.id).set(appUser.toMap());
+      final userMap = appUser.toMap();
+      userMap['termsAcceptedAt'] = FieldValue.serverTimestamp();
+      await _firestore.collection('Users').doc(appUser.id).set(userMap);
 
       if (!mounted) return;
 

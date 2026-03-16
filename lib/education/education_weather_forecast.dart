@@ -1,4 +1,6 @@
 // education_weather_forecast.dart - FINAL VERSION WITH ROLE-BASED UX & FULL 5-DAY FORECAST
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';
@@ -11,6 +13,8 @@ import 'package:kilimomkononi/utils/firestore_helper.dart';
 import '../../utils/class_id_notifier.dart';
 import '../../models/education_user.dart';
 import '../../config.dart';
+import 'simulations/weather_prediction_simulation.dart';
+
 
 const Color primaryGreen = Color(0xFF032704);
 
@@ -96,6 +100,27 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
   String _error = '';
 
   final String _contentType = 'weather_content';
+
+  void _showSimBuilder() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (BuildContext context) => WeatherPredictionSimulation(
+          onComplete: () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Weather prediction simulation completed!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
 
   @override
   void initState() {
@@ -215,7 +240,7 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
       'https://openweathermap.org/img/wn/$iconCode@2x.png',
       width: size,
       height: size,
-      errorBuilder: (_, __, ___) => Icon(Icons.cloud, size: size, color: Colors.grey),
+      errorBuilder: (_, _, _) => Icon(Icons.cloud, size: size, color: Colors.grey),
     );
   }
 
@@ -283,11 +308,45 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
       };
 
       if (mounted) {
-        final screen = type == 'quiz'
-            ? WeatherQuizScreen(payload: fullPayload, classId: widget.classId)
-            : WeatherSimulationScreen(payload: fullPayload, classId: widget.classId);
-
-        Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+        if (type == 'quiz') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => WeatherQuizScreen(payload: fullPayload, classId: widget.classId),
+            ),
+          );
+        } else {
+          // Launch standalone weather prediction simulation
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => WeatherPredictionSimulation(
+                onComplete: () async {
+                  // Record completion
+                  final coll = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
+                  if (coll != null) {
+                    await coll.add({
+                      'type': 'simulation',
+                      'simulationId': doc.id,
+                      'title': title,
+                      'userId': FirebaseAuth.instance.currentUser!.uid,
+                      'createdAt': FieldValue.serverTimestamp(),
+                    });
+                  }
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Weather simulation completed! 🎉'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -301,6 +360,8 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
   @override
   Widget build(BuildContext context) {
     final bool isTeacher = widget.role == EduRole.teacher;
+    final double width = MediaQuery.of(context).size.width;
+    final bool isMobile = width < 600;
 
     return Scaffold(
       appBar: AppBar(
@@ -308,6 +369,13 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
         backgroundColor: primaryGreen,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
+        leading: isMobile
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -563,12 +631,9 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => showDialog(
-                              context: context,
-                              builder: (_) => WeatherSimBuilder(onSave: (d) => _saveContent('simulation', d)),
-                            ),
+                            onPressed: _showSimBuilder,
                             icon: const Icon(Icons.play_circle),
-                            label: const Text('Create Simulation'),
+                            label: const Text('Launch Weather Simulation'),
                             style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, padding: const EdgeInsets.symmetric(vertical: 18)),
                           ),
                         ),
@@ -844,112 +909,6 @@ class _WeatherQuizScreenState extends State<WeatherQuizScreen> {
   }
 }
 
-class WeatherSimulationScreen extends StatefulWidget {
-  final Map<String, dynamic> payload;
-  final String classId;
-
-  const WeatherSimulationScreen({super.key, required this.payload, required this.classId});
-
-  @override
-  State<WeatherSimulationScreen> createState() => _WeatherSimulationScreenState();
-}
-
-class _WeatherSimulationScreenState extends State<WeatherSimulationScreen> {
-  int _step = 0;
-  int? _sel;
-  bool _show = false;
-  late final ConfettiController _conf = ConfettiController(duration: const Duration(seconds: 2));
-
-  void _submit() {
-    if (_sel == null) return;
-    final s = widget.payload['steps'][_step];
-    final correct = (s['options'] as List).indexWhere((o) => o['correct'] == true);
-    if (_sel == correct) {
-      _conf.play();
-      if (_step < widget.payload['steps'].length - 1) {
-        setState(() { _step++; _sel = null; _show = false; });
-      } else {
-        _complete();
-      }
-    } else {
-      setState(() => _show = true);
-    }
-  }
-
-  Future<void> _complete() async {
-    final coll = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
-    if (coll != null) {
-      await coll.add({
-        'type': 'simulation',
-        'simulationId': widget.payload['id'],
-        'title': widget.payload['title'],
-        'completed': true,
-        'userId': FirebaseAuth.instance.currentUser!.uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Simulation Complete!'),
-          content: const Text('Well done! Your submission has been saved.'),
-          actions: [TextButton(onPressed: () => Navigator.popUntil(context, (r) => r.isFirst), child: const Text('Done'))],
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _conf.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.payload['steps'][_step];
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.payload['title'] ?? 'Weather Simulation'), backgroundColor: primaryGreen, foregroundColor: Colors.white),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ConfettiWidget(confettiController: _conf, blastDirectionality: BlastDirectionality.explosive),
-            const SizedBox(height: 30),
-            Text(s['prompt'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-            const SizedBox(height: 40),
-            ...(s['options'] as List).asMap().entries.map((e) => RadioListTile<int>(
-                  value: e.key,
-                  groupValue: _sel,
-                  onChanged: (v) => setState(() => _sel = v),
-                  title: Text(e.value['text']),
-                  activeColor: primaryGreen,
-                )),
-            if (_show)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-                  child: Text(s['explanation']?.isNotEmpty == true ? s['explanation'] : 'Try again!', style: const TextStyle(color: Colors.red)),
-                ),
-              ),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 56)),
-              child: const Text('Submit Choice', style: TextStyle(fontSize: 18, color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // BUILDERS (your original ones – unchanged)
 class WeatherQuizBuilder extends StatefulWidget {

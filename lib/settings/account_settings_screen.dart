@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AccountSettingsScreen extends StatelessWidget {
-  const AccountSettingsScreen({super.key});
+  final bool isEducation;
+  const AccountSettingsScreen({super.key, this.isEducation = false});
 
   // Define custom green color
   final Color customGreen = const Color(0xFF003900); 

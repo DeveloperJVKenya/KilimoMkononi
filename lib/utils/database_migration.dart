@@ -1,4 +1,6 @@
 // lib/education/utils/database_migration.dart
+// ignore_for_file: avoid_print
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firestore_helper.dart';
 

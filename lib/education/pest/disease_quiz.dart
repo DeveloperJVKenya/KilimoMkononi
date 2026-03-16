@@ -1,5 +1,7 @@
 // lib/education/pest/disease_quiz.dart
 
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';
@@ -200,9 +202,8 @@ class _DiseaseQuizScreenState extends State<DiseaseQuizScreen> {
   Widget build(BuildContext context) {
     final bool isTeacher = widget.role == EduRole.teacher;
 
-    return Scaffold(
-      
-      body: SafeArea(
+    // No AppBar - parent (disease_home) provides title and back button
+    return SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -283,8 +284,7 @@ class _DiseaseQuizScreenState extends State<DiseaseQuizScreen> {
             );
           },
         ),
-      ),
-    );
+      );
   }
 }
 

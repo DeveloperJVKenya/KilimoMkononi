@@ -2,7 +2,7 @@ name: kilimomkononi
 description: "Kilimo Mkononi - Smart farming made easier."
 publish_to: 'none' 
 
-version: 1.0.5+6
+version: 1.0.5+7
 environment:
   sdk: ^3.9.0  # aligned with Dart 3.9.2 from Flutter 3.35.3
 
@@ -59,15 +59,18 @@ flutter:
     - assets/pest_management.jpg
     - assets/soil.png
     - assets/weather_forecast.jpg
+    - assets/login.png
     - assets/pests/
     - assets/diseases/
-    - assets/
-    - assets/data/master.json
     - assets/lottie/
     - assets/lottie/images/
     - assets/farming_tips/
+    - assets/farming_tips/images/
     - assets/market_tips/
+    - assets/market_tips/images/
+    - assets/data/master.json         
 
+   
 flutter_icons:
   android: true
   ios: true

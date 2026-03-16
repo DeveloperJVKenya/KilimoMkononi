@@ -1,4 +1,7 @@
 // lib/education/field/field_quiz.dart
+
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';
@@ -8,10 +11,6 @@ import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 
 const Color primaryGreen = Color(0xFF032704);
-
-extension StringExt on String {
-  String capitalize() => isNotEmpty ? '${this[0].toUpperCase()}${substring(1)}' : this;
-}
 
 class FieldQuizScreen extends StatefulWidget {
   final EduRole role;
@@ -32,47 +31,12 @@ class FieldQuizScreen extends StatefulWidget {
 class _FieldQuizScreenState extends State<FieldQuizScreen> {
   final String _contentType = 'field_content';
 
-  Future<void> _saveQuiz(Map<String, dynamic> data) async {
-    await FirestoreHelper.ensureGradeExists(widget.classId);
-    final collection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
-    if (collection == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid class configuration')),
-      );
-      return;
-    }
-
-    final String title = data['title'] as String? ?? 'Field Quiz';
-
-    try {
-      await collection.add({
-        'type': 'quiz',
-        'title': title,
-        'data': jsonEncode(data['questions']),
-        'createdAt': FieldValue.serverTimestamp(),
-        'userId': FirebaseAuth.instance.currentUser!.uid,
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$title saved successfully!'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
   Future<void> _launchQuiz(String docId) async {
-    final rawCollection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
-    if (rawCollection == null) return;
+    final collection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (collection == null) return;
 
     try {
-      final doc = await rawCollection.doc(docId).get();
+      final doc = await collection.doc(docId).get();
       final dataMap = doc.data() as Map<String, dynamic>?;
 
       if (dataMap == null) {
@@ -114,7 +78,17 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
     }
   }
 
-  Widget _buildQuizButton() {
+  void _showQuizBuilder() {
+    showDialog(
+      context: context,
+      builder: (_) => FieldQuizBuilderDialog(
+        classId: widget.classId,
+        contentType: _contentType,
+      ),
+    );
+  }
+
+  Widget _buildActivityButton() {
     final raw = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
     if (raw == null) {
       return ElevatedButton.icon(
@@ -136,7 +110,7 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
         int total = snapshot.data?.docs.length ?? 0;
 
         return ElevatedButton.icon(
-          onPressed: total == 0 ? null : () => _showActivityList(),
+          onPressed: total == 0 ? null : () => _showQuizList(),
           icon: const Icon(Icons.quiz, size: 28),
           label: Column(
             mainAxisSize: MainAxisSize.min,
@@ -157,118 +131,61 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
     );
   }
 
-  void _showActivityList() {
+  void _showQuizList() {
+    final coll = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (coll == null) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        maxChildSize: 0.95,
-        minChildSize: 0.6,
+      builder: (context) => DraggableScrollableSheet(
         expand: false,
-        builder: (_, controller) => _buildQuizList(scrollController: controller),
-      ),
-    );
-  }
-
-  Widget _buildQuizList({ScrollController? scrollController}) {
-    final rawCollection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
-    if (rawCollection == null) {
-      return const Center(child: Text('Invalid configuration'));
-    }
-
-    final collection = rawCollection.withConverter<Map<String, dynamic>>(
-      fromFirestore: (snapshot, _) => snapshot.data()!,
-      toFirestore: (data, _) => data,
-    );
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'Quizzes',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryGreen),
-          ),
-        ),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: collection.where('type', isEqualTo: 'quiz').orderBy('createdAt', descending: true).snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: primaryGreen));
-              }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Center(
-                  child: Text(
-                    'No quizzes available yet',
-                    style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: Colors.grey),
-                  ),
-                );
-              }
-
-              final userId = FirebaseAuth.instance.currentUser!.uid;
-              final submissionsColl = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
-
-              return FutureBuilder<Set<String>>(
-                future: submissionsColl == null
-                    ? Future.value(<String>{})
-                    : submissionsColl
-                        .where('userId', isEqualTo: userId)
-                        .where('type', isEqualTo: 'quiz')
-                        .get()
-                        .then((s) => s.docs
-                            .map((d) => (d.data() as Map<String, dynamic>?)?['quizId'] as String?)
-                            .whereType<String>()
-                            .toSet()),
-                builder: (context, completedSnap) {
-                  final completedIds = completedSnap.data ?? <String>{};
-
-                  final availableDocs = snapshot.data!.docs.where((doc) => !completedIds.contains(doc.id)).toList();
-
-                  if (availableDocs.isEmpty) {
-                    return const Center(
-                      child: Text('All completed! Great job! 🎉', style: TextStyle(fontSize: 18)),
-                    );
+        builder: (_, controller) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Available Quizzes', style: Theme.of(context).textTheme.titleLarge),
+            ),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: coll.where('type', isEqualTo: 'quiz').orderBy('createdAt', descending: true).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: primaryGreen));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('No quizzes available yet'));
                   }
 
                   return ListView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: availableDocs.length,
-                    itemBuilder: (context, index) {
-                      final doc = availableDocs[index];
-                      final data = doc.data();
+                    controller: controller,
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (_, i) {
+                      final doc = snapshot.data!.docs[i];
+                      final data = doc.data() as Map<String, dynamic>;
                       final title = data['title'] as String? ?? 'Field Quiz';
                       final createdAt = data['createdAt'] as Timestamp?;
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 4,
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: primaryGreen,
-                            child: const Icon(Icons.quiz, color: Colors.white),
-                          ),
-                          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: createdAt != null ? Text('Created: ${_formatDate(createdAt.toDate())}') : null,
-                          trailing: const Icon(Icons.arrow_forward_ios),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _launchQuiz(doc.id);
-                          },
-                        ),
+                      return ListTile(
+                        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: createdAt != null
+                            ? Text('Created: ${_formatDate(createdAt.toDate())}')
+                            : null,
+                        trailing: const Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _launchQuiz(doc.id);
+                        },
                       );
                     },
                   );
                 },
-              );
-            },
-          ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -285,85 +202,103 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
   Widget build(BuildContext context) {
     final bool isTeacher = widget.role == EduRole.teacher;
 
+    // No AppBar - parent (field_home) provides title and back button
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.quiz, size: 100, color: primaryGreen),
-            const SizedBox(height: 24),
-            const Text('Test your knowledge on field practices', style: TextStyle(fontSize: 20)),
-            const SizedBox(height: 40),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.grass, size: 100, color: primaryGreen.withOpacity(0.8)),
+                      const SizedBox(height: 30),
+                      const Text(
+                        'Test your field management knowledge',
+                        style: TextStyle(fontSize: 20),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 40),
 
-            if (!isTeacher)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Card(
-                  color: Colors.green.shade50,
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: primaryGreen, width: 2),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.assignment_turned_in, size: 32, color: primaryGreen),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Practice Activities',
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryGreen),
+                      if (!isTeacher)
+                        Card(
+                          color: Colors.green.shade50,
+                          elevation: 6,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: primaryGreen, width: 2),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.assignment_turned_in, size: 36, color: primaryGreen),
+                                    const SizedBox(width: 16),
+                                    const Text(
+                                      'Practice Quiz',
+                                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: primaryGreen),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Choose a quiz to test your knowledge!',
+                                  style: TextStyle(fontSize: 16),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 24),
+                                _buildActivityButton(),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        const Text('Test your field knowledge with quizzes!', style: TextStyle(fontSize: 16)),
-                        const SizedBox(height: 20),
-                        _buildQuizButton(),
+
+                      if (isTeacher) ...[
+                        const SizedBox(height: 40),
+                        ElevatedButton.icon(
+                          onPressed: _showQuizBuilder,
+                          icon: const Icon(Icons.add, size: 28),
+                          label: const Text(
+                            'Create New Quiz',
+                            style: TextStyle(fontSize: 20),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryGreen,
+                            padding: const EdgeInsets.all(20),
+                            minimumSize: const Size(double.infinity, 60),
+                          ),
+                        ),
                       ],
-                    ),
+
+                      const Spacer(),
+                    ],
                   ),
                 ),
               ),
-
-            if (isTeacher)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: ElevatedButton.icon(
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (_) => FieldQuizBuilderDialog(onSave: _saveQuiz),
-                    ),
-                    icon: const Icon(Icons.add, size: 28),
-                    label: const Text('Create New Quiz', style: TextStyle(fontSize: 18)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 40),
-          ],
+            );
+          },
         ),
-      ),
+      
     );
   }
 }
 
+// ==================== QUIZ PLAY SCREEN ====================
 class FieldQuizPlayScreen extends StatefulWidget {
   final Map<String, dynamic> payload;
   final String classId;
 
-  const FieldQuizPlayScreen({super.key, required this.payload, required this.classId});
+  const FieldQuizPlayScreen({
+    super.key,
+    required this.payload,
+    required this.classId,
+  });
 
   @override
   State<FieldQuizPlayScreen> createState() => _FieldQuizPlayScreenState();
@@ -391,7 +326,7 @@ class _FieldQuizPlayScreenState extends State<FieldQuizPlayScreen> {
     final coll = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
     if (coll != null) {
       await coll.add({
-        'type': 'quiz',
+        'type': 'field_quiz',
         'quizId': widget.payload['id'],
         'title': widget.payload['title'],
         'score': _score,
@@ -424,7 +359,11 @@ class _FieldQuizPlayScreenState extends State<FieldQuizPlayScreen> {
   Widget build(BuildContext context) {
     final q = widget.payload['questions'][_idx];
     return Scaffold(
-      appBar: AppBar(title: Text(widget.payload['title']), backgroundColor: primaryGreen, foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: Text(widget.payload['title']),
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -448,9 +387,16 @@ class _FieldQuizPlayScreenState extends State<FieldQuizPlayScreen> {
   }
 }
 
+// ==================== QUIZ BUILDER DIALOG ====================
 class FieldQuizBuilderDialog extends StatefulWidget {
-  final Function(Map<String, dynamic>) onSave;
-  const FieldQuizBuilderDialog({super.key, required this.onSave});
+  final String classId;
+  final String contentType;
+
+  const FieldQuizBuilderDialog({
+    super.key,
+    required this.classId,
+    required this.contentType,
+  });
 
   @override
   State<FieldQuizBuilderDialog> createState() => _FieldQuizBuilderDialogState();
@@ -507,6 +453,29 @@ class _FieldQuizBuilderDialogState extends State<FieldQuizBuilderDialog> {
     );
   }
 
+  Future<void> _saveQuiz() async {
+    if (_questions.isEmpty) return;
+
+    await FirestoreHelper.addContentToClass(
+      widget.classId,
+      widget.contentType,
+      {
+        'type': 'quiz',
+        'title': _titleCtrl.text.trim().isEmpty ? 'Field Quiz' : _titleCtrl.text.trim(),
+        'data': jsonEncode(_questions),
+        'createdAt': FieldValue.serverTimestamp(),
+        'userId': FirebaseAuth.instance.currentUser!.uid,
+      },
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Quiz created successfully!'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('Create Field Quiz'),
@@ -523,7 +492,8 @@ class _FieldQuizBuilderDialogState extends State<FieldQuizBuilderDialog> {
               return Card(
                 child: ListTile(
                   title: Text(q['question']),
-                  subtitle: Text('Correct: $correctLetter. ${(q['options'] as List)[q['correct']]}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  subtitle: Text('Correct: $correctLetter. ${(q['options'] as List)[q['correct']]}',
+                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                   trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _questions.removeAt(e.key))),
                 ),
               );
@@ -534,10 +504,7 @@ class _FieldQuizBuilderDialogState extends State<FieldQuizBuilderDialog> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: _questions.isEmpty ? null : () {
-              widget.onSave({'title': _titleCtrl.text.trim().isEmpty ? 'Field Quiz' : _titleCtrl.text.trim(), 'questions': _questions});
-              Navigator.pop(context);
-            },
+            onPressed: _questions.isEmpty ? null : _saveQuiz,
             child: const Text('Save Quiz', style: TextStyle(color: Colors.white)),
           ),
         ],

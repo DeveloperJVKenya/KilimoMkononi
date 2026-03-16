@@ -1,4 +1,7 @@
+// education_farming_tips.dart - UPDATED WITH 'assets/' PREFIX
 // education_farming_tips.dart - FINAL FIXED VERSION
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';
@@ -9,6 +12,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 import '../utils/class_id_notifier.dart';
 import '../models/education_user.dart';
+import 'simulations/farm_planting_simulation.dart';
+
 
 const Color primaryGreen = Color(0xFF032704);
 
@@ -64,11 +69,38 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
         builder: (_) => FarmingQuizBuilder(onSave: (d) => _save('quiz', d)),
       );
 
-  void _showSimBuilder() => showDialog(
-        context: context,
-        builder: (_) => FarmingSimulationBuilder(onSave: (d) => _save('simulation', d)),
+  void _showSimBuilder() {
+    if (_selectedCrop == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please expand a crop first to create its simulation')),
       );
+      return;
+    }
 
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (BuildContext context) => FarmPlantingSimulation(
+          cropName: _selectedCrop!,
+          cropData: {
+            'schoolId': _schoolId,
+            'gradeId': _gradeId,
+            'classId': widget.classId,
+          },
+          onComplete: () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$_selectedCrop simulation completed!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
   Future<void> _save(String type, Map<String, dynamic> data) async {
     if (_selectedCrop == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,6 +148,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
   }
 
   Widget _buildImage(String assetPath, double maxHeight) {
+    final fullPath = 'assets/$assetPath';  // ← Added prefix for bundle reliability
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(maxHeight: maxHeight),
@@ -126,18 +159,19 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Image.asset(
-            assetPath,
+            fullPath,
             fit: BoxFit.contain,
             filterQuality: FilterQuality.medium,
-            errorBuilder: (_, __, ___) => Container(
+            errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) => Container(
               height: 180,
               color: Colors.grey[200],
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.broken_image, size: 48, color: Colors.grey),
                   SizedBox(height: 8),
-                  Text('Image not found', style: TextStyle(color: Colors.grey)),
+                  Text('Image not found: $fullPath', style: TextStyle(color: Colors.grey)),  // Enhanced debug
+                  Text('Error: $error', style: TextStyle(color: Colors.red, fontSize: 12)),
                 ],
               ),
             ),
@@ -223,6 +257,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
     final double width = MediaQuery.of(context).size.width;
     final double imageHeight = width > 1000 ? 400.0 : width > 600 ? 320.0 : 260.0;
     final bool isTeacher = widget.role == EduRole.teacher;
+    final bool isMobile = width < 600;
 
     return Scaffold(
       appBar: AppBar(
@@ -231,6 +266,13 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
         foregroundColor: Colors.white,
         elevation: 4,
         automaticallyImplyLeading: false,
+        leading: isMobile
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _tipsFuture,
@@ -269,7 +311,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
                     });
                   },
                   leading: CircleAvatar(
-                    backgroundColor: primaryGreen.withOpacity(0.15),
+                    backgroundColor: primaryGreen.withValues(alpha: 0.15),
                     child: Text(crop['icon'] ?? '🌱', style: const TextStyle(fontSize: 32)),
                   ),
                   title: Text(
@@ -907,123 +949,6 @@ class _FarmingQuizBuilderState extends State<FarmingQuizBuilder> {
                     Navigator.pop(context);
                   },
             child: const Text('Save Quiz', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      );
-}
-
-class FarmingSimulationBuilder extends StatefulWidget {
-  final Function(Map<String, dynamic>) onSave;
-  const FarmingSimulationBuilder({super.key, required this.onSave});
-  @override
-  State<FarmingSimulationBuilder> createState() => _FarmingSimulationBuilderState();
-}
-
-class _FarmingSimulationBuilderState extends State<FarmingSimulationBuilder> {
-  final _titleCtrl = TextEditingController();
-  final List<Map<String, dynamic>> _steps = [];
-
-  void _addStep() {
-    final promptCtrl = TextEditingController();
-    final optionCtrls = List.generate(4, (_) => TextEditingController());
-    int correctIndex = 0;
-    final explanationCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add Simulation Step'),
-        content: StatefulBuilder(
-          builder: (context, setStateInner) => SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: promptCtrl, decoration: const InputDecoration(labelText: 'Situation / Prompt')),
-              const SizedBox(height: 12),
-              ...optionCtrls.asMap().entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(children: [
-                      Checkbox(
-                        value: correctIndex == e.key,
-                        onChanged: (v) => setStateInner(() => correctIndex = v == true ? e.key : correctIndex),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          controller: e.value,
-                          decoration: InputDecoration(labelText: 'Option ${e.key + 1}'),
-                        ),
-                      ),
-                    ]),
-                  )),
-              const SizedBox(height: 12),
-              TextField(
-                controller: explanationCtrl,
-                decoration: const InputDecoration(labelText: 'Explanation if wrong (optional)'),
-                maxLines: 3,
-              ),
-            ]),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: () {
-              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
-              if (promptCtrl.safeText.isEmpty || filled.isEmpty) return;
-              final options = filled.map((c) => {'text': c.safeText, 'correct': filled.indexOf(c) == correctIndex}).toList();
-              setState(() {
-                _steps.add({
-                  'prompt': promptCtrl.safeText,
-                  'options': options,
-                  'explanation': explanationCtrl.safeText,
-                });
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Add Step', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Create Farming Simulation'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Simulation Title')),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(onPressed: _addStep, icon: const Icon(Icons.add), label: const Text('Add Step')),
-            const SizedBox(height: 16),
-            ..._steps.asMap().entries.map((e) {
-              final s = e.value;
-              final correctOpt = (s['options'] as List).firstWhere((o) => o['correct'] == true, orElse: () => {'text': 'None'});
-              final letter = String.fromCharCode(65 + (s['options'] as List).indexOf(correctOpt));
-              return Card(
-                child: ListTile(
-                  title: Text(s['prompt']),
-                  subtitle: Text('Correct: $letter. ${correctOpt['text']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _steps.removeAt(e.key))),
-                ),
-              );
-            }),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: _steps.isEmpty
-                ? null
-                : () {
-                    widget.onSave({
-                      'title': _titleCtrl.safeText.isEmpty ? 'Farming Simulation' : _titleCtrl.safeText,
-                      'steps': _steps,
-                    });
-                    Navigator.pop(context);
-                  },
-            child: const Text('Save Simulation', style: TextStyle(color: Colors.white)),
           ),
         ],
       );

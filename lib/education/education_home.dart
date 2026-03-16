@@ -1,4 +1,6 @@
 // lib/education/education_home.dart
+// ignore_for_file: avoid_types_as_parameter_names
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -27,6 +29,8 @@ import 'package:lottie/lottie.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:kilimomkononi/education/education_login.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
+import 'package:kilimomkononi/education/education_resources.dart';
+import 'package:kilimomkononi/education/education_chat.dart';
 
 enum ScreenType { mobile, tablet, desktop }
 
@@ -457,14 +461,63 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
   }
 
   void _onBottomNavTapped(int index) {
+  setState(() {
+    _selectedBottomIndex = index;
+  });
+
+  if (index == 0) {
+    // Home - show dashboard
     setState(() {
-      _selectedBottomIndex = index;
-      if (index == 0) {
-        _selectedFeature = null;
-        _selectedRailIndex = -1;
-      }
+      _selectedFeature = null;
+      _selectedRailIndex = -1;
     });
+  } else if (index == 1) {
+    // Resources - navigate to it
+    final resourcesScreen = EducationResources(
+      role: _role ?? EduRole.student,
+      schoolName: _userData?['schoolName'] ?? 'Unknown',
+      classId: classIdNotifier.value ?? '',
+    );
+    
+    // On mobile: push new screen, on tablet/desktop: open in right pane
+    if (_getScreenType(context) == ScreenType.mobile) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => resourcesScreen));
+    } else {
+      setState(() => _selectedFeature = resourcesScreen);
+    }
+  } else if (index == 2) {
+    // Chat - navigate to it
+    final chatScreen = EducationChat(
+      role: _role ?? EduRole.student,
+      schoolName: _userData?['schoolName'] ?? 'Unknown',
+      classId: classIdNotifier.value ?? '',
+      userName: _userData?['fullName'] ?? 'User',
+    );
+    
+    // On mobile: push new screen, on tablet/desktop: open in right pane
+    if (_getScreenType(context) == ScreenType.mobile) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => chatScreen));
+    } else {
+      setState(() => _selectedFeature = chatScreen);
+    }
   }
+}
+
+Widget _buildBottomNav() {
+  return BottomNavigationBar(
+    backgroundColor: const Color(0xFF003900),
+    selectedItemColor: Colors.white,
+    unselectedItemColor: Colors.white70,
+    currentIndex: _selectedBottomIndex,
+    onTap: _onBottomNavTapped,
+    type: BottomNavigationBarType.fixed,
+    items: const [
+      BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+      BottomNavigationBarItem(icon: Icon(Icons.folder), label: 'Resources'),
+      BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: 'Chat'),
+    ],
+  );
+}
 
   Widget _buildWelcomeImage(String assetPath) {
     return ClipRRect(
@@ -593,21 +646,6 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
     );
   }
 
-  Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      backgroundColor: const Color(0xFF003900),
-      selectedItemColor: Colors.white,
-      unselectedItemColor: Colors.white70,
-      currentIndex: _selectedBottomIndex,
-      onTap: _onBottomNavTapped,
-      type: BottomNavigationBarType.fixed,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Resources'),
-        BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: 'Chat'),
-      ],
-    );
-  }
 
   Widget _buildMainDashboard(String schoolName, String fullName) {
     return SingleChildScrollView(
@@ -804,7 +842,7 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: ValueListenableBuilder<List<Map<String, dynamic>>>(
                 valueListenable: _feedList,
-                builder: (_, feed, __) {
+                builder: (_, feed, _) {
                   if (feed.isEmpty) {
                     return const Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No recent activity yet', style: TextStyle(color: Colors.grey))));
                   }
@@ -812,7 +850,7 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: feed.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final item = feed[i];
                       final isQuiz = item['type'] == 'quiz';
@@ -1019,7 +1057,7 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
               if (listNotifier != null)
                 ValueListenableBuilder<List<Map<String, dynamic>>>(
                   valueListenable: listNotifier,
-                  builder: (_, data, __) {
+                  builder: (_, data, _) {
                     if (data.isEmpty) return const Text('No items yet', style: TextStyle(color: Colors.grey));
                     final grouped = <String, int>{};
                     for (var item in data) {
@@ -1038,7 +1076,7 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
               else if (studentCountNotifier != null)
                 ValueListenableBuilder<int>(
                   valueListenable: studentCountNotifier,
-                  builder: (_, count, __) {
+                  builder: (_, count, _) {
                     return Text(
                       '$count ${count == 1 ? 'student' : 'students'} enrolled',
                       style: TextStyle(
@@ -1115,7 +1153,21 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
       _buildDrawerItem(Icons.account_balance_wallet, 'Farm Management', () => _navigateOrOpen(FarmManagementScreen(role: _role!, classId: classId, schoolName: schoolName))),
       _buildDrawerItem(Icons.price_check, 'Market Tips', () => _navigateOrOpen(EducationMarketPrice(role: _role!, schoolName: schoolName, classId: classId))),
       _buildDrawerItem(Icons.book, 'Manuals', () => _navigateOrOpen(EducationManuals(role: _role!, schoolName: schoolName, classId: classId))),
-      _buildDrawerItem(Icons.settings, 'Settings', () => _navigateOrOpen(const SettingsScreen())),
+      // NEW: Resources
+    _buildDrawerItem(Icons.folder, 'Resources', () => _navigateOrOpen(EducationResources(
+      role: _role ?? EduRole.student,
+      schoolName: schoolName,
+      classId: classId,
+    ))),
+    
+    // NEW: Chat
+    _buildDrawerItem(Icons.chat, 'Chat', () => _navigateOrOpen(EducationChat(
+      role: _role ?? EduRole.student,
+      schoolName: schoolName,
+      classId: classId,
+      userName: _userData?['fullName'] ?? 'User',
+    ))),
+     _buildDrawerItem(Icons.settings, 'Settings', () => _navigateOrOpen(const SettingsScreen(isEducation: true))),
     ];
   }
 
@@ -1178,12 +1230,25 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
                 _railItem(Icons.account_balance_wallet, 'Farm Management', 4, () => _openInRightPane(FarmManagementScreen(role: _role!, classId: classId, schoolName: schoolName))),
                 _railItem(Icons.price_check, 'Market Tips', 5, () => _openInRightPane(EducationMarketPrice(role: _role!, schoolName: schoolName, classId: classId))),
                 _railItem(Icons.book, 'Manuals', 6, () => _openInRightPane(EducationManuals(role: _role!, schoolName: schoolName, classId: classId))),
-                _railItem(Icons.settings, 'Settings', 7, () => _openInRightPane(const SettingsScreen())),
+               // NEW: Resources
+              _railItem(Icons.folder, 'Resources', 7, () => _openInRightPane(EducationResources(
+                role: _role ?? EduRole.student,  // Safe null fallback
+                schoolName: schoolName,
+                classId: classId,
+              ))),
+              // NEW: Chat
+              _railItem(Icons.chat, 'Chat', 8, () => _openInRightPane(EducationChat(
+                role: _role ?? EduRole.student,  // Safe null fallback
+                schoolName: schoolName,
+                classId: classId,
+                userName: _userData?['fullName'] ?? 'User',
+              ))),
+                _railItem(Icons.settings, 'Settings', 9, () => _openInRightPane(const SettingsScreen(isEducation: true))),
               ],
             ),
           ),
           const Divider(color: Colors.white24),
-          _railItem(Icons.logout, 'Logout', 8, _handleLogout),
+          _railItem(Icons.logout, 'Logout', 10, _handleLogout),
           const SizedBox(height: 16),
         ],
       ),

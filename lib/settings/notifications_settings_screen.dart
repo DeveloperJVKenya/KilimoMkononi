@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
-  const NotificationsSettingsScreen({super.key});
+  final bool isEducation;
+  const NotificationsSettingsScreen({super.key, this.isEducation = false});
 
   @override
   State<NotificationsSettingsScreen> createState() => _NotificationsSettingsScreenState();

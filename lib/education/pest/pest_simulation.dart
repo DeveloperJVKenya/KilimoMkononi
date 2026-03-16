@@ -1,5 +1,7 @@
 // lib/education/pest/pest_simulation.dart
 
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';

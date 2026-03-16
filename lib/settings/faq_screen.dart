@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class FAQScreen extends StatelessWidget {
-  const FAQScreen({super.key});
+  final bool isEducation;
+  const FAQScreen({super.key, this.isEducation = false});
 
   static const Color customGreen = Color(0xFF003900); // Consistent with your app’s theme
 

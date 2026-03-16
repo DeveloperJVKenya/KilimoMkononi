@@ -34,12 +34,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.jvalmacis.kilimomkononi"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = 6
-        versionName = "1.0.5"
-    }
+    applicationId = "com.jvalmacis.kilimomkononi"
+    minSdk = flutter.minSdkVersion
+    targetSdk = flutter.targetSdkVersion
+    versionCode = flutter.flutterVersionCode?.toInt() ?: 1
+    versionName = flutter.flutterVersionName ?: "1.0.0"
+}
 
     signingConfigs {
         create("release") {

@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,7 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:kilimomkononi/settings/providers/user_profile_provider.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final bool isEducation;
+  const EditProfileScreen({super.key, this.isEducation = false});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -63,61 +66,73 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _showProfilePictureBottomSheet(BuildContext context) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext dialogContext) {
-        return Container(
-          padding: const EdgeInsets.all(16.0),
-          height: 200,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Take Photo',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: customGreen,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                leading: _buildIcon(Icons.camera_alt),
-                title: Text(
-                  'Camera',
-                  style: TextStyle(color: customGreen),
-                ),
-                onTap: () => Navigator.pop(dialogContext, ImageSource.camera),
-              ),
-              ListTile(
-                leading: _buildIcon(Icons.photo_library),
-                title: Text(
-                  'Photo Library',
-                  style: TextStyle(color: customGreen),
-                ),
-                onTap: () => Navigator.pop(dialogContext, ImageSource.gallery),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => Navigator.pop(dialogContext, null),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  decoration: BoxDecoration(
-                    color: customGreen,
-                    borderRadius: BorderRadius.circular(12.0),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'Close',
+        final double screenHeight = MediaQuery.of(dialogContext).size.height;
+        final double bottomPadding = MediaQuery.of(dialogContext).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: screenHeight * 0.45),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Take Photo',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: customGreen,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    ListTile(
+                      leading: _buildIcon(Icons.camera_alt),
+                      title: Text(
+                        'Camera',
+                        style: TextStyle(color: customGreen),
+                      ),
+                      onTap: () => Navigator.pop(dialogContext, ImageSource.camera),
+                    ),
+                    ListTile(
+                      leading: _buildIcon(Icons.photo_library),
+                      title: Text(
+                        'Photo Library',
+                        style: TextStyle(color: customGreen),
+                      ),
+                      onTap: () => Navigator.pop(dialogContext, ImageSource.gallery),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(dialogContext, null),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16.0),
+                        decoration: BoxDecoration(
+                          color: customGreen,
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Close',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         );
       },
@@ -131,14 +146,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _showAppThemeBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              padding: const EdgeInsets.all(16.0),
-              height: 300,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            final double screenHeight = MediaQuery.of(context).size.height;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: screenHeight * 0.55),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'App Theme',
@@ -194,7 +214,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       });
                     },
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () {
                       Navigator.pop(context);
@@ -218,7 +238,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 8),
                 ],
+                  ),
+                ),
               ),
             );
           },
@@ -230,14 +253,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _showUnitSystemBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return Container(
-              padding: const EdgeInsets.all(16.0),
-              height: 250,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            final double screenHeight = MediaQuery.of(context).size.height;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: screenHeight * 0.5),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'Unit System',
@@ -278,7 +306,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       });
                     },
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () {
                       Navigator.pop(context);
@@ -302,7 +330,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 8),
                 ],
+                  ),
+                ),
               ),
             );
           },

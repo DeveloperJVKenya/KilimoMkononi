@@ -1,4 +1,6 @@
 // lib/authentication/splashscreen.dart
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
 import 'package:firebase_auth/firebase_auth.dart';

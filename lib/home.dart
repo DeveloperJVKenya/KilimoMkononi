@@ -35,7 +35,6 @@ class _HomePageState extends State<HomePage> {
   Uint8List? _profileImageBytes;
   bool _isMainAdmin = false;
   final logger = Logger(printer: PrettyPrinter());
-  String? _userId;
 
   // Use GlobalKey to control the Scaffold (fixes Scaffold.of() error)
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -84,8 +83,6 @@ class _HomePageState extends State<HomePage> {
   Future<void> _fetchUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    _userId = user.uid;
 
     try {
       final userSnapshot = await FirebaseFirestore.instance
@@ -208,7 +205,7 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildDrawer(fullName),
       body: [
         _buildHomeContent(fullName),
-        const SettingsScreen(),
+        const SettingsScreen(isEducation: false), 
         const NotificationsSettingsScreen(),
       ][_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -368,7 +365,7 @@ class _HomePageState extends State<HomePage> {
             _drawerItem(Icons.bug_report, 'Pests & Diseases', () => _navigateTo(const PestDiseaseHomePage())),
             _drawerItem(Icons.account_balance_wallet, 'Farm Management', () => _navigateTo(const FarmManagementScreen())),
             _drawerItem(Icons.book, 'Manuals', () => _navigateTo(const ManualsScreen())),
-            _drawerItem(Icons.settings, 'Settings', () => _navigateTo(const SettingsScreen())),
+            _drawerItem(Icons.settings, 'Settings', () => _navigateTo(const SettingsScreen(isEducation: false))),
             const Divider(),
             _drawerItem(Icons.logout, 'Logout', _handleLogout),
           ],

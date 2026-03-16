@@ -1,5 +1,7 @@
 // lib/education/farm_management/farm_management_data_input.dart
 
+// ignore_for_file: avoid_print, deprecated_member_use, use_build_context_synchronously, avoid_types_as_parameter_names
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -166,7 +168,7 @@ class _FarmManagementDataInputState extends State<FarmManagementDataInput>
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: DropdownButtonFormField<String>(
-                value: _selectedClassId,
+                initialValue: _selectedClassId,
                 hint: const Text('Select a class'),
                 decoration: const InputDecoration(
                   labelText: 'Select Class/Grade',
@@ -381,7 +383,7 @@ class RecordsTabContent extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedCategory,
+                  initialValue: selectedCategory,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: (type == 'cost' ? costCategories : revenueSources)
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -396,7 +398,7 @@ class RecordsTabContent extends StatelessWidget {
                 const SizedBox(height: 12),
                 if (selectedCategory != null)
                   DropdownButtonFormField<String>(
-                    value: selectedSubCategory,
+                    initialValue: selectedSubCategory,
                     decoration: const InputDecoration(labelText: 'Specific Activity'),
                     items: (type == 'cost'
                             ? costSubCategories[selectedCategory] ?? []
@@ -472,7 +474,7 @@ class RecordsTabContent extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedCategory,
+                  initialValue: selectedCategory,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: (data['type'] == 'cost' ? costCategories : revenueSources)
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -487,7 +489,7 @@ class RecordsTabContent extends StatelessWidget {
                 const SizedBox(height: 12),
                 if (selectedCategory != null)
                   DropdownButtonFormField<String>(
-                    value: selectedSubCategory,
+                    initialValue: selectedSubCategory,
                     decoration: const InputDecoration(labelText: 'Specific Activity'),
                     items: (data['type'] == 'cost'
                             ? costSubCategories[selectedCategory] ?? []
