@@ -1,6 +1,6 @@
 // lib/education/pest/disease_data_input.dart
 
-// ignore_for_file: use_build_context_synchronously, body_might_complete_normally_catch_error, deprecated_member_use, unused_element, override_on_non_overriding_member, unnecessary_underscores
+// ignore_for_file: use_build_context_synchronously, body_might_complete_normally_catch_error, deprecated_member_use
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -453,15 +453,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
   }
 
   @override
-  // Normalise crop name to match diseaseTreatments map keys.
-  // The UI uses 'Cabbages/Kales' but the data file uses 'Cabbage'.
-  String _cropKey(String? crop) {
-    if (crop == null) return '';
-    if (crop == 'Cabbages/Kales') return 'Cabbage';
-    return crop;
-  }
-
-  @override
   void dispose() {
     _interventionCtrl.dispose();
     _studentNameCtrl.dispose();
@@ -632,29 +623,10 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
       return const SizedBox.shrink();
     }
 
-    final key        = '${_cropKey(_selectedCrop)}_${_selectedStage}_$_selectedDisease';
+    final key = '${_selectedCrop}_${_selectedStage}_$_selectedDisease';
     final treatments = diseaseTreatments[key];
 
-    // If no data for this disease, show a notice rather than silently hiding
-    if (treatments == null) {
-      return Container(
-        margin: const EdgeInsets.only(top: 16),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          border: Border.all(color: Colors.orange.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(children: [
-          Icon(Icons.info_outline, color: Colors.orange.shade700),
-          const SizedBox(width: 8),
-          Expanded(child: Text(
-            'No treatment data found for this disease. Key: $key',
-            style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
-          )),
-        ]),
-      );
-    }
+    if (treatments == null) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.only(top: 16),
@@ -667,87 +639,51 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.school, color: Colors.green.shade700, size: 24),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                '📚 TEACHER REFERENCE — Disease Treatments',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+              Row(
+            children: [
+              Icon(Icons.school, color: Colors.green.shade700, size: 24),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'TEACHER REFERENCE – Disease Treatments',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
           const Divider(height: 20, thickness: 2),
           if (treatments['chemicalControl'] != null) ...[
-            _buildTreatmentCategory('🧪 Chemical Control', treatments['chemicalControl']!, Colors.red.shade700),
+            _buildTreatmentCategory('Chemical Control', treatments['chemicalControl']!, Colors.red.shade700),
             const SizedBox(height: 12),
           ],
           if (treatments['organicControl'] != null) ...[
-            _buildTreatmentCategory('🌿 Organic Control', treatments['organicControl']!, Colors.green.shade700),
+            _buildTreatmentCategory('Organic Control', treatments['organicControl']!, Colors.green.shade700),
             const SizedBox(height: 12),
           ],
           if (treatments['culturalControl'] != null) ...[
-            _buildTreatmentCategory('🛠️ Cultural / Prevention', treatments['culturalControl']!, Colors.blue.shade700),
-            const SizedBox(height: 12),
+            _buildTreatmentCategory('Cultural / Prevention', treatments['culturalControl']!, Colors.blue.shade700),
           ],
-
-          // Info strip + quick-unlock button
-          Row(children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  border: Border.all(color: Colors.amber.shade700),
-                  borderRadius: BorderRadius.circular(8),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              border: Border.all(color: Colors.amber.shade700),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Students cannot see these hints',
+                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.amber.shade900),
+                  ),
                 ),
-                child: Row(children: [
-                  Icon(Icons.info_outline, color: Colors.amber.shade900, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(
-                    'Students cannot see hints until you unlock them.',
-                    style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontStyle: FontStyle.italic),
-                  )),
-                ]),
-              ),
+              ],
             ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: _submissionsCollection == null ? null : () async {
-                try {
-                  final snap = await _submissionsCollection!
-                      .where('crop',    isEqualTo: _selectedCrop)
-                      .where('stage',   isEqualTo: _selectedStage)
-                      .where('disease', isEqualTo: _selectedDisease)
-                      .get();
-                  for (final doc in snap.docs) {
-                    await doc.reference.update({'isUnlocked': true});
-                  }
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('🔓 Hints unlocked for ${snap.docs.length} student(s)'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                    );
-                  }
-                }
-              },
-              icon: const Icon(Icons.lock_open, size: 14),
-              label: const Text('Unlock for Students', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              ),
-            ),
-          ]),
+          ),
         ],
       ),
     );
@@ -912,9 +848,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                     final teacherComment  = data['teacherComment']?.toString() ?? '';
                     final studentReply    = data['studentReply']?.toString();
                     final teacherFollowUp = data['teacherFollowUp']?.toString();
-                    final studentReply2   = data['studentReply2']?.toString();
-                    final teacherFollowUp2= data['teacherFollowUp2']?.toString();
-                    final diseaseKey    = '${_cropKey(data['crop']?.toString())}_${data['stage']}_${data['disease']}';
+                    final diseaseKey    = '${data['crop']}_${data['stage']}_${data['disease']}';
                     final interventions = diseaseTreatments[diseaseKey];
 
                     return Card(
@@ -1007,57 +941,61 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                             // ── Student reply ──
                             if (studentReply != null) ...[
                               const SizedBox(height: 8),
-                              _convBox(Colors.indigo, 'Your reply:', Icons.reply, studentReply),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.indigo.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.indigo.shade200),
+                                ),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Icon(Icons.reply, size: 14, color: Colors.indigo.shade700),
+                                    const SizedBox(width: 4),
+                                    Text('Your reply:',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                                  ]),
+                                  const SizedBox(height: 4),
+                                  Text(studentReply, style: TextStyle(fontSize: 13, color: Colors.indigo.shade900)),
+                                ]),
+                              ),
                             ],
 
                             // ── Teacher follow-up ──
                             if (teacherFollowUp != null) ...[
                               const SizedBox(height: 8),
-                              _convBox(Colors.amber, 'Teacher follow-up:', Icons.chat_bubble_outline, teacherFollowUp),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.amber.shade200),
+                                ),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Icon(Icons.chat_bubble_outline, size: 14, color: Colors.amber.shade700),
+                                    const SizedBox(width: 4),
+                                    Text('Teacher follow-up:',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                                  ]),
+                                  const SizedBox(height: 4),
+                                  Text(teacherFollowUp, style: TextStyle(fontSize: 13, color: Colors.amber.shade900)),
+                                ]),
+                              ),
                             ],
 
-                            // ── Student reply 2 ──
-                            if (studentReply2 != null) ...[
-                              const SizedBox(height: 8),
-                              _convBox(Colors.indigo, 'Your reply:', Icons.reply, studentReply2),
-                            ],
-
-                            // ── Teacher follow-up 2 ──
-                            if (teacherFollowUp2 != null) ...[
-                              const SizedBox(height: 8),
-                              _convBox(Colors.amber, 'Teacher follow-up:', Icons.chat_bubble_outline, teacherFollowUp2),
-                            ],
-
-                            // ── First reply button ──
+                            // ── Reply button (only when grade unlocked and no reply yet) ──
                             if (isReviewed && gradeUnlocked && teacherComment.isNotEmpty && studentReply == null) ...[
                               const SizedBox(height: 10),
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: () => _showStudentReplyDialog(doc.id, data, replyNumber: 1),
+                                  onPressed: () => _showStudentReplyDialog(doc.id, data),
                                   icon: const Icon(Icons.reply, size: 16),
                                   label: const Text('Reply to Teacher',
                                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.indigo,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            // ── Second reply button ──
-                            if (teacherFollowUp != null && studentReply2 == null) ...[
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _showStudentReplyDialog(doc.id, data, replyNumber: 2),
-                                  icon: const Icon(Icons.reply, size: 16),
-                                  label: const Text('Reply to Follow-up',
-                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.deepPurple,
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(vertical: 12),
                                   ),
@@ -1129,50 +1067,19 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
   }
 
   // ─────────────────────────────────────────
-  // Reusable conversation bubble
+  // Student reply dialog
   // ─────────────────────────────────────────
 
-  Widget _convBox(MaterialColor color, String label, IconData icon, String body) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.shade50,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.shade200),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, size: 14, color: color.shade700),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade900)),
-        ]),
-        const SizedBox(height: 4),
-        Text(body, style: TextStyle(fontSize: 13, color: color.shade900)),
-      ]),
-    );
-  }
-
-  // ─────────────────────────────────────────
-  // Student reply dialog — handles 1st and 2nd reply
-  // ─────────────────────────────────────────
-
-  Future<void> _showStudentReplyDialog(String docId, Map<String, dynamic> data,
-      {int replyNumber = 1}) async {
+  Future<void> _showStudentReplyDialog(String docId, Map<String, dynamic> data) async {
     if (_submissionsCollection == null) return;
     final ctrl = TextEditingController();
-    final isSecond     = replyNumber == 2;
-    final contextText  = isSecond ? (data['teacherFollowUp'] ?? '') : (data['teacherComment'] ?? '');
-    final contextLabel = isSecond ? 'Teacher follow-up:' : 'Teacher said:';
-    final dialogTitle  = isSecond ? 'Reply to Follow-up' : 'Reply to Teacher';
-    final buttonColor  = isSecond ? Colors.deepPurple : Colors.indigo;
-
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(children: [
-          Icon(Icons.reply, color: buttonColor),
-          const SizedBox(width: 8),
-          Expanded(child: Text(dialogTitle)),
+        title: const Row(children: [
+          Icon(Icons.reply, color: Colors.indigo),
+          SizedBox(width: 8),
+          Expanded(child: Text('Reply to Teacher')),
         ]),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
@@ -1183,22 +1090,20 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
               border: Border.all(color: Colors.purple.shade200),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(contextLabel,
+              Text('Teacher said:',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
               const SizedBox(height: 4),
-              Text(contextText, style: const TextStyle(fontSize: 13)),
+              Text(data['teacherComment'] ?? '', style: const TextStyle(fontSize: 13)),
             ]),
           ),
           const SizedBox(height: 14),
           TextField(
             controller: ctrl,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Your Reply',
-              hintText: isSecond
-                  ? "Respond to the teacher's follow-up..."
-                  : "Respond to the teacher's feedback...",
-              border: const OutlineInputBorder(),
-              prefixIcon: const Icon(Icons.edit),
+              hintText: "Respond to the teacher's feedback...",
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.edit),
             ),
             maxLines: 4,
             autofocus: true,
@@ -1217,19 +1122,18 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ Reply sent!'), backgroundColor: Colors.green));
-              final fields = isSecond
-                  ? {'studentReply2': reply, 'studentRepliedAt2': FieldValue.serverTimestamp()}
-                  : {'studentReply': reply, 'studentRepliedAt': FieldValue.serverTimestamp()};
-              _submissionsCollection!.doc(docId).update(fields).catchError((e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+              _submissionsCollection!.doc(docId).update({
+                'studentReply': reply,
+                'studentRepliedAt': FieldValue.serverTimestamp(),
+              }).catchError((e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-                }
               });
             },
             icon: const Icon(Icons.send),
             label: const Text('Send Reply', style: TextStyle(fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(backgroundColor: buttonColor, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -1313,14 +1217,12 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
   // ─────────────────────────────────────────
 
   Future<void> _showInlineReviewDialog(BuildContext context, String docId, Map<String, dynamic> data) async {
-    final gradeCtrl     = TextEditingController(text: data['teacherGrade'] ?? '');
-    final feedbackCtrl  = TextEditingController(text: data['teacherComment'] ?? '');
-    final followUpCtrl  = TextEditingController(text: data['teacherFollowUp'] ?? '');
-    final followUp2Ctrl = TextEditingController(text: data['teacherFollowUp2'] ?? '');
-    final hasReply      = (data['studentReply'] ?? '').toString().isNotEmpty;
-    final hasReply2     = (data['studentReply2'] ?? '').toString().isNotEmpty;
-    bool gradeUnlocked  = data['gradeUnlocked'] ?? false;
-    bool hintsUnlocked  = data['isUnlocked']    ?? false;
+    final gradeCtrl    = TextEditingController(text: data['teacherGrade'] ?? '');
+    final feedbackCtrl = TextEditingController(text: data['teacherComment'] ?? '');
+    final followUpCtrl = TextEditingController(text: data['teacherFollowUp'] ?? '');
+    final hasReply     = (data['studentReply'] ?? '').toString().isNotEmpty;
+    bool gradeUnlocked = data['gradeUnlocked'] ?? false;
+    bool hintsUnlocked = data['isUnlocked']    ?? false;
 
     await showDialog(
       context: context,
@@ -1332,14 +1234,35 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
               Text('${data['crop']} › ${data['stage']}',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               const SizedBox(height: 12),
-              _convBox(Colors.blue, 'Student answer:', Icons.lightbulb_outline, data['studentAnswer'] ?? ''),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Student answer:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                  const SizedBox(height: 4),
+                  Text(data['studentAnswer'] ?? '', style: const TextStyle(fontSize: 13)),
+                ]),
+              ),
               if (hasReply) ...[
                 const SizedBox(height: 8),
-                _convBox(Colors.indigo, 'Student replied:', Icons.reply, data['studentReply'] ?? ''),
-              ],
-              if (hasReply2) ...[
-                const SizedBox(height: 8),
-                _convBox(Colors.deepPurple, 'Student reply 2:', Icons.reply, data['studentReply2'] ?? ''),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.indigo.shade200),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.reply, size: 13, color: Colors.indigo.shade700),
+                      const SizedBox(width: 4),
+                      Text('Student replied:',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(data['studentReply'] ?? '', style: const TextStyle(fontSize: 13)),
+                  ]),
+                ),
               ],
               const SizedBox(height: 14),
               const Text('Grade:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1365,30 +1288,18 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
               ),
               if (hasReply) ...[
                 const SizedBox(height: 10),
-                const Text('Follow-up after student reply:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('Follow-up Response:', style: TextStyle(fontWeight: FontWeight.bold)),
                 TextField(
                   controller: followUpCtrl,
                   maxLines: 3,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.chat_bubble_outline),
-                    hintText: "Respond to student's first reply…",
+                    hintText: "Respond to student's reply…",
                   ),
                 ),
               ],
-              if (hasReply2) ...[
-                const SizedBox(height: 10),
-                const Text('Follow-up after 2nd student reply:', style: TextStyle(fontWeight: FontWeight.bold)),
-                TextField(
-                  controller: followUp2Ctrl,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.chat_bubble_outline),
-                    hintText: "Respond to student's second reply…",
-                  ),
-                ),
-              ],
+              // ── Three independent unlock options ──
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(10),
@@ -1436,10 +1347,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                   if (hasReply && followUpCtrl.text.trim().isNotEmpty) {
                     update['teacherFollowUp']   = followUpCtrl.text.trim();
                     update['teacherFollowUpAt'] = FieldValue.serverTimestamp();
-                  }
-                  if (hasReply2 && followUp2Ctrl.text.trim().isNotEmpty) {
-                    update['teacherFollowUp2']   = followUp2Ctrl.text.trim();
-                    update['teacherFollowUpAt2'] = FieldValue.serverTimestamp();
                   }
                   await _submissionsCollection!.doc(docId).update(update);
                   Navigator.pop(c);
@@ -1690,6 +1597,57 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
 
             // ── Student: My Submissions list ──
             _buildPersistentStudentView(),
+
+            // ── Recent Disease Reports (teacher observation log) ──
+            const SizedBox(height: 40),
+            const Text('Recent Disease Reports',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Divider(),
+
+            if (_collection == null)
+              const Center(child: Text('No class selected'))
+            else
+              StreamBuilder<QuerySnapshot>(
+                stream: _collection!.orderBy('createdAt', descending: true).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('No reports yet'));
+                  }
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      final doc  = snapshot.data!.docs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final id   = doc.id;
+                      final ts   = (data['createdAt'] as Timestamp?)?.toDate();
+                      final date = ts != null ? ts.toString().split(' ')[0] : '—';
+                      return Card(
+                        child: ListTile(
+                          title: Text('${data['cropType']} – ${data['cropStage']}'),
+                          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Disease: ${data['diseaseName']}',
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                            if (data['intervention']?.toString().isNotEmpty ?? false)
+                              Text('Intervention: ${data['intervention']}'),
+                          ]),
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            if (_canEdit && isTeacher) ...[
+                              IconButton(icon: const Icon(Icons.edit, color: Colors.blue),  onPressed: () => _editEntry(id, data)),
+                              IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteEntry(id)),
+                            ],
+                            Text(date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ]),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
           ],
         ),
       ),

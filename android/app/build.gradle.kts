@@ -38,7 +38,7 @@ android {
     minSdk = flutter.minSdkVersion
     targetSdk = flutter.targetSdkVersion
     versionCode = flutter.flutterVersionCode?.toInt() ?: 1
-    versionName = flutter.flutterVersionName ?: "1.0.0"
+    versionName = flutter.flutterVersionName ?: "1.0.7"
 }
 
     signingConfigs {
@@ -69,6 +69,6 @@ flutter {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
+    // implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.21")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")  
 }

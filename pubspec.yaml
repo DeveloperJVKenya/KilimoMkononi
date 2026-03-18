@@ -2,7 +2,7 @@ name: kilimomkononi
 description: "Kilimo Mkononi - Smart farming made easier."
 publish_to: 'none' 
 
-version: 1.0.5+7
+version: 1.0.7+9
 environment:
   sdk: ^3.9.0  # aligned with Dart 3.9.2 from Flutter 3.35.3
 

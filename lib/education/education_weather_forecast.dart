@@ -1,5 +1,5 @@
 // education_weather_forecast.dart - FINAL VERSION WITH ROLE-BASED UX & FULL 5-DAY FORECAST
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously, unused_element
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -359,7 +359,7 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isTeacher = widget.role == EduRole.teacher;
+    final bool _ = widget.role == EduRole.teacher;
     final double width = MediaQuery.of(context).size.width;
     final bool isMobile = width < 600;
 
@@ -421,8 +421,8 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
 
             const SizedBox(height: 32),
 
-            // ACTIVITIES SECTION — ONLY FOR STUDENTS
-            if (widget.role == EduRole.student)
+            // ACTIVITIES SECTION — teachers and students (not headteacher)
+            if (widget.role != EduRole.headteacher)
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
                 child: Card(
@@ -437,25 +437,48 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.assignment_turned_in, size: 32, color: primaryGreen),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Practice Activities',
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryGreen),
+                        Row(children: [
+                          Icon(Icons.assignment_turned_in, size: 28, color: primaryGreen),
+                          const SizedBox(width: 10),
+                          Text('Practice Activities',
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryGreen)),
+                        ]),
+                        const SizedBox(height: 6),
+                        const Text('Test your weather knowledge!',
+                            style: TextStyle(fontSize: 14, color: Colors.black54)),
+                        const SizedBox(height: 14),
+
+                        // ── Quizzes (full width, dynamic count) ──
+                        SizedBox(width: double.infinity, child: _buildQuizSection()),
+
+                        // ── Divider ──
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Row(children: [
+                            const Expanded(child: Divider(thickness: 1)),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: Text('or try', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
                             ),
-                          ],
+                            const Expanded(child: Divider(thickness: 1)),
+                          ]),
                         ),
-                        const SizedBox(height: 12),
-                        const Text('Test your weather knowledge!', style: TextStyle(fontSize: 16)),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(child: _buildActivitySection('quiz', Icons.quiz)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildActivitySection('simulation', Icons.play_circle)),
-                          ],
+
+                        // ── Simulation (full width, always available) ──
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _showSimBuilder,
+                            icon: const Icon(Icons.play_circle_outline, size: 22),
+                            label: const Text('Run Interactive Simulation',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryGreen,
+                              side: const BorderSide(color: primaryGreen, width: 1.5),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -609,42 +632,77 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
           ],
         ),
       ),
-      bottomNavigationBar: widget.role == EduRole.headteacher
+                 bottomNavigationBar: (widget.role == EduRole.headteacher || widget.role == EduRole.student)
           ? null
           : Container(
               padding: const EdgeInsets.all(16),
               color: Colors.grey[50],
-              child: Row(
-                children: isTeacher
-                    ? [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => showDialog(
-                              context: context,
-                              builder: (_) => WeatherQuizBuilder(onSave: (d) => _saveContent('quiz', d)),
-                            ),
-                            icon: const Icon(Icons.quiz),
-                            label: const Text('Create Weather Quiz'),
-                            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, padding: const EdgeInsets.symmetric(vertical: 18)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _showSimBuilder,
-                            icon: const Icon(Icons.play_circle),
-                            label: const Text('Launch Weather Simulation'),
-                            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, padding: const EdgeInsets.symmetric(vertical: 18)),
-                          ),
-                        ),
-                      ]
-                    : [],
+              child: ElevatedButton.icon(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => WeatherQuizBuilder(onSave: (d) => _saveContent('quiz', d)),
+                ),
+                icon: const Icon(Icons.quiz),
+                label: const Text('Create Weather Quiz'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryGreen,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 52),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
               ),
             ),
     );
   }
 
-  // ==================== ACTIVITY SECTION & LIST (UNCHANGED) ====================
+  // ==================== ACTIVITY SECTION & LIST ====================
+
+  // Full-width quiz button with dynamic count — used inside Practice Activities card
+  Widget _buildQuizSection() {
+    final raw = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    if (raw == null) {
+      return ElevatedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.quiz),
+        label: const Text('Quizzes'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.grey, foregroundColor: Colors.white),
+      );
+    }
+
+    final coll = raw.withConverter<Map<String, dynamic>>(
+      fromFirestore: (s, _) => s.data()!,
+      toFirestore: (d, _) => d,
+    );
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: coll.where('type', isEqualTo: 'quiz').snapshots(),
+      builder: (context, snapshot) {
+        final total = snapshot.data?.docs.length ?? 0;
+        return ElevatedButton.icon(
+          onPressed: total == 0 ? null : () => _showActivityList('quiz'),
+          icon: const Icon(Icons.quiz, size: 22),
+          label: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Quizzes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              Text(
+                total == 0 ? 'None yet — check back soon' : '$total available',
+                style: TextStyle(fontSize: 12, color: total == 0 ? Colors.white54 : Colors.white70),
+              ),
+            ],
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: total == 0 ? Colors.grey.shade400 : primaryGreen,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            alignment: Alignment.centerLeft,
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildActivitySection(String type, IconData icon) {
     final raw = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
@@ -763,12 +821,19 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
                             .toSet()),
                 builder: (context, completedSnap) {
                   final completedIds = completedSnap.data ?? <String>{};
+                  final isTeacher = widget.role == EduRole.teacher;
 
-                  final availableDocs = snapshot.data!.docs.where((doc) => !completedIds.contains(doc.id)).toList();
+                  // Teachers see all content; students only see what they haven't completed
+                  final availableDocs = isTeacher
+                      ? snapshot.data!.docs
+                      : snapshot.data!.docs.where((doc) => !completedIds.contains(doc.id)).toList();
 
                   if (availableDocs.isEmpty) {
-                    return const Center(
-                      child: Text('All completed! Great job! 🎉', style: TextStyle(fontSize: 18)),
+                    return Center(
+                      child: Text(
+                        isTeacher ? 'No ${type}s created yet' : 'All completed! Great job! 🎉',
+                        style: const TextStyle(fontSize: 18),
+                      ),
                     );
                   }
 

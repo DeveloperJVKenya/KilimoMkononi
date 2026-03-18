@@ -3,7 +3,7 @@
 // PART 1 of 3 — Imports, Constants, Class Setup, Field Issues Tab
 // ═══════════════════════════════════════════════════════════════
 
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use, unused_local_variable
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -567,6 +567,8 @@ class _FieldDataInputState extends State<FieldDataInput>
     final teacherComment  = data['teacherComment']?.toString();
     final studentReply    = data['studentReply']?.toString();
     final teacherFollowUp = data['teacherFollowUp']?.toString();
+    final studentReply2   = data['studentReply2']?.toString();
+    final teacherFollowUp2= data['teacherFollowUp2']?.toString();
     final docId           = data['docId']?.toString();
 
     return Card(
@@ -606,15 +608,37 @@ class _FieldDataInputState extends State<FieldDataInput>
               const SizedBox(height: 8),
               _colorBox(Colors.amber, 'Teacher follow-up:', Icons.chat_bubble_outline, teacherFollowUp),
             ],
+            if (studentReply2 != null) ...[
+              const SizedBox(height: 8),
+              _colorBox(Colors.purple, 'Your reply:', Icons.reply, studentReply2),
+            ],
+            if (teacherFollowUp2 != null) ...[
+              const SizedBox(height: 8),
+              _colorBox(Colors.amber, 'Teacher follow-up:', Icons.chat_bubble_outline, teacherFollowUp2),
+            ],
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 6, children: [
+              // First reply — teacher commented, student hasn't replied yet
               if (isReviewed && reviewUnlocked && teacherComment != null && studentReply == null)
                 ElevatedButton.icon(
-                  onPressed: () => _showStudentReplyDialog(docId, data),
+                  onPressed: () => _showStudentReplyDialog(docId, data, replyNumber: 1),
                   icon: const Icon(Icons.reply, size: 15),
                   label: const Text('Reply to Teacher', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  ),
+                ),
+              // Second reply — teacher posted follow-up, student hasn't replied again
+              if (teacherFollowUp != null && studentReply2 == null)
+                ElevatedButton.icon(
+                  onPressed: () => _showStudentReplyDialog(docId, data, replyNumber: 2),
+                  icon: const Icon(Icons.reply, size: 15),
+                  label: const Text('Reply to Follow-up', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   ),
                 ),
@@ -625,6 +649,7 @@ class _FieldDataInputState extends State<FieldDataInput>
                   label: const Text('View Expert Hints', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   ),
                 ),
@@ -660,26 +685,35 @@ class _FieldDataInputState extends State<FieldDataInput>
   // Student Reply Dialog
   // ─────────────────────────────────────────
 
-  Future<void> _showStudentReplyDialog(String? docId, Map<String, dynamic> data) async {
+  Future<void> _showStudentReplyDialog(String? docId, Map<String, dynamic> data,
+      {int replyNumber = 1}) async {
     if (docId == null) return;
     final ctrl = TextEditingController();
+    final isSecond     = replyNumber == 2;
+    final contextText  = isSecond ? (data['teacherFollowUp'] ?? '') : (data['teacherComment'] ?? '');
+    final contextLabel = isSecond ? 'Teacher follow-up:' : 'Teacher asked:';
+    final dialogTitle  = isSecond ? 'Reply to Follow-up' : 'Reply to Teacher';
+    final buttonColor  = isSecond ? Colors.deepPurple : Colors.purple;
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(children: [
-          Icon(Icons.reply, color: Colors.purple), SizedBox(width: 8),
-          Expanded(child: Text('Reply to Teacher')),
+        title: Row(children: [
+          Icon(Icons.reply, color: buttonColor), const SizedBox(width: 8),
+          Expanded(child: Text(dialogTitle)),
         ]),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          _colorBox(Colors.green, 'Teacher asked:', Icons.school, data['teacherComment'] ?? ''),
+          _colorBox(Colors.green, contextLabel, Icons.school, contextText),
           const SizedBox(height: 14),
           TextField(
             controller: ctrl,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Your Reply',
-              hintText: "Answer the teacher's question...",
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.edit),
+              hintText: isSecond
+                  ? "Respond to the teacher's follow-up..."
+                  : "Answer the teacher's question...",
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.edit),
             ),
             maxLines: 4, autofocus: true,
           ),
@@ -697,10 +731,10 @@ class _FieldDataInputState extends State<FieldDataInput>
                 return;
               }
               try {
-                await _fieldSubmissionsCollection?.doc(docId).update({
-                  'studentReply': reply,
-                  'studentRepliedAt': FieldValue.serverTimestamp(),
-                });
+                final fields = isSecond
+                    ? {'studentReply2': reply, 'studentRepliedAt2': FieldValue.serverTimestamp()}
+                    : {'studentReply': reply, 'studentRepliedAt': FieldValue.serverTimestamp()};
+                await _fieldSubmissionsCollection?.doc(docId).update(fields);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ Reply sent!'), backgroundColor: Colors.green),
@@ -711,7 +745,7 @@ class _FieldDataInputState extends State<FieldDataInput>
             },
             icon: const Icon(Icons.send),
             label: const Text('Send Reply'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+            style: ElevatedButton.styleFrom(backgroundColor: buttonColor, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -1236,6 +1270,8 @@ class _FieldDataInputState extends State<FieldDataInput>
     final teacherComment          = data['teacherComment']?.toString();
     final studentReply            = data['soilStudentReply']?.toString();
     final teacherFollowUp         = data['soilTeacherFollowUp']?.toString();
+    final studentReply2           = data['soilStudentReply2']?.toString();
+    final teacherFollowUp2        = data['soilTeacherFollowUp2']?.toString();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1310,17 +1346,42 @@ class _FieldDataInputState extends State<FieldDataInput>
               _colorBox(Colors.amber, 'Teacher follow-up:', Icons.chat_bubble_outline, teacherFollowUp),
             ],
 
+            // Student reply 2
+            if (studentReply2 != null) ...[
+              const SizedBox(height: 8),
+              _colorBox(Colors.purple, 'Your reply:', Icons.reply, studentReply2),
+            ],
+
+            // Teacher follow-up 2
+            if (teacherFollowUp2 != null) ...[
+              const SizedBox(height: 8),
+              _colorBox(Colors.amber, 'Teacher follow-up:', Icons.chat_bubble_outline, teacherFollowUp2),
+            ],
+
             // Action buttons
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 6, children: [
-              // Reply button — visible when teacher has commented but student hasn't replied yet
+              // First reply — teacher commented but student hasn't replied yet
               if (isReviewed && reviewUnlocked && teacherComment != null && studentReply == null)
                 ElevatedButton.icon(
-                  onPressed: () => _showSoilStudentReplyDialog(docId, data),
+                  onPressed: () => _showSoilStudentReplyDialog(docId, data, replyNumber: 1),
                   icon: const Icon(Icons.reply, size: 15),
                   label: const Text('Reply to Teacher', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  ),
+                ),
+              // Second reply — teacher posted follow-up, student hasn't replied again
+              if (teacherFollowUp != null && studentReply2 == null)
+                ElevatedButton.icon(
+                  onPressed: () => _showSoilStudentReplyDialog(docId, data, replyNumber: 2),
+                  icon: const Icon(Icons.reply, size: 15),
+                  label: const Text('Reply to Follow-up', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   ),
                 ),
@@ -1332,6 +1393,7 @@ class _FieldDataInputState extends State<FieldDataInput>
                   label: const Text('View Recommendations', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   ),
                 ),
@@ -1343,25 +1405,34 @@ class _FieldDataInputState extends State<FieldDataInput>
   }
 
   // Student reply dialog — Soil Test version
-  Future<void> _showSoilStudentReplyDialog(String docId, Map<String, dynamic> data) async {
+  Future<void> _showSoilStudentReplyDialog(String docId, Map<String, dynamic> data,
+      {int replyNumber = 1}) async {
     final ctrl = TextEditingController();
+    final isSecond     = replyNumber == 2;
+    final contextText  = isSecond ? (data['soilTeacherFollowUp'] ?? '') : (data['teacherComment'] ?? '');
+    final contextLabel = isSecond ? 'Teacher follow-up:' : 'Teacher notes:';
+    final dialogTitle  = isSecond ? 'Reply to Follow-up' : 'Reply to Teacher';
+    final buttonColor  = isSecond ? Colors.deepPurple : Colors.purple;
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(children: [
-          Icon(Icons.reply, color: Colors.purple), SizedBox(width: 8),
-          Expanded(child: Text('Reply to Teacher')),
+        title: Row(children: [
+          Icon(Icons.reply, color: buttonColor), const SizedBox(width: 8),
+          Expanded(child: Text(dialogTitle)),
         ]),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          _colorBox(Colors.green, 'Teacher notes:', Icons.school, data['teacherComment'] ?? ''),
+          _colorBox(Colors.green, contextLabel, Icons.school, contextText),
           const SizedBox(height: 14),
           TextField(
             controller: ctrl,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Your Reply',
-              hintText: "Ask a question or respond to the teacher's notes…",
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.edit),
+              hintText: isSecond
+                  ? "Respond to the teacher's follow-up…"
+                  : "Ask a question or respond to the teacher's notes…",
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.edit),
             ),
             maxLines: 4,
             autofocus: true,
@@ -1380,10 +1451,10 @@ class _FieldDataInputState extends State<FieldDataInput>
                 return;
               }
               try {
-                await _soilTestResultsCollection?.doc(docId).update({
-                  'soilStudentReply':    reply,
-                  'soilStudentRepliedAt': FieldValue.serverTimestamp(),
-                });
+                final fields = isSecond
+                    ? {'soilStudentReply2': reply, 'soilStudentRepliedAt2': FieldValue.serverTimestamp()}
+                    : {'soilStudentReply': reply, 'soilStudentRepliedAt': FieldValue.serverTimestamp()};
+                await _soilTestResultsCollection?.doc(docId).update(fields);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ Reply sent to teacher!'), backgroundColor: Colors.green),
@@ -1396,7 +1467,7 @@ class _FieldDataInputState extends State<FieldDataInput>
             },
             icon: const Icon(Icons.send),
             label: const Text('Send Reply'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+            style: ElevatedButton.styleFrom(backgroundColor: buttonColor, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -2033,7 +2104,7 @@ class _FieldDataInputState extends State<FieldDataInput>
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 3),
-          Text(label, style: const TextStyle(fontSize: 15)),
+          Text(_getGradeWordLabel(grade), style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
         ]),
       ),
     );
@@ -2045,6 +2116,15 @@ class _FieldDataInputState extends State<FieldDataInput>
       case 'needsWork': return Colors.orange;
       case 'incorrect': return Colors.red;
       default:          return Colors.grey;
+    }
+  }
+
+  String _getGradeWordLabel(String grade) {
+    switch (grade) {
+      case 'correct':   return 'Correct';
+      case 'needsWork': return 'Needs Work';
+      case 'incorrect': return 'Incorrect';
+      default:          return grade;
     }
   }
 
