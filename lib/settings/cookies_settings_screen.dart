@@ -458,8 +458,8 @@ class _CookiesSettingsScreenState extends State<CookiesSettingsScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _buildContactRow(Icons.email, 'legal@jvalmacis.co.ke'),
-                        _buildContactRow(Icons.phone, '+254 712 174 516'),
+                        _buildContactRow(Icons.email, 'support@jvalmacis.co.ke'),
+                        _buildContactRow(Icons.phone, '+254 795 802 020'),
                         _buildContactRow(
                             Icons.language, 'www.jvalmacis.co.ke'),
                       ],

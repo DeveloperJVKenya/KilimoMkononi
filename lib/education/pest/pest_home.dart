@@ -6,6 +6,8 @@ import 'pest_data_input.dart';
 import 'pest_quiz.dart';
 import 'simulations/pest_management_interactive_simulation.dart';
 import 'pest_disease_all_school_data.dart';
+import 'edu_ai_photo_tab.dart';
+import 'package:kilimomkononi/education/edu_farm_conditions_screen.dart';
 
 const Color primaryGreen = Color(0xFF388E3C);
 
@@ -29,12 +31,16 @@ class PestHome extends StatefulWidget {
 
 class _PestHomeState extends State<PestHome> {
   int _currentTab = 0;
+  Map<String, String>? _prefillFromAi;
 
   void _launchSimulation() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (BuildContext context) => PestManagementInteractiveSimulation(
+          classId: widget.classId,
+          module: 'pest',
+          studentName: '',
           onComplete: () {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -74,11 +80,34 @@ class _PestHomeState extends State<PestHome> {
           role: widget.role,
           schoolName: widget.schoolName,
           classId: widget.classId,
-          prefillData: widget.prefillData,
+          prefillData: _prefillFromAi ?? widget.prefillData,
         ),
         PestQuizScreen(role: widget.role, schoolName: widget.schoolName, classId: widget.classId),
+        EduAiPhotoTab(
+          isPest: false,
+          classId: widget.classId,
+          schoolName: widget.schoolName,
+          onPrefill: (data) {
+            setState(() {
+              _prefillFromAi = data;
+              _currentTab = 0;
+            });
+          },
+        ),
+        EduFarmConditionsScreen(
+          role:        widget.role,
+          schoolName:  widget.schoolName,
+          classId:     widget.classId,
+          contentType: 'pest_data',
+        ),
       ];
-      appBarTitle = _currentTab == 0 ? 'Pest Data Entry' : 'Pest Quiz';
+      appBarTitle = _currentTab == 0
+          ? 'Pest Data Entry'
+          : _currentTab == 1
+              ? 'Pest Quiz'
+              : _currentTab == 2
+                  ? 'AI Photo Diagnosis'
+                  : 'Farm Conditions';
     }
 
     return Scaffold(
@@ -105,16 +134,18 @@ class _PestHomeState extends State<PestHome> {
           : BottomNavigationBar(
               currentIndex: _currentTab,
               onTap: (i) {
-                if (i == 2) {
+                if (i == 4) {
                   _launchSimulation();
-                } else if (i < 2) {
+                } else {
                   setState(() => _currentTab = i);
                 }
               },
-              items: [
-                const BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Pest Data'),
-                const BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
-                const BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Pest Data'),
+                BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
+                BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: 'AI Photo'),
+                BottomNavigationBarItem(icon: Icon(Icons.sensors_rounded), label: 'Farm Data'),
+                BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
               ],
               selectedItemColor: primaryGreen,
               unselectedItemColor: Colors.grey,

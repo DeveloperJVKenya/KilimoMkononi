@@ -1,5 +1,4 @@
 // lib/education/field/field_all_school_data.dart
-
 // ignore_for_file: deprecated_member_use
 
 import 'package:cloud_firestore/cloud_firestore.dart';

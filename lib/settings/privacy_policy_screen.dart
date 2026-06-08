@@ -64,7 +64,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'Mkononi application. As Data Controller, we are responsible for how your data is collected, '
                 'used, stored, and protected under the Kenya Data Protection Act, 2019.',
               ),
-              _buildBody('Data Controller Contact: legal@jvalmacis.co.ke'),
+              _buildBody('Data Controller Contact: support@jvalmacis.co.ke'),
               const SizedBox(height: 24),
 
               // ── 2. What Data We Collect ─────────────────────────────
@@ -138,11 +138,11 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'operated by Google LLC, which is certified to SOC 2 Type II and ISO 27001 standards. JV has '
                 'a Data Processing Agreement with Google governing this hosting arrangement.',
               ),
-              _buildSubtitle('4.2  KARLO (Agricultural Content Partner)'),
+              _buildSubtitle('4.2  KALRO (Agricultural Content Partner)'),
               _buildBody(
                 'Certain agronomic content within the App is developed in collaboration with the Kenya '
-                'Agricultural and Livestock Research Organisation (KARLO). We do NOT share any individual '
-                'user\'s personal data with KARLO. KARLO receives only anonymised, aggregate usage '
+                'Agricultural and Livestock Research Organisation (KALRO). We do NOT share any individual '
+                'user\'s personal data with KALRO. KALRO receives only anonymised, aggregate usage '
                 'statistics (e.g., how many users accessed a pest management resource in a given county) — '
                 'with no information that could identify you.',
               ),
@@ -215,7 +215,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'Teacher or by a parent/guardian on the student\'s behalf.',
               ),
               _buildBody(
-                'To exercise any of these rights: legal@jvalmacis.co.ke\n'
+                'To exercise any of these rights: support@jvalmacis.co.ke\n'
                 'ODPC: info@odpc.go.ke  |  www.odpc.go.ke',
               ),
               const SizedBox(height: 24),
@@ -241,12 +241,12 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'outside the assigned Teacher.',
               ),
               _buildBullet(
-                'Minor user data is never shared with KARLO or any third party, and is never used '
+                'Minor user data is never shared with KALRO or any third party, and is never used '
                 'for marketing or analytics profiling.',
               ),
               _buildBullet(
                 'A parent or legal guardian may request access to, correction of, or deletion of '
-                'their child\'s data at any time: legal@jvalmacis.co.ke',
+                'their child\'s data at any time: support@jvalmacis.co.ke',
               ),
               const SizedBox(height: 24),
 
@@ -281,7 +281,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               _buildBody(
                 'No system is completely secure and we cannot guarantee absolute protection against '
                 'all threats. If you believe your account has been compromised, contact us immediately '
-                'at legal@jvalmacis.co.ke.',
+                'at support@jvalmacis.co.ke.',
               ),
               const SizedBox(height: 24),
 
@@ -301,7 +301,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'identifiable data is transmitted to the weather provider.',
               ),
               _buildBullet(
-                'KARLO — agricultural content partner. Receives only anonymised aggregate usage '
+                'KALRO — agricultural content partner. Receives only anonymised aggregate usage '
                 'data. See Section 4.2 for full details.',
               ),
               _buildBody(
@@ -326,8 +326,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                 'For questions, requests, or concerns about your privacy, or to exercise your data '
                 'rights, please contact us:',
               ),
-              _buildContactRow(Icons.email, 'legal@jvalmacis.co.ke'),
-              _buildContactRow(Icons.phone, '+254 712 174 516'),
+              _buildContactRow(Icons.email, 'support@jvalmacis.co.ke'),
+              _buildContactRow(Icons.phone, '+254 795 802 020'),
               _buildContactRow(
                   Icons.language, 'www.jvalmacis.co.ke'),
               _buildContactRow(

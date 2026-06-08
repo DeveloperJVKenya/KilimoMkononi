@@ -1,14 +1,101 @@
- // ignore_for_file: unused_field
+// ignore_for_file: invalid_return_type_for_catch_error, unnecessary_underscores, curly_braces_in_flow_control_structures, deprecated_member_use, unused_element_parameter, unused_element, unused_field
 
- import 'dart:async';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';   // ← ADD THIS LINE
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+
 import 'package:kilimomkononi/screens/disease%20management/disease_model.dart';
 import 'package:kilimomkononi/screens/disease%20management/intervention_page.dart';
-import 'package:kilimomkononi/screens/disease%20management/view_disease_interventions_page.dart' as view_interventions;
 import 'package:kilimomkononi/screens/disease%20management/user_disease_history_page.dart';
-import 'package:kilimomkononi/models/symptom_model.dart'; // ✅ use package import
+import 'package:kilimomkononi/models/symptom_model.dart';
+import 'package:kilimomkononi/screens/pest%20management/photo_diagnosis_page.dart';
+import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
+import 'package:kilimomkononi/education/pest/gemini_vision_helper.dart';
+import 'package:kilimomkononi/services/pest_disease_cost_bridge.dart';
+import 'package:kilimomkononi/services/nasa_power_service.dart';
+import 'package:kilimomkononi/services/iot_sensor_service.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen.dart';
+//
+
+// ── Step-progress AppBar for disease subpages ─────────────────────────────────
+PreferredSizeWidget _diseaseStepHeader(int current, int total) {
+  const stepNames = ['Select Crop, Stage & Disease', 'Disease Info & Hints', 'Intervention, Cost & Reminder'];
+  final name = (current >= 1 && current <= stepNames.length) ? stepNames[current - 1] : '';
+  return PreferredSize(
+    preferredSize: const Size.fromHeight(kToolbarHeight + 62),
+    child: AppBar(
+      backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+      foregroundColor: Colors.white,
+      elevation: 0,
+      title: const Text('Disease Management',
+          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(62),
+        child: Container(
+          color: const Color.fromARGB(255, 3, 39, 4),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('Step $current of $total  · ',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
+              Expanded(child: Text(name,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis)),
+            ]),
+            const SizedBox(height: 6),
+            Row(
+              children: List.generate(total, (i) => Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: i < total - 1 ? 4 : 0),
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: i < current ? Colors.white : Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              )),
+            ),
+          ]),
+        ),
+      ),
+    ),
+  );
+}
+
+// ── Plot loader: SharedPrefs first, Firestore fallback ────────────────────────
+Future<List<Map<String, String>>> _loadFarmPlotsForDisease(String uid) async {
+  // 1. SharedPreferences (written by FarmManagementScreen._writeLocalPrefs)
+  //    DiseaseCostService.loadFarmPlots reads the same ${uid}_v2_plots key
+  try {
+    final fromPrefs = await DiseaseCostService.loadFarmPlots(uid);
+    if (fromPrefs.isNotEmpty) return fromPrefs;
+  } catch (_) {}
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('farm_management_data').doc(uid).collection('plots').get();
+    if (snap.docs.isNotEmpty) {
+      return snap.docs.map((d) => {
+        'id': d.id, 'name': (d.data()['name'] as String?) ?? d.id,
+      }).toList();
+    }
+  } catch (_) {}
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('farm_management_data').where('userId', isEqualTo: uid).get();
+    return snap.docs.map((d) => {
+      'id':   (d.data()['plotId'] as String?) ?? d.id,
+      'name': (d.data()['name']   as String?) ?? (d.data()['plotId'] as String?) ?? d.id,
+    }).where((m) => m['id']!.isNotEmpty).toList();
+  } catch (_) {}
+  return [];
+}
 
 class DiseaseManagementPage extends StatefulWidget {
   final List<Symptom>? selectedSymptoms;
@@ -20,16 +107,22 @@ class DiseaseManagementPage extends StatefulWidget {
 }
 
 class _DiseaseManagementPageState extends State<DiseaseManagementPage> {
-  final ScrollController _scrollController = ScrollController();
+  // Selection state — shared across subpages via callbacks
   String? _selectedCrop;
   String? _selectedStage;
   String? _selectedDisease;
   DiseaseData? _diseaseData;
-  bool _showDiseaseDetails = false;
   bool _isOrganic = false;
-  final GlobalKey _hintsKey = GlobalKey();
+  int _currentStep = 0;  // ← ADDED: Track current step in the workflow
   Key _imageKey = UniqueKey();
+  final GlobalKey _hintsKey = GlobalKey();
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  // AI Disease Advisor state (used by _fetchAiAdvice — kept for compat)
+  bool _aiLoading = false;
+  String? _aiAdvice;
+  static const _kAskGeminiUrl =
+      'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision';
 
   final List<String> _crops = [
     'Beans',
@@ -3681,23 +3774,13 @@ class _DiseaseManagementPageState extends State<DiseaseManagementPage> {
   void initState() {
     super.initState();
     checkAuth();
-
-    // ✅ Debugging Prefill
-    debugPrint("➡️ Prefill symptoms: ${widget.selectedSymptoms}");
-    if (widget.selectedSymptoms != null &&
-        widget.selectedSymptoms!.isNotEmpty) {
+    if (widget.selectedSymptoms != null && widget.selectedSymptoms!.isNotEmpty) {
       final first = widget.selectedSymptoms!.first;
-      debugPrint(
-          "Prefill Crop=${first.crop}, Stage=${first.stage}, Identity=${first.identity}");
-
-      setState(() {
-        _selectedCrop = first.crop;
-        _selectedStage = first.stage;
-        _selectedDisease = first.identity; // assumed disease name
-      });
-
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _updateDiseaseDetails());
+      _selectedCrop    = first.crop;
+      _selectedStage   = first.stage;
+      _selectedDisease = first.identity;
+      _currentStep     = _selectedDisease != null ? 1 : 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateDiseaseDetails());
     }
   }
 
@@ -3709,358 +3792,1040 @@ class _DiseaseManagementPageState extends State<DiseaseManagementPage> {
 
   void updateSelections() {
     setState(() {
-      _selectedCrop =
-          _selectedCrop ?? (_crops.isNotEmpty ? _crops.first : null);
-      _selectedStage = _selectedCrop != null &&
-              _cropStages[_selectedCrop]!.isNotEmpty
-          ? _cropStages[_selectedCrop]!.first
-          : null;
+      _selectedCrop  = _selectedCrop  ?? (_crops.isNotEmpty ? _crops.first : null);
+      _selectedStage = _selectedCrop != null && _cropStages[_selectedCrop]!.isNotEmpty
+          ? _cropStages[_selectedCrop]!.first : null;
       _selectedDisease = null;
-      _diseaseData = null;
-      _imageKey = UniqueKey();
-      _showDiseaseDetails = false;
+      _diseaseData     = null;
+      _imageKey        = UniqueKey();
     });
   }
 
   Future<void> _updateDiseaseDetails() async {
-    try {
-      if (_selectedCrop == null ||
-          _selectedStage == null ||
-          _selectedDisease == null) {
-        setState(() {
-          _diseaseData = null;
-          _imageKey = UniqueKey();
-          _showDiseaseDetails = false;
-        });
-        return;
-      }
-
-      final diseaseKey = '${_selectedCrop}_${_selectedStage}_$_selectedDisease';
-      final diseaseDetails = _diseaseDetails[diseaseKey];
-
-      setState(() {
-        _diseaseData = diseaseDetails != null
-            ? DiseaseData(
-                name: _selectedDisease ?? '',
-                imagePath:
-                    diseaseDetails['imagePath'] ?? 'assets/diseases/default.jpg',
-                preventionStrategies: List<String>.from(
-                    diseaseDetails['preventionStrategies'] ?? []),
-                activeAgent: diseaseDetails['activeAgent'] ?? '',
-                possibleCauses:
-                    List<String>.from(diseaseDetails['possibleCauses'] ?? []),
-                fungicides:
-                    List<String>.from(diseaseDetails['fungicides'] ?? []),
-                organicInterventions: List<String>.from(
-                    diseaseDetails['organicInterventions'] ?? []),
-              )
-            : null;
-        _imageKey = UniqueKey();
-      });
-    } catch (e) {
-      debugPrint('Error updating disease details: $e');
-      setState(() {
-        _diseaseData = null;
-        _imageKey = UniqueKey();
-        _showDiseaseDetails = false;
-      });
+    if (_selectedCrop == null || _selectedStage == null || _selectedDisease == null) {
+      setState(() { _diseaseData = null; _imageKey = UniqueKey(); });
+      return;
     }
+    final key  = '${_selectedCrop}_${_selectedStage}_$_selectedDisease';
+    final det  = _diseaseDetails[key];
+    setState(() {
+      _diseaseData = det != null ? DiseaseData(
+        name:                 _selectedDisease ?? '',
+        imagePath:            det['imagePath'] ?? 'assets/diseases/default.jpg',
+        preventionStrategies: List<String>.from(det['preventionStrategies'] ?? det['possibleStrategies'] ?? []),
+        activeAgent:          det['activeAgent'] ?? '',
+        possibleCauses:       List<String>.from(det['possibleCauses'] ?? []),
+        fungicides:           List<String>.from(det['fungicides'] ?? []),
+        organicInterventions: List<String>.from(det['organicInterventions'] ?? []),
+      ) : null;
+      _imageKey = UniqueKey();
+    });
   }
 
   void _scrollToHints() {
-    if (_hintsKey.currentContext != null) {
-      Scrollable.ensureVisible(_hintsKey.currentContext!);
-    }
+    if (_hintsKey.currentContext != null) Scrollable.ensureVisible(_hintsKey.currentContext!);
   }
 
   void _showOrganicDiseaseGuide() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Organic Disease Management Tips'),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Organic Disease Management'),
         content: const SingleChildScrollView(
-          child: Text("Use crop rotation, resistant varieties, pruning, neem..."),
+          child: Text('Use crop rotation, resistant varieties, copper-based sprays, Trichoderma, neem products, and proper field sanitation to manage diseases organically.'),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  // ── AI Disease Advisor ────────────────────────────────────────────────────
+
+  Future<void> _fetchAiAdvice() async {
+    if (_diseaseData == null || _selectedCrop == null) return;
+    setState(() { _aiLoading = true; _aiAdvice = null; });
+
+    final prompt = '''
+You are an agronomist advising smallholder farmers in Kenya and East Africa.
+
+Disease: ${_diseaseData!.name}
+Crop: $_selectedCrop  |  Stage: ${_selectedStage ?? 'Unknown'}
+Active agent: ${_diseaseData!.activeAgent}
+Known fungicides: ${_diseaseData!.fungicides.join(', ')}
+Known organic interventions: ${_diseaseData!.organicInterventions.join(', ')}
+
+Provide:
+1. Brief description of how this disease spreads and damages the crop at this stage (2 sentences).
+2. Up to 3 specific fungicide/bactericide interventions available in Kenya — product name (e.g. Ridomil, Dithane, Mancozeb), active ingredient, dosage per litre or per acre, timing and application method.
+3. One organic alternative for each chemical.
+4. Critical warnings (pre-harvest intervals, resistance management, do not spray in direct sun or rain).
+5. Single most urgent action to take today.
+
+Plain English, under 220 words, numbered lists only.
+''';
+
+    try {
+      final resp = await http.post(
+        Uri.parse(_kAskGeminiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': prompt}),
+      ).timeout(const Duration(seconds: 35));
+
+      if (resp.statusCode == 200) {
+        final raw = (jsonDecode(resp.body)['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?) ?? '';
+        if (mounted) setState(() { _aiAdvice = raw.trim().isNotEmpty ? raw.trim() : 'No advice returned. Try again.'; _aiLoading = false; });
+      } else {
+        if (mounted) setState(() { _aiAdvice = 'AI error (${resp.statusCode}). Try again.'; _aiLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _aiAdvice = e.toString().contains('Timeout')
+              ? 'Request timed out. Check your connection.'
+              : 'AI unavailable offline. Use the manual hints below.';
+          _aiLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F3),
+      appBar: AppBar(
+        title: const Text('Disease Management', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(36),
+          child: Container(
+            color: const Color.fromARGB(255, 3, 39, 4),
+            padding: const EdgeInsets.only(left: 16, bottom: 10),
+            alignment: Alignment.centerLeft,
+            child: Text(_progressText(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            tooltip: 'Season Analysis',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => FarmerPlotAnalysisScreen(plotId: _selectedCrop ?? 'Farm', cycleName: 'Season ${DateTime.now().year}'),
+            )),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        children: [
+
+          // ── AI Photo Diagnosis entry card ──────────────────────────────
+          Card(
+            color: const Color(0xFFE8F5E9),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PhotoDiagnosisPage())),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color.fromARGB(255, 3, 39, 4), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('AI Photo Diagnosis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color.fromARGB(255, 3, 39, 4))),
+                    SizedBox(height: 2),
+                    Text('Take a photo — AI identifies disease instantly', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                  ])),
+                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.black38),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Step tiles — each Navigator.push to a full subpage ────────
+
+          _stepNavTile(
+            step: 0, title: 'Select Crop, Stage & Disease',
+            badge: _selectedDisease != null ? '${_selectedCrop ?? ''} · ${_selectedStage ?? ''} · $_selectedDisease' : null,
+            isComplete: _selectedDisease != null && _diseaseData != null,
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => _DiseaseStep0Page(
+                crops: _crops, cropStages: _cropStages, cropStageDiseases: _cropStageDiseases,
+                selectedCrop: _selectedCrop, selectedStage: _selectedStage,
+                selectedDisease: _selectedDisease, isOrganic: _isOrganic,
+                onSaved: (crop, stage, disease, organic) {
+                  setState(() { _selectedCrop = crop; _selectedStage = stage; _selectedDisease = disease; _isOrganic = organic; });
+                  _updateDiseaseDetails();
+                },
+              ),
+            )),
+          ),
+
+          _stepNavTile(
+            step: 1, title: 'Disease Information & Hints',
+            badge: _diseaseData != null ? 'Reviewed' : null,
+            isComplete: _diseaseData != null,
+            onTap: _selectedDisease != null ? () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => _DiseaseStep1Page(
+                diseaseData: _diseaseData, selectedDisease: _selectedDisease,
+                selectedCrop: _selectedCrop, selectedStage: _selectedStage,
+                isOrganic: _isOrganic, imageKey: _imageKey,
+              ),
+            )) : null,
+          ),
+
+          _stepNavTile(
+            step: 2, title: 'Log Intervention & History',
+            badge: null, isComplete: false,
+            onTap: (_selectedDisease != null && _diseaseData != null) ? () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => InterventionPage(
+                cropType: _selectedCrop!, cropStage: _selectedStage!,
+                diseaseData: _diseaseData!, notificationsPlugin: _notificationsPlugin,
+              ),
+            )) : null,
+          ),
+
+          const SizedBox(height: 20),
+          TextButton.icon(
+            onPressed: _showOrganicDiseaseGuide,
+            icon: const Icon(Icons.eco_outlined, size: 16),
+            label: const Text('Organic Disease Guide'),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF2A6B2A)),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UserDiseaseHistoryPage())),
+            icon: const Icon(Icons.history_rounded, size: 16),
+            label: const Text('View All Disease Interventions'),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF2A6B2A)),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  // ── Step nav tile  ─────────────────────────────────────────────────────────
+
+  Widget _stepNavTile({required int step, required String title, String? badge, required bool isComplete, VoidCallback? onTap}) {
+    final enabled = onTap != null;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8F6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isComplete ? const Color(0xFF2E7D32) : const Color(0xFFBBBFBA), width: isComplete ? 2 : 1.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(children: [
+            Container(
+              width: 30, height: 30,
+              decoration: BoxDecoration(
+                color: isComplete ? const Color(0xFF1B5E20) : (enabled ? const Color.fromARGB(255, 3, 39, 4) : Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(child: isComplete
+                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  : Text('${step + 1}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                  color: enabled ? const Color(0xFF111A10) : Colors.grey.shade400)),
+              if (badge != null && badge.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(badge.length > 40 ? '${badge.substring(0, 40)}…' : badge,
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF1B5E20))),
+              ],
+            ])),
+            Icon(Icons.chevron_right, color: enabled ? const Color(0xFF5C6B5A) : Colors.grey.shade300, size: 20),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  String _progressText() {
+    if (_selectedDisease == null) return 'Select crop and disease to begin';
+    if (_diseaseData == null)    return 'Disease not found in library';
+    return _selectedDisease!;
+  }
+
+
+  Widget _buildHintCard(String title, String content) => Card(
+    child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Text(content, style: const TextStyle(fontSize: 13, height: 1.5)),
+    ])),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUBPAGE 1 — Select Crop, Stage & Disease
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _DiseaseStep0Page extends StatefulWidget {
+  final List<String> crops;
+  final Map<String, List<String>> cropStages;
+  final Map<String, Map<String, List<String>>> cropStageDiseases;
+  final String? selectedCrop;
+  final String? selectedStage;
+  final String? selectedDisease;
+  final bool isOrganic;
+  final void Function(String? crop, String? stage, String? disease, bool organic) onSaved;
+
+  const _DiseaseStep0Page({
+    required this.crops, required this.cropStages, required this.cropStageDiseases,
+    this.selectedCrop, this.selectedStage, this.selectedDisease,
+    required this.isOrganic, required this.onSaved,
+  });
+
+  @override
+  State<_DiseaseStep0Page> createState() => _DiseaseStep0PageState();
+}
+
+class _DiseaseStep0PageState extends State<_DiseaseStep0Page> {
+  late String? _crop;
+  late String? _stage;
+  late String? _disease;
+  late bool _organic;
+
+  @override
+  void initState() {
+    super.initState();
+    _crop    = widget.selectedCrop;
+    _stage   = widget.selectedStage;
+    _disease = widget.selectedDisease;
+    _organic = widget.isOrganic;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const darkGreen  = Color.fromARGB(255, 3, 39, 4);
+    const accent     = Color(0xFF2A6B2A);
+    const lightGreen = Color(0xFFE8F5E9);
+    const pageBg     = Color(0xFFF4F6F3);
+    final diseases   = widget.cropStageDiseases[_crop]?[_stage] ?? [];
+
+    return Scaffold(
+      backgroundColor: pageBg,
+      appBar: _diseaseStepHeader(1, 3),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+
+          // Crop
+          _lbl('SELECT CROP'),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8,
+            children: widget.crops.map((c) => _chip(c, c == _crop, accent, lightGreen, () {
+              setState(() { _crop = _crop == c ? null : c; _stage = null; _disease = null; });
+            })).toList(),
+          ),
+
+          if (_crop != null) ...[
+            const SizedBox(height: 18),
+            _lbl('SELECT GROWTH STAGE'),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8,
+              children: (widget.cropStages[_crop] ?? []).map((s) => _chip(s, s == _stage, accent, lightGreen, () {
+                setState(() { _stage = _stage == s ? null : s; _disease = null; });
+              })).toList(),
+            ),
+          ],
+
+          if (_crop != null && _stage != null) ...[
+            const SizedBox(height: 18),
+            _lbl('SELECT DISEASE'),
+            const SizedBox(height: 10),
+            diseases.isEmpty
+                ? Text('No diseases recorded for this crop & stage', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+                : Wrap(spacing: 8, runSpacing: 8,
+                    children: diseases.map((d) => _chip(d, d == _disease, accent, lightGreen, () {
+                      setState(() => _disease = _disease == d ? null : d);
+                    })).toList(),
+                  ),
+          ],
+
+          const SizedBox(height: 18),
+          Row(children: [
+            Switch(value: _organic, onChanged: (v) => setState(() => _organic = v),
+                activeColor: accent, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Show organic interventions only', style: TextStyle(fontSize: 13))),
+          ]),
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: (_crop != null && _stage != null && _disease != null) ? () {
+                widget.onSaved(_crop, _stage, _disease, _organic);
+                Navigator.pop(context);
+              } : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: darkGreen, foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: const Text('Confirm Selection', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _chip(String label, bool sel, Color accent, Color light, VoidCallback onTap) => FilterChip(
+    label: Text(label), selected: sel, onSelected: (_) => onTap(),
+    backgroundColor: Colors.white, selectedColor: light,
+    labelStyle: TextStyle(color: sel ? accent : Colors.black54, fontWeight: sel ? FontWeight.w600 : FontWeight.normal),
+    side: BorderSide(color: sel ? accent : Colors.grey.shade300),
+  );
+
+  Widget _lbl(String t) => Text(t, style: const TextStyle(fontSize: 10, color: Color(0xFF5C6B5A), fontWeight: FontWeight.w700, letterSpacing: 0.8));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUBPAGE 2 — Disease Information, Manual Hints + AI Advisor + AI Photo
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _DiseaseStep1Page extends StatefulWidget {
+  final DiseaseData? diseaseData;
+  final String? selectedDisease;
+  final String? selectedCrop;
+  final String? selectedStage;
+  final bool isOrganic;
+  final Key imageKey;
+
+  const _DiseaseStep1Page({
+    required this.diseaseData,
+    this.selectedDisease,
+    this.selectedCrop,
+    this.selectedStage,
+    required this.isOrganic,
+    required this.imageKey,
+    // Legacy params kept for API compat — no-ops, state is local
+    Function? fetchAiAdvice,
+    bool aiLoading = false,
+    String? aiAdvice,
+  });
+
+  @override
+  State<_DiseaseStep1Page> createState() => _DiseaseStep1PageState();
+}
+
+class _DiseaseStep1PageState extends State<_DiseaseStep1Page> {
+
+  // ── AI state ───────────────────────────────────────────────────────────────
+  bool _showAiSection = false;
+  bool _usePhoto      = false;
+  bool _aiLoading     = false;
+  String? _aiAdvice;
+  Uint8List? _aiPhoto;
+  final ImagePicker _picker = ImagePicker();
+
+  // ── Live condition state ───────────────────────────────────────────────────
+  SatelliteReading? _sat;
+  IotSensorReading? _iot;
+  double _rain7d    = 0;
+  bool _condLoading = true;
+
+  // ── Colour tokens (mirrors disease_management_page.dart inline consts) ─────
+  static const _darkGreen  = Color.fromARGB(255, 3, 39, 4);
+  static const _accent     = Color(0xFF2A6B2A);
+  static const _lightGreen = Color(0xFFE8F5E9);
+  static const _pageBg     = Color(0xFFF4F6F3);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConditions();
+  }
+
+  // ── Load sat + IoT silently ────────────────────────────────────────────────
+
+  Future<void> _loadConditions() async {
+    try {
+      final results = await Future.wait([
+        NasaPowerService.getToday(),
+        NasaPowerService.getHistory(days: 7),
+        IotSensorService.getReadingForFarm().catchError((_) => null),
+      ]);
+      if (!mounted) return;
+      final sat     = results[0] as SatelliteReading?;
+      final history = results[1] as List<SatelliteReading>;
+      final iot     = results[2] as IotSensorReading?;
+      setState(() {
+        _sat         = sat;
+        _iot         = iot;
+        _rain7d      = SatelliteReading.totalPrecipitation(history);
+        _condLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _condLoading = false);
+    }
+  }
+
+  // ── Map disease name → relevant risk types ─────────────────────────────────
+
+  List<ConditionRiskType> _relevantRisks(String? name) {
+    if (name == null) return [ConditionRiskType.spray];
+    final n = name.toLowerCase();
+
+    // All fungal/bacterial diseases show fungal risk
+    final isFungal = _anyOf(n, [
+      'blight', 'mildew', 'mold', 'mould', 'rust', 'pythium', 'fusarium',
+      'rhizoctonia', 'damping', 'anthracnose', 'botrytis', 'sclerotinia',
+      'alternaria', 'cercospora', 'gray leaf', 'grey mold', 'downy',
+    ]);
+
+    // Diseases driven by wet/saturated soil
+    final isWet = _anyOf(n, [
+      'pythium', 'damping', 'root rot', 'soft rot', 'bacterial wilt',
+      'bacterial stalk rot', 'web blight', 'neck rot', 'basal rot',
+    ]);
+
+    // Diseases that worsen under drought / heat stress
+    final isDry = _anyOf(n, [
+      'mosaic virus', 'streak virus', 'powdery mildew', 'charcoal rot',
+      'bacterial leaf streak', 'aster yellows',
+    ]);
+
+    final risks = <ConditionRiskType>[ConditionRiskType.spray];
+    if (isFungal) risks.add(ConditionRiskType.fungal);
+    if (isWet)    risks.add(ConditionRiskType.flood);
+    if (isDry)    risks.add(ConditionRiskType.drought);
+    return risks;
+  }
+
+  bool _anyOf(String haystack, List<String> needles) =>
+      needles.any((n) => haystack.contains(n));
+
+  // ── Rich contextual condition card under disease name ─────────────────────
+  //
+  // Shows a full breakdown of today's conditions as they relate to THIS
+  // specific disease — no tooltip, no tap needed, all data visible inline.
+
+  Widget _buildContextNote(String diseaseName) {
+    if (_sat == null && _iot == null) return const SizedBox.shrink();
+    final risk = computeConditionRisk(sat: _sat, iot: _iot, rain7d: _rain7d);
+    final n    = diseaseName.toLowerCase();
+
+    // Decide which condition is most relevant for this disease
+    final isFungalDisease  = _anyOf(n, ['blight', 'mildew', 'mold', 'mould',
+        'rust', 'pythium', 'fusarium', 'rhizoctonia', 'damping', 'anthracnose',
+        'botrytis', 'sclerotinia', 'alternaria', 'cercospora', 'downy']);
+    final isWetDisease     = _anyOf(n, ['pythium', 'damping', 'root rot',
+        'soft rot', 'bacterial wilt', 'neck rot', 'basal rot', 'web blight']);
+    final isDryDisease     = _anyOf(n, ['mosaic virus', 'streak virus',
+        'powdery mildew', 'charcoal rot', 'bacterial leaf streak', 'aster yellows']);
+
+    // Build the card title + bullets based on disease type + live conditions
+    String title;
+    Color  cardColor;
+    List<String> bullets;
+    IconData cardIcon;
+
+    if (isFungalDisease) {
+      final dewDiff    = _sat != null ? (_sat!.airTemp - _sat!.dewPoint).abs() : 99.0;
+      final humidity   = _sat?.humidity ?? _iot?.humidity ?? 0;
+      final cloudCover = _sat?.cloudCover ?? 0;
+      final airTemp    = _sat?.airTemp ?? 0;
+
+      if (risk.fungalRisk == ConditionRisk.critical) {
+        title     = '⚠ Conditions are ideal for $diseaseName today';
+        cardColor = const Color(0xFFB71C1C);
+        cardIcon  = Icons.grain_rounded;
+      } else if (risk.fungalRisk == ConditionRisk.high) {
+        title     = 'Elevated risk for $diseaseName today';
+        cardColor = const Color(0xFFBF360C);
+        cardIcon  = Icons.grain_rounded;
+      } else if (risk.fungalRisk == ConditionRisk.moderate) {
+        title     = 'Moderate conditions — monitor for $diseaseName';
+        cardColor = const Color(0xFFE65100);
+        cardIcon  = Icons.grain_rounded;
+      } else {
+        title     = 'Low fungal pressure today';
+        cardColor = _accent;
+        cardIcon  = Icons.check_circle_outline_rounded;
+      }
+
+      bullets = [
+        'Humidity: ${humidity.toStringAsFixed(0)}%'
+            '${humidity > 80 ? '  ⚠ Above 80% — disease-conducive' : humidity > 70 ? '  — elevated' : '  ✓ Acceptable'}',
+        if (_sat != null)
+          'Temperature: ${airTemp.toStringAsFixed(1)}°C'
+          '${(airTemp > 18 && airTemp < 30) ? '  ⚠ In fungal growth range (18–30°C)' : '  ✓ Outside main fungal range'}',
+        if (_sat != null)
+          'Dew point gap: ${dewDiff.toStringAsFixed(1)}°C'
+          '${dewDiff < 4 ? '  ⚠ Leaves likely wet overnight — ideal for spore germination' : dewDiff < 8 ? '  — moderate leaf wetness risk' : '  ✓ Leaves likely dry at night'}',
+        if (_sat != null && cloudCover > 0)
+          'Cloud cover: ${cloudCover.toStringAsFixed(0)}%'
+          '${cloudCover > 65 ? '  — overcast, slows leaf drying' : '  ✓ Adequate sun'}',
+        if (_sat != null)
+          'Rain last 7 days: ${_rain7d.toStringAsFixed(1)} mm'
+          '${_rain7d > 30 ? '  — wet week increases disease pressure' : ''}',
+        if (risk.fungalRisk == ConditionRisk.critical || risk.fungalRisk == ConditionRisk.high)
+          'Recommended action: Scout crops now. Consider preventive fungicide before rain.',
+        if (risk.fungalRisk == ConditionRisk.low)
+          'Conditions do not strongly favour this disease right now.',
+      ];
+
+    } else if (isWetDisease) {
+      final soilMoisture = _sat?.rootZoneMoisture ?? 0;
+      final precipitation = _sat?.precipitation ?? 0;
+
+      if (risk.floodRisk == ConditionRisk.critical || risk.floodRisk == ConditionRisk.high) {
+        title     = '⚠ Waterlogged soil favours $diseaseName';
+        cardColor = const Color(0xFF0D47A1);
+        cardIcon  = Icons.water_rounded;
+      } else if (soilMoisture < 0.35) {
+        title     = 'Dry soil conditions — lower risk for $diseaseName';
+        cardColor = _accent;
+        cardIcon  = Icons.check_circle_outline_rounded;
+      } else {
+        title     = 'Soil moisture within normal range';
+        cardColor = _accent;
+        cardIcon  = Icons.water_drop_outlined;
+      }
+
+      bullets = [
+        if (_sat != null)
+          'Root zone moisture: ${(soilMoisture * 100).toStringAsFixed(0)}%'
+          '${soilMoisture > 0.85 ? '  ⚠ Saturated — $diseaseName thrives here' : soilMoisture > 0.65 ? '  — moist, monitor closely' : '  ✓ Acceptable range'}',
+        if (_sat != null)
+          'Rain today: ${precipitation.toStringAsFixed(1)} mm'
+          '${precipitation > 25 ? '  ⚠ Heavy rain — drainage risk' : precipitation > 10 ? '  — significant' : '  ✓ Minimal'}',
+        'Rain last 7 days: ${_rain7d.toStringAsFixed(1)} mm'
+            '${_rain7d > 40 ? '  ⚠ Wet week — high soil saturation risk' : ''}',
+        if (risk.floodRisk == ConditionRisk.high || risk.floodRisk == ConditionRisk.critical)
+          'Recommended action: Check drainage. Delay fungicide — heavy rain will wash it off.',
+        if (soilMoisture < 0.35)
+          'Current dry conditions reduce the risk of this soil-borne disease.',
+      ];
+
+    } else if (isDryDisease) {
+      if (risk.droughtRisk == ConditionRisk.high || risk.droughtRisk == ConditionRisk.critical) {
+        title     = '⚠ Dry stress conditions may increase $diseaseName pressure';
+        cardColor = const Color(0xFFE65100);
+        cardIcon  = Icons.wb_sunny_outlined;
+      } else {
+        title     = 'Adequate moisture — $diseaseName risk is lower today';
+        cardColor = _accent;
+        cardIcon  = Icons.check_circle_outline_rounded;
+      }
+
+      bullets = [
+        'Rain last 7 days: ${_rain7d.toStringAsFixed(1)} mm'
+            '${_rain7d < 5 ? '  ⚠ Very low — drought stress likely' : '  ✓ Adequate'}',
+        if (_sat != null)
+          'Root zone moisture: ${(_sat!.rootZoneMoisture * 100).toStringAsFixed(0)}%'
+          '${_sat!.rootZoneMoisture < 0.25 ? '  ⚠ Below critical' : '  ✓ Acceptable'}',
+        if (_sat != null)
+          'Air temperature: ${_sat!.airTemp.toStringAsFixed(1)}°C'
+          '${_sat!.airTemp > 30 ? '  — heat stress range' : ''}',
+      ];
+
+    } else {
+      // Generic: just show spray window since we have no disease-specific match
+      return const SizedBox.shrink();
+    }
+
+    final bgColor     = cardColor.withOpacity(0.07);
+    final borderColor = cardColor.withOpacity(0.22);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(cardIcon, size: 14, color: cardColor),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(title,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                      color: cardColor, height: 1.3)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          ...bullets.where((b) => b.trim().isNotEmpty).map(
+            (b) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('• ',
+                    style: TextStyle(fontSize: 12.5,
+                        color: cardColor.withOpacity(0.6), height: 1.45)),
+                Expanded(
+                  child: Text(b,
+                      style: TextStyle(fontSize: 12.5,
+                          color: cardColor.withOpacity(0.85), height: 1.45)),
+                ),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── AI ─────────────────────────────────────────────────────────────────────
+
+  GestureTapCallback? get _fetchAiAdvice => null;
+
+  Future<void> _fetchAiText() async {
+    if (widget.diseaseData == null || widget.selectedCrop == null) return;
+    setState(() { _aiLoading = true; _aiAdvice = null; });
+
+    final prompt = '''
+You are an agronomist advising smallholder farmers in Kenya and East Africa.
+
+Disease: ${widget.diseaseData!.name}
+Crop: ${widget.selectedCrop}  |  Stage: ${widget.selectedStage ?? 'Unknown'}
+Active agent: ${widget.diseaseData!.activeAgent}
+Known fungicides: ${widget.diseaseData!.fungicides.join(', ')}
+Known organic interventions: ${widget.diseaseData!.organicInterventions.join(', ')}
+Possible causes: ${widget.diseaseData!.possibleCauses.join(', ')}
+
+Provide:
+1. How this disease spreads and damages the crop at this stage (2 sentences).
+2. Up to 3 specific fungicide/bactericide interventions sold in Kenya — product name, active ingredient, dosage per litre/per acre, timing and method.
+3. One organic alternative per chemical.
+4. Critical warnings (pre-harvest intervals, resistance rotation, no spray in rain).
+5. Single most urgent action today.
+
+Plain English, under 220 words, numbered lists only.
+''';
+
+    try {
+      final resp = await http.post(
+        Uri.parse('https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': prompt}),
+      ).timeout(const Duration(seconds: 35));
+
+      if (resp.statusCode == 200) {
+        final raw = (jsonDecode(resp.body)['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?) ?? '';
+        if (mounted) setState(() {
+          _aiAdvice  = raw.trim().isNotEmpty ? raw.trim() : 'No advice returned. Try again.';
+          _aiLoading = false;
+        });
+      } else {
+        if (mounted) setState(() { _aiAdvice = 'AI error (${resp.statusCode}). Try again.'; _aiLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) setState(() {
+        _aiAdvice  = e.toString().contains('Timeout')
+            ? 'Request timed out. Check connection.'
+            : 'AI unavailable offline. Use manual hints.';
+        _aiLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickPhoto(ImageSource src) async {
+    final xf = await _picker.pickImage(source: src, imageQuality: 82, maxWidth: 1200);
+    if (xf == null) return;
+    final bytes = await xf.readAsBytes();
+    setState(() { _aiPhoto = bytes; _aiAdvice = null; });
+    await _runPhotoAnalysis();
+  }
+
+  Future<void> _runPhotoAnalysis() async {
+    if (_aiPhoto == null) return;
+    setState(() => _aiLoading = true);
+    try {
+      final r = await runGeminiVisionDiagnosis(
+          imageBytes: _aiPhoto!, crop: widget.selectedCrop ?? 'Unknown', isPest: false);
+      if (mounted) setState(() {
+        _aiAdvice = r.isRejected ? r.rejectionReason
+            : r.isHealthy ? 'No disease detected. Continue monitoring.'
+            : '${r.name}\n\n${r.description}\n\nWhat to do: ${r.recommendation}';
+        _aiLoading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _aiAdvice = 'AI photo error: $e'; _aiLoading = false; });
+    }
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final d = widget.diseaseData;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Disease Management'),
-        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        controller: _scrollController,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildDropdown('Select Crop', _crops, _selectedCrop, (val) {
-                setState(() {
-                  _selectedCrop = val;
-                  _selectedStage = null;
-                  _selectedDisease = null;
-                  _diseaseData = null;
-                  _imageKey = UniqueKey();
-                  _showDiseaseDetails = false;
-                  updateSelections();
-                });
-              }),
-              const SizedBox(height: 16),
+      backgroundColor: _pageBg,
+      appBar: _diseaseStepHeader(2, 3),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
 
-              _buildDropdown(
-                'Select Stage',
-                _selectedCrop != null ? _cropStages[_selectedCrop]! : [],
-                _selectedStage,
-                (val) {
-                  setState(() {
-                    _selectedStage = val;
-                    _selectedDisease = null;
-                    _diseaseData = null;
-                    _imageKey = UniqueKey();
-                    _showDiseaseDetails = false;
-                    _updateDiseaseDetails();
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
+          // ── 1. Live condition risk banner ──────────────────────────────────
+          if (!_condLoading && (_sat != null || _iot != null))
+            ConditionRiskBanner(
+              sat:           _sat,
+              iot:           _iot,
+              rain7d:        _rain7d,
+              relevantRisks: _relevantRisks(
+                  widget.selectedDisease ?? d?.name),
+            ),
 
-              _buildDropdown(
-                'Select Disease',
-                _selectedCrop != null && _selectedStage != null
-                    ? _cropStageDiseases[_selectedCrop]![_selectedStage] ?? []
-                    : [],
-                _selectedDisease,
-                (val) {
-                  setState(() {
-                    _selectedDisease = val;
-                    _diseaseData = null;
-                    _imageKey = UniqueKey();
-                    _showDiseaseDetails = false;
-                    _updateDiseaseDetails();
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-
-              SwitchListTile(
-                title: const Text('Show Organic Interventions Only'),
-                value: _isOrganic,
-                onChanged: (value) {
-                  setState(() {
-                    _isOrganic = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-
-              GestureDetector(
-                onTap: () {
-                  if (_diseaseData != null) {
-                    setState(() {
-                      _showDiseaseDetails = !_showDiseaseDetails;
-                      if (_showDiseaseDetails) {
-                        WidgetsBinding.instance.addPostFrameCallback(
-                            (_) => _scrollToHints());
-                      }
-                    });
-                  } else {
-                    scaffoldMessenger.showSnackBar(const SnackBar(
-                        content: Text('Please select a disease first')));
-                  }
-                },
-                child: const Text(
-                  'View Disease Management Hints',
-                  style: TextStyle(
-                    color: Color.fromARGB(255, 3, 39, 4),
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
+          // ── 2. Disease image ───────────────────────────────────────────────
+          if (d != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                d.imagePath,
+                key: widget.imageKey,
+                width: double.infinity,
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: _lightGreen,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.local_hospital_outlined, size: 52,
+                        color: Color(0xFF2A6B2A)),
                   ),
                 ),
               ),
-
-              if (_diseaseData != null) ...[
-                const SizedBox(height: 16),
-                _buildImageCard(_diseaseData!.imagePath),
-              ],
-
-              if (_showDiseaseDetails && _diseaseData != null) ...[
-                const SizedBox(height: 16),
-                Column(
-                  key: _hintsKey,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!_isOrganic) ...[
-                      _buildHintCard('Possible Causes',
-                          _diseaseData!.possibleCauses.join('\n')),
-                      const SizedBox(height: 16),
-                      _buildHintCard('Prevention Strategies',
-                          _diseaseData!.preventionStrategies.join('\n')),
-                      const SizedBox(height: 16),
-                      _buildHintCard('Active Agent', _diseaseData!.activeAgent),
-                      const SizedBox(height: 16),
-                      _buildHintCard(
-                          'Fungicides', _diseaseData!.fungicides.join('\n')),
-                    ],
-                    if (_diseaseData!.organicInterventions.isNotEmpty) ...[
-                      _buildHintCard('Organic Interventions',
-                          _diseaseData!.organicInterventions.join('\n')),
-                    ],
-                    if (_diseaseData!.organicInterventions.isEmpty &&
-                        _isOrganic)
-                      _buildHintCard(
-                          'Organic Interventions', 'No organic interventions'),
-
-                    const SizedBox(height: 16),
-
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_selectedCrop != null &&
-                            _selectedStage != null &&
-                            _diseaseData != null) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => InterventionPage(
-                                cropType: _selectedCrop!,
-                                cropStage: _selectedStage!,
-                                diseaseData: _diseaseData!,
-                                notificationsPlugin: _notificationsPlugin,
-                              ),
-                            ),
-                          );
-                        } else {
-                          scaffoldMessenger.showSnackBar(const SnackBar(
-                              content: Text(
-                                  "Please select crop, stage and disease first")));
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Add Intervention'),
-                    ),
-                  ],
-                ),
-              ],
-
-              const SizedBox(height: 16),
-
-              ElevatedButton(
-                onPressed: () {
-                  if (_diseaseData != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            view_interventions.ViewDiseaseInterventionsPage(
-                          diseaseData: _diseaseData!,
-                          notificationsPlugin: _notificationsPlugin,
-                        ),
-                      ),
-                    );
-                  } else {
-                    scaffoldMessenger.showSnackBar(const SnackBar(
-                        content: Text("Please select a disease first")));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('View Interventions'),
-              ),
-
-              const SizedBox(height: 16),
-
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const UserDiseaseHistoryPage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('View History'),
-              ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Organic Disease Guide',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(
-                    icon: const Icon(Icons.info_outline, color: Colors.blue),
-                    onPressed: _showOrganicDiseaseGuide,
-                  ),
-                ],
-              ),
+            ),
+            const SizedBox(height: 12),
+            Text(d.name,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B5E20))),
+            if (d.activeAgent.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('Active agent: ${d.activeAgent}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54,
+                      fontStyle: FontStyle.italic)),
             ],
+            const SizedBox(height: 10),
+
+            // ── 3. Contextual condition note ─────────────────────────────────
+            if (!_condLoading && _sat != null)
+              _buildContextNote(widget.selectedDisease ?? d.name),
+
+            // ── 4. Manual hint cards ─────────────────────────────────────────
+            if (d.possibleCauses.isNotEmpty)
+              _hCard('Possible Causes', d.possibleCauses.join('\n')),
+            if (d.preventionStrategies.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _hCard('Prevention Strategies', d.preventionStrategies.join('\n')),
+            ],
+            if (!widget.isOrganic && d.fungicides.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _hCard('Fungicides / Bactericides', d.fungicides.join('\n')),
+            ],
+            if (d.organicInterventions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _hCard('Organic Interventions', d.organicInterventions.join('\n')),
+            ],
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F8F6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBBBFBA), width: 1.5),
+              ),
+              child: Text(
+                '${widget.selectedDisease ?? 'This disease'} was not found in '
+                'the library. Use the AI hints below for guidance.',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF3D4A3C),
+                    height: 1.5),
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+
+          // ── 5. AI Advisor section ──────────────────────────────────────────
+          _aiSectionWidget(),
+          const SizedBox(height: 14),
+
+          // ── 6. Back button ─────────────────────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _darkGreen,
+                side: const BorderSide(color: Color(0xFF2A6B2A)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Back to Disease Selection',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildDropdown(String label, List<String> items, String? value,
-      ValueChanged<String?> onChanged) {
-    final uniqueItems = items.toSet().toList();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: DropdownButtonFormField<String>(
-          initialValue: uniqueItems.contains(value) ? value : null,
-          items: uniqueItems
-              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-              .toList(),
-          onChanged: onChanged,
-          decoration: InputDecoration(labelText: label),
+  // ── AI section widget ──────────────────────────────────────────────────────
+
+  Widget _aiSectionWidget() {
+    if (!_showAiSection) {
+      return OutlinedButton.icon(
+        onPressed: () => setState(() => _showAiSection = true),
+        icon: const Icon(Icons.psychology_rounded, size: 16),
+        label: const Text('Get AI Advice for this disease'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _accent,
+          side: BorderSide(color: _accent.withOpacity(0.5)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1B4332), Color(0xFF2D6A4F)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF52B788), width: 1.5),
       ),
-    );
-  }
-
-  Widget _buildImageCard(String imagePath) {
-    return Image.asset(imagePath, key: _imageKey, errorBuilder:
-        (context, error, stackTrace) {
-      return const Icon(Icons.image_not_supported, size: 150);
-    });
-  }
-
-  Widget _buildHintCard(String title, String content) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(content),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.psychology_rounded, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          const Text('AI Disease Advisor',
+              style: TextStyle(color: Colors.white, fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+          const Spacer(),
+          // Toggle text/photo
+          GestureDetector(
+            onTap: () => setState(() { _usePhoto = !_usePhoto; _aiAdvice = null; }),
+            child: Text(_usePhoto ? 'Use text advice' : 'Use photo',
+                style: const TextStyle(fontSize: 11, color: Colors.white60,
+                    decoration: TextDecoration.underline)),
+          ),
         ]),
-      ),
+        const SizedBox(height: 12),
+
+        if (_usePhoto) ...[
+          // Photo mode
+          if (_aiPhoto != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(_aiPhoto!, height: 160, width: double.infinity,
+                  fit: BoxFit.cover),
+            ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _pickPhoto(ImageSource.camera),
+                icon: const Icon(Icons.camera_alt, size: 16),
+                label: const Text('Take photo'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _pickPhoto(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library, size: 16),
+                label: const Text('Gallery'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ]),
+        ] else ...[
+          // Text mode
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _aiLoading ? null : _fetchAiText,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.15),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.white.withOpacity(0.05),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: _aiLoading
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Get advice',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+
+        // AI result
+        if (_aiAdvice != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+            ),
+            child: Text(_aiAdvice!,
+                style: const TextStyle(color: Colors.white, fontSize: 13,
+                    height: 1.55)),
+          ),
+        ],
+      ]),
     );
   }
+
+  // ── Hint card ──────────────────────────────────────────────────────────────
+
+  Widget _hCard(String title, String content) => Card(
+    elevation: 0,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text(content,
+            style: const TextStyle(fontSize: 13, height: 1.5)),
+      ]),
+    ),
+  );
 }

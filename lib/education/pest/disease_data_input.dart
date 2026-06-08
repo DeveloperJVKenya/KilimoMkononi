@@ -1,14 +1,48 @@
-// lib/education/pest/disease_data_input.dart
-
-// ignore_for_file: use_build_context_synchronously, body_might_complete_normally_catch_error, deprecated_member_use, unused_element, override_on_non_overriding_member, unnecessary_underscores
+// lib/education/pest/disease_data_input.dart (AI-enhanced)
+// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_local_variable, use_build_context_synchronously, body_might_complete_normally_catch_error, deprecated_member_use, unused_element, override_on_non_overriding_member, unnecessary_underscores
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 import 'package:kilimomkononi/education/data/disease_treatments.dart';
+import 'package:kilimomkononi/education/pest/edu_photo_diagnosis_button.dart';
+import 'package:kilimomkononi/education/tutor/tutor_suppressor.dart';
+import 'package:kilimomkononi/services/plot_analysis_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:kilimomkononi/widgets/plot_history_card.dart';
 
 const Color primaryGreen = Color(0xFF388E3C);
+
+// ─── AI helper — Gemini via Firebase Function ────────────────────────────────
+const String _kGeminiUrl =
+    'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini';
+
+/// Merges system context + user message into a single prompt for Gemini.
+Future<String> _callGemini(String systemPrompt, String userMessage) async {
+  try {
+    final combinedPrompt = '$systemPrompt\n\n$userMessage';
+    final response = await http.post(
+      Uri.parse(_kGeminiUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'prompt': combinedPrompt}),
+    ).timeout(const Duration(seconds: 60));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data['text'] ??
+              data['candidates']?[0]?['content']?['parts']?[0]?['text'] ??
+              'Sorry, I could not generate a response at this time.')
+          .toString()
+          .trim();
+    }
+    return 'AI service error (${response.statusCode}). Please try again.';
+  } catch (e) {
+    return 'Could not reach AI service: $e';
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 final List<String> crops = [
   'Beans',
@@ -376,10 +410,15 @@ class DiseaseDataInput extends StatefulWidget {
   State<DiseaseDataInput> createState() => _DiseaseDataInputState();
 }
 
-class _DiseaseDataInputState extends State<DiseaseDataInput> {
+class _DiseaseDataInputState extends State<DiseaseDataInput>
+    with TutorSuppressorMixin {
   final _formKey = GlobalKey<FormState>();
   final _submissionFormKey = GlobalKey<FormState>();
   bool _isSaving = false;
+  bool _aiLoading = false;
+  final _scrollCtrl = ScrollController();
+
+  PlotAnalysisResult? _previousAnalysis;
 
   final _interventionCtrl = TextEditingController();
   final _studentNameCtrl = TextEditingController();
@@ -405,9 +444,29 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
     }
     // Rebuild when student types their name so submission list appears immediately
     _studentNameCtrl.addListener(() => setState(() {}));
+    _loadPreviousAnalysis();
   }
 
-
+  Future<void> _loadPreviousAnalysis() async {
+    final parts = widget.classId.split('_');
+    if (parts.length < 2) return;
+    final school = parts[0];
+    final system = parts[1];
+    final grade  = parts.length > 2 ? parts.sublist(2).join('_') : parts.last;
+    final year   = DateTime.now().year.toString();
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('schools').doc(school)
+          .collection('systems').doc(system)
+          .collection('grades').doc(grade)
+          .collection('plot_analyses').doc(year)
+          .get();
+      if (snap.exists && mounted) {
+        setState(() => _previousAnalysis =
+            PlotAnalysisResult.fromMap(snap.data() as Map<String, dynamic>));
+      }
+    } catch (_) {}
+  }
 
   // ═══════════════════════════════════════════════════════════
   // GRADE HELPER METHODS - For student view badges
@@ -726,7 +785,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('🔓 Hints unlocked for ${snap.docs.length} student(s)'),
+                        content: Text('🔓 Hints unlocked for \${snap.docs.length} student(s)'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -734,7 +793,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                      SnackBar(content: Text('Error: \$e'), backgroundColor: Colors.red),
                     );
                   }
                 }
@@ -748,7 +807,161 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
               ),
             ),
           ]),
+
+          // ── AI Analysis button (teacher) ────────────────────────────────
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _aiLoading ? null : () => _runAiDiseaseAnalysis(null),
+              icon: _aiLoading
+                  ? const SizedBox(width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.auto_awesome, size: 16, color: Colors.deepPurple),
+              label: Text(
+                _aiLoading ? 'Analysing…' : '🤖 AI Analysis for this Disease',
+                style: const TextStyle(fontSize: 12, color: Colors.deepPurple),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.deepPurple),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  // ── AI disease analysis (general or student-specific) ──────────────────
+  Future<void> _runAiDiseaseAnalysis(Map<String, dynamic>? studentData) async {
+    final crop    = studentData?['crop']    ?? _selectedCrop    ?? '';
+    final stage   = studentData?['stage']   ?? _selectedStage   ?? '';
+    final disease = studentData?['disease'] ?? _selectedDisease ?? '';
+
+    final String userMsg;
+    if (studentData != null) {
+      userMsg = '''
+Crop: \$crop  |  Growth Stage: \$stage  |  Disease: \$disease
+Student Name: \${studentData['studentName'] ?? ''}
+Student's Proposed Treatment: \${studentData['studentAnswer'] ?? '(none)'}
+Teacher Grade: \${studentData['teacherGrade'] ?? 'not yet graded'}
+Teacher Comment: \${studentData['teacherComment'] ?? '(none)'}
+
+Analyse the student's proposed treatment for this disease. Provide:
+1. Assessment: Is their treatment correct, partially correct, or incorrect? Explain why.
+2. Ideal treatment: best chemical, organic, and cultural controls for \$disease on \$crop at \$stage.
+3. A Socratic question to deepen their understanding (don't give the answer away directly).
+4. An encouraging closing sentence.
+Language: Kenyan secondary school agriculture student level. Be warm but academically rigorous.
+''';
+    } else {
+      userMsg = '''
+Crop: \$crop  |  Growth Stage: \$stage  |  Disease: \$disease
+
+Teacher reference analysis:
+1. Pathogen type (fungal/bacterial/viral/nematode) and infection mechanism at the \$stage stage.
+2. Key diagnostic symptoms teachers should teach students to recognise.
+3. Disease management options ranked by effectiveness:
+   a) Chemical (fungicides/bactericides with active ingredients common in Kenya)
+   b) Organic/biological control options
+   c) Cultural/preventive measures (crop rotation, sanitation, resistant varieties)
+4. Conditions that favour disease spread and how to prevent them.
+5. Any phytosanitary or safety notes relevant to Kenyan school farms.
+Language: practical for a Kenyan secondary school teacher. Be concise.
+''';
+    }
+
+    final _savedPos = _scrollCtrl.hasClients ? _scrollCtrl.offset : 0.0;
+    setState(() => _aiLoading = true);
+    final result = await _callGemini(
+      'You are an expert Kenyan plant pathologist and secondary school agriculture teacher. '
+      'Provide practical, evidence-based disease management advice for Kenya.',
+      userMsg,
+    );
+    setState(() => _aiLoading = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(_savedPos);
+    });
+
+    if (!mounted) return;
+    _showAiResultDialog(
+      title: studentData != null
+          ? '🤖 AI Feedback: ${studentData['studentName'] ?? 'Student'}'
+          : '🤖 AI Disease Analysis: $disease',
+      result: result,
+    );
+  }
+
+  void _showAiResultDialog({required String title, required String result}) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                    colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)]),
+                borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20)),
+              ),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.auto_awesome,
+                      color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Text(title,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold))),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: const Icon(Icons.close,
+                      color: Colors.white70, size: 20),
+                ),
+              ]),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: _AiMarkdownCard(content: result),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Got it!'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -806,15 +1019,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
   }
 
 
-  
-  
-  
-
-
-  // ═══════════════════════════════════════════════════════════════════
-  // IMPROVED STUDENT VIEW - Shows submission + review + hints persistently
-  // ═══════════════════════════════════════════════════════════════════
-  
   // ═══════════════════════════════════════════════════════════════════
   // STUDENT VIEW — All submissions by name, no dropdowns required
   // ═══════════════════════════════════════════════════════════════════
@@ -1070,19 +1274,24 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                               const SizedBox(height: 14),
                               const Divider(thickness: 1),
                               const SizedBox(height: 8),
-                              Text('📚 CORRECT TREATMENTS:',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                              _buildUnlockedHintsHeader(),
                               const SizedBox(height: 10),
                               if (interventions['chemicalControl'] != null) ...[
-                                _buildInterventionCategory('🧪 Chemical Control', interventions['chemicalControl']!, Colors.red.shade700),
+                                _buildHintsCategory('🧪 Chemical Control',
+                                    interventions['chemicalControl']!,
+                                    const Color(0xFFFFEBEE), const Color(0xFFB71C1C), const Color(0xFFC62828)),
                                 const SizedBox(height: 10),
                               ],
                               if (interventions['organicControl'] != null) ...[
-                                _buildInterventionCategory('🌿 Organic Control', interventions['organicControl']!, Colors.green.shade700),
+                                _buildHintsCategory('🌿 Organic Control',
+                                    interventions['organicControl']!,
+                                    const Color(0xFFE8F5E9), const Color(0xFF1B5E20), const Color(0xFF2E7D32)),
                                 const SizedBox(height: 10),
                               ],
                               if (interventions['culturalControl'] != null)
-                                _buildInterventionCategory('🛠️ Cultural/Prevention', interventions['culturalControl']!, Colors.blue.shade700),
+                                _buildHintsCategory('🛠️ Cultural / Prevention',
+                                    interventions['culturalControl']!,
+                                    const Color(0xFFE3F2FD), const Color(0xFF0D47A1), const Color(0xFF1565C0)),
                             ] else if (!hintsUnlocked && isReviewed) ...[
                               const SizedBox(height: 10),
                               Container(
@@ -1113,6 +1322,35 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                                     style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
                                   )),
                                 ]),
+                              ),
+                            ],
+
+                            // ── AI Tutor button (available after review) ──
+                            if (isReviewed) ...[
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _aiLoading
+                                      ? null
+                                      : () => _runAiDiseaseAnalysis({
+                                            'crop':           data['crop'],
+                                            'stage':          data['stage'],
+                                            'disease':        data['disease'],
+                                            'studentName':    data['studentName'],
+                                            'studentAnswer':  data['studentAnswer'],
+                                            'teacherGrade':   data['teacherGrade'],
+                                            'teacherComment': data['teacherComment'],
+                                          }),
+                                  icon: const Icon(Icons.auto_awesome, size: 15),
+                                  label: const Text('🤖 Get AI Feedback on My Answer',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.deepPurple,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                ),
                               ),
                             ],
                           ],
@@ -1341,6 +1579,71 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
                 const SizedBox(height: 8),
                 _convBox(Colors.deepPurple, 'Student reply 2:', Icons.reply, data['studentReply2'] ?? ''),
               ],
+              // ── AI draft comment (teacher) ─────────────────────────────
+              const SizedBox(height: 12),
+              StatefulBuilder(
+                builder: (ctx2, setBtn) {
+                  bool localAi = false;
+                  String aiDraft = '';
+                  return StatefulBuilder(
+                    builder: (ctx3, setInner) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (aiDraft.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.purple.shade200),
+                            ),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Row(children: [
+                                const Icon(Icons.auto_awesome, size: 13, color: Colors.deepPurple),
+                                const SizedBox(width: 4),
+                                const Text('AI draft — tap to insert:',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              ]),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: () => feedbackCtrl.text = aiDraft,
+                                child: Text(aiDraft, style: const TextStyle(fontSize: 12)),
+                              ),
+                            ]),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        OutlinedButton.icon(
+                          onPressed: localAi ? null : () async {
+                            setInner(() => localAi = true);
+                            final draft = await _callGemini(
+                              'You are an experienced Kenyan secondary school agriculture teacher '
+                              'and plant pathologist.',
+                              'Student: ${data['studentName'] ?? ''}\n'
+                              'Crop: ${data['crop']}  Stage: ${data['stage']}  Disease: ${data['disease']}\n'
+                              'Student answer: ${data['studentAnswer'] ?? ''}\n'
+                              '${hasReply ? 'Student reply: ${data['studentReply']}' : ''}\n'
+                              'Write a 2–3 sentence encouraging teaching comment or follow-up question '
+                              'for this student about their disease management answer.',
+                            );
+                            setInner(() { localAi = false; aiDraft = draft; });
+                          },
+                          icon: localAi
+                              ? const SizedBox(width: 12, height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.auto_awesome, size: 14, color: Colors.deepPurple),
+                          label: const Text('🤖 AI Draft Comment',
+                              style: TextStyle(fontSize: 12, color: Colors.deepPurple)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.deepPurple),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
               const SizedBox(height: 14),
               const Text('Grade:', style: TextStyle(fontWeight: FontWeight.bold)),
               DropdownButton<String>(
@@ -1469,17 +1772,74 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
     }
 
     return SingleChildScrollView(
+      controller: _scrollCtrl,
       padding: const EdgeInsets.all(16),
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Previous season history ──────────────────────────────
+            PlotHistoryCard(
+              analysis:    _previousAnalysis,
+              seasonLabel: '${DateTime.now().year - 1} Season',
+              isEducation: true,
+            ),
+
             Text(
               _isHeadteacher ? 'Disease Observation (View Only)' : 'Report Disease Observation',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryGreen),
             ),
             const SizedBox(height: 16),
+
+            // ── AI Photo Diagnosis — pre-fills crop/stage/disease dropdowns ─
+            if (!_isHeadteacher)
+              EduPhotoDiagnosisButton(
+                isPest: false,
+                role: widget.role,
+                onPrefill: (data) {
+                  // DropdownButtonFormField with initialValue does not react to
+                  // setState alone — we must reset the form so dropdowns rebuild
+                  // with the new initialValues set below.
+                  setState(() {
+                    if (data['crop']?.isNotEmpty == true) {
+                      _selectedCrop    = data['crop'];
+                      _selectedStage   = null;
+                      _selectedDisease = null;
+                    }
+                    if (data['stage']?.isNotEmpty == true) {
+                      _selectedStage = data['stage'];
+                    }
+                    if (data['name']?.isNotEmpty == true) {
+                      // Match AI name to the closest disease in the list
+                      final aiName = data['name']!;
+                      final crop = _selectedCrop;
+                      final stage = _selectedStage;
+                      if (crop != null && stage != null &&
+                          cropStageDiseases[crop]?[stage] != null) {
+                        final list = cropStageDiseases[crop]![stage]!;
+                        // Exact match first
+                        if (list.contains(aiName)) {
+                          _selectedDisease = aiName;
+                        } else {
+                          // Fuzzy: find list item that contains any word from AI name
+                          final aiWords = aiName.toLowerCase().split(RegExp(r'\s+'));
+                          final match = list.firstWhere(
+                            (d) => aiWords.any((w) => w.length > 3 &&
+                                d.toLowerCase().contains(w)),
+                            orElse: () => '',
+                          );
+                          _selectedDisease = match.isNotEmpty ? match : null;
+                        }
+                      } else {
+                        _selectedDisease = null;
+                      }
+                    }
+                  });
+                  // value: on DropdownButtonFormField is reactive to setState.
+                  // No formKey.reset() needed — the dropdowns update automatically.
+                },
+              ),
 
             // ── Student name at TOP — submissions list appears immediately ──
             if (isStudent) ...[
@@ -1499,7 +1859,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
 
             // ── Dropdowns ──
             DropdownButtonFormField<String>(
-              initialValue: _selectedCrop,
+              value: _selectedCrop,
               decoration: const InputDecoration(labelText: 'Crop', border: OutlineInputBorder()),
               items: crops.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: _canEdit ? (v) => setState(() { _selectedCrop = v; _selectedStage = null; _selectedDisease = null; }) : null,
@@ -1508,7 +1868,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              initialValue: _selectedStage,
+              value: _selectedStage,
               decoration: const InputDecoration(labelText: 'Stage', border: OutlineInputBorder()),
               items: _selectedCrop == null ? [] :
                   cropStages[_selectedCrop]!.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
@@ -1518,7 +1878,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              initialValue: _selectedDisease,
+              value: _selectedDisease,
               decoration: const InputDecoration(labelText: 'Disease', border: OutlineInputBorder()),
               items: _selectedCrop == null || _selectedStage == null ? [] :
                   cropStageDiseases[_selectedCrop]![_selectedStage]!
@@ -1695,7 +2055,58 @@ class _DiseaseDataInputState extends State<DiseaseDataInput> {
       ),
     );
   }
+  Widget _buildUnlockedHintsHeader() => Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)]),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(children: const [
+          Icon(Icons.school, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text('Correct Interventions',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+        ]),
+      );
+
+  Widget _buildHintsCategory(
+      String label, List<String> items, Color bg, Color titleColor, Color borderColor) {
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor.withOpacity(0.4), width: 1.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: borderColor.withOpacity(0.12),
+            borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(11), topRight: Radius.circular(11)),
+          ),
+          child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: titleColor)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: items.map<Widget>((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.check_circle, size: 14, color: borderColor),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(item, style: const TextStyle(fontSize: 13, height: 1.4))),
+                    ]),
+                  )).toList()),
+        ),
+      ]),
+    );
+  }
 }
+
 // ========== DISEASE SUBMISSIONS VIEWER PAGE ==========
 class DiseaseSubmissionsViewerPage extends StatelessWidget {
   final CollectionReference collection;
@@ -2234,5 +2645,182 @@ class DiseaseSubmissionsViewerPage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _AiMarkdownCard — renders Gemini markdown responses beautifully
+// ═══════════════════════════════════════════════════════════════════════════
+class _AiMarkdownCard extends StatelessWidget {
+  final String content;
+  const _AiMarkdownCard({required this.content});
+
+  static const List<Color> _sectionBg = [
+    Color(0xFFE8F5E9), Color(0xFFE3F2FD), Color(0xFFFFF8E1),
+    Color(0xFFFCE4EC), Color(0xFFEDE7F6), Color(0xFFE0F7FA),
+  ];
+  static const List<Color> _sectionBorder = [
+    Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFF9A825),
+    Color(0xFFC62828), Color(0xFF6A1B9A), Color(0xFF00695C),
+  ];
+  static const List<Color> _sectionTitle = [
+    Color(0xFF1B5E20), Color(0xFF0D47A1), Color(0xFFE65100),
+    Color(0xFFB71C1C), Color(0xFF4A148C), Color(0xFF004D40),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = _parseSections(content);
+    if (sections.isEmpty) return _plainText(content);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sections.asMap().entries.map((entry) {
+        final i = entry.key % _sectionBg.length;
+        final s = entry.value;
+        if (s['type'] == 'intro') {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F8E9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF81C784)),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline, color: Color(0xFF2E7D32), size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: _renderBody(s['body'] ?? '')),
+              ]),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: _sectionBg[i],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _sectionBorder[i].withOpacity(0.5), width: 1.5),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _sectionBorder[i].withOpacity(0.12),
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(11), topRight: Radius.circular(11)),
+                ),
+                child: Row(children: [
+                  Icon(_sectionIcon(s['title'] ?? ''), color: _sectionTitle[i], size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_cleanTitle(s['title'] ?? ''),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _sectionTitle[i]))),
+                ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                child: _renderBody(s['body'] ?? ''),
+              ),
+            ]),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  List<Map<String, String>> _parseSections(String raw) {
+    final lines = raw.split('\n');
+    final sections = <Map<String, String>>[];
+    String? currentTitle;
+    final bodyBuf = StringBuffer();
+    void flush() {
+      final body = bodyBuf.toString().trim();
+      if (body.isEmpty && currentTitle == null) return;
+      sections.add({'type': currentTitle == null ? 'intro' : 'section',
+          'title': currentTitle ?? '', 'body': body});
+      bodyBuf.clear(); currentTitle = null;
+    }
+    for (final line in lines) {
+      if (RegExp(r'^#{1,3}\s').hasMatch(line)) {
+        flush(); currentTitle = line.replaceFirst(RegExp(r'^#+\s*'), '');
+      } else { bodyBuf.writeln(line); }
+    }
+    flush();
+    return sections;
+  }
+
+  Widget _renderBody(String text) {
+    final lines = text.split('\n');
+    final widgets = <Widget>[];
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) { widgets.add(const SizedBox(height: 4)); continue; }
+      final numMatch = RegExp(r'^(\d+)\.\s+(.+)').firstMatch(line);
+      if (numMatch != null) {
+        widgets.add(_bulletRow('${numMatch.group(1)}.', numMatch.group(2)!, numbered: true));
+        continue;
+      }
+      if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('• ')) {
+        widgets.add(_bulletRow('•', line.replaceFirst(RegExp(r'^[-*•]\s+'), ''), numbered: false));
+        continue;
+      }
+      if (line.startsWith('**') && line.endsWith('**') && line.length > 4) {
+        widgets.add(Padding(padding: const EdgeInsets.only(bottom: 4),
+            child: Text(line.substring(2, line.length - 2),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87))));
+        continue;
+      }
+      widgets.add(Padding(padding: const EdgeInsets.only(bottom: 3), child: _inlineBold(line)));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+  }
+
+  Widget _bulletRow(String marker, String text, {required bool numbered}) =>
+      Padding(padding: const EdgeInsets.only(bottom: 5, left: 4),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: numbered ? 22 : 16,
+              child: Text(marker, style: TextStyle(fontSize: 13,
+                  fontWeight: numbered ? FontWeight.bold : FontWeight.normal,
+                  color: numbered ? const Color(0xFF1B5E20) : Colors.black54))),
+          Expanded(child: _inlineBold(text)),
+        ]));
+
+  Widget _inlineBold(String text) {
+    final spans = <TextSpan>[];
+    final re = RegExp(r'\*\*(.+?)\*\*');
+    int last = 0;
+    for (final m in re.allMatches(text)) {
+      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
+      spans.add(TextSpan(text: m.group(1),
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)));
+      last = m.end;
+    }
+    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+    return RichText(text: TextSpan(
+        style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.45),
+        children: spans));
+  }
+
+  Widget _plainText(String t) =>
+      Text(t, style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.45));
+  String _cleanTitle(String t) => t.replaceAll(RegExp(r'^[#*]+\s*'), '').trim();
+
+  IconData _sectionIcon(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('chemical') || t.contains('pesticide') || t.contains('fungicid')) return Icons.science;
+    if (t.contains('organic') || t.contains('bio') || t.contains('natural')) return Icons.eco;
+    if (t.contains('cultural') || t.contains('prevent') || t.contains('practice')) return Icons.agriculture;
+    if (t.contains('diagnos') || t.contains('symptom') || t.contains('sign')) return Icons.search;
+    if (t.contains('soil') || t.contains('nutrient') || t.contains('fertiliz')) return Icons.grass;
+    if (t.contains('economic') || t.contains('threshold')) return Icons.trending_up;
+    if (t.contains('safety') || t.contains('warning') || t.contains('caution')) return Icons.warning_amber;
+    if (t.contains('recommend') || t.contains('action')) return Icons.recommend;
+    if (t.contains('question') || t.contains('reflect')) return Icons.psychology;
+    if (t.contains('assessment') || t.contains('evaluat') || t.contains('feedback')) return Icons.grading;
+    if (t.contains('rotation') || t.contains('next crop')) return Icons.loop;
+    if (t.contains('biology') || t.contains('life cycle')) return Icons.biotech;
+    return Icons.info_outline;
   }
 }

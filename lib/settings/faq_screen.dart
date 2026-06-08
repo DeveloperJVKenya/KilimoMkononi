@@ -99,8 +99,8 @@ class FAQScreen extends StatelessWidget {
               _buildSectionTitle(context, 'Still Have Questions?'),
               const Text(
                 'Reach out to us at:\n'
-                'Email: infojvalmacis@gmail.com\n'
-                'Phone: +254712174516',
+                'Email: support@jvalmacis.co.ke\n'
+                'Phone: +254 795 802 020',
                 style: TextStyle(fontSize: 16, height: 1.5),
               ),
               const SizedBox(height: 16),

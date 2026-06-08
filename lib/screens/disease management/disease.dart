@@ -1,4 +1,4 @@
-// ignore_for_file: unused_field
+/*// ignore_for_file: unused_field
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -1324,7 +1324,7 @@ class _DiseaseManagementPageState extends State<DiseaseManagementPage> {
   Future<void> _initializeNotifications() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidSettings);
-    await _notificationsPlugin.initialize(initSettings);
+    await _notificationsPlugin.initialize(settings: initSettings);
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
@@ -1658,3 +1658,4 @@ class _DiseaseManagementPageState extends State<DiseaseManagementPage> {
     );
   }
 }
+*/

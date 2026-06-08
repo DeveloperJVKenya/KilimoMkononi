@@ -9,12 +9,15 @@ class FarmManagementScreen extends StatefulWidget {
   final EduRole role;
   final String classId;
   final String schoolName;
+  /// Set to false when embedded inside a parent that already has an AppBar.
+  final bool showAppBar;
 
   const FarmManagementScreen({
     super.key,
     required this.role,
     required this.classId,
     required this.schoolName,
+    this.showAppBar = true,
   });
 
   @override
@@ -80,34 +83,16 @@ class _FarmManagementScreenState extends State<FarmManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isHeadteacher = widget.role == EduRole.headteacher;
-    final double width = MediaQuery.of(context).size.width;
-    final bool isMobile = width < 600;
-
-    // Title changes based on selected tab
-    final String title = isHeadteacher
-        ? 'Farm Financials'
-        : (_currentIndex == 0 ? 'Farm Financials' : 'Farm Management Quiz');
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: const Color(0xFF003900),
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        leading: isMobile
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back',
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : null,
-      ),
+      // AppBar removed completely - title and tabs now come from farm_management_data_input.dart
+      appBar: null,
+
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: _navItems.length > 1 || !isHeadteacher
+
+      bottomNavigationBar: _navItems.length > 1 || widget.role != EduRole.headteacher
           ? BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
               backgroundColor: Colors.white,
@@ -119,7 +104,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen> {
               onTap: (i) => setState(() => _currentIndex = i),
               items: _navItems,
             )
-          : null, // Hide bottom nav if only one tab (headteacher)
+          : null,
     );
   }
 }

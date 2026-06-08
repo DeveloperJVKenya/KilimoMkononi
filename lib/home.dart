@@ -4,6 +4,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
 import 'package:kilimomkononi/screens/admin/admin_management_screen.dart';
+import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 import 'package:kilimomkononi/screens/farm_management_screen.dart';
 import 'package:kilimomkononi/screens/farming_tips_widget.dart';
 import 'package:kilimomkononi/screens/market_price_screen.dart';
@@ -17,6 +18,9 @@ import 'package:kilimomkononi/settings/settings_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
+import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/services/iot_sensor_service.dart';
+import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -36,7 +40,6 @@ class _HomePageState extends State<HomePage> {
   bool _isMainAdmin = false;
   final logger = Logger(printer: PrettyPrinter());
 
-  // Use GlobalKey to control the Scaffold (fixes Scaffold.of() error)
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final List<String> _carouselImages = [
@@ -91,6 +94,8 @@ class _HomePageState extends State<HomePage> {
           .get();
 
       if (!userSnapshot.exists) {
+        await FarmLocationService.clear();
+        IotSensorService.clearCache();
         await FirebaseAuth.instance.signOut();
         if (mounted) {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
@@ -101,6 +106,8 @@ class _HomePageState extends State<HomePage> {
       final appUser = AppUser.fromFirestore(userSnapshot, null);
 
       if (appUser.isDisabled == true) {
+        await FarmLocationService.clear();
+        IotSensorService.clearCache();
         await FirebaseAuth.instance.signOut();
         if (mounted) {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
@@ -173,10 +180,27 @@ class _HomePageState extends State<HomePage> {
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   Future<void> _handleLogout() async {
+    // Clear farm location and IoT cache so the next user gets their own data
+    await FarmLocationService.clear();
+    IotSensorService.clearCache();
+
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
     }
+  }
+
+  // ── Navigate to Season Analysis with top-level defaults ──────────────
+  void _openSeasonAnalysis() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FarmerPlotAnalysisScreen(
+          plotId: 'All',
+          cycleName: 'Season ${DateTime.now().year}',
+        ),
+      ),
+    );
   }
 
   @override
@@ -188,7 +212,7 @@ class _HomePageState extends State<HomePage> {
     final fullName = _userData!['fullName'] ?? 'Farmer';
 
     return Scaffold(
-      key: _scaffoldKey, // This is the fix!
+      key: _scaffoldKey,
       appBar: AppBar(
         title: const Text('Kilimo Mkononi'),
         backgroundColor: const Color.fromARGB(255, 3, 39, 4),
@@ -198,14 +222,17 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               icon: const Icon(Icons.admin_panel_settings),
               tooltip: 'Admin Panel',
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminManagementScreen())),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminManagementScreen()),
+              ),
             ),
         ],
       ),
       drawer: _buildDrawer(fullName),
       body: [
         _buildHomeContent(fullName),
-        const SettingsScreen(isEducation: false), 
+        const SettingsScreen(isEducation: false),
         const NotificationsSettingsScreen(),
       ][_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -228,7 +255,7 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting
+          // ── Greeting ────────────────────────────────────────────
           Padding(
             padding: EdgeInsets.all(_getResponsiveValue(mobile: 16, tablet: 24, desktop: 32)),
             child: Column(
@@ -242,65 +269,107 @@ class _HomePageState extends State<HomePage> {
                       ),
                 ),
                 const SizedBox(height: 6),
-                Text('Welcome back to Kilimo Mkononi', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                Text(
+                  'Welcome back to Kilimo Mkononi',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
               ],
             ),
           ),
 
-          // Carousel
+          // ── Carousel ─────────────────────────────────────────────
           CarouselSlider(
             options: CarouselOptions(
-            height: _getResponsiveValue(mobile: 200, tablet: 300, desktop: 400),
-            autoPlay: true,
-            enlargeCenterPage: true,
-            viewportFraction: _getResponsiveValue(mobile: 0.85, tablet: 0.6, desktop: 0.5),
-          ),
-          items: _carouselImages.map((path) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(path, fit: BoxFit.cover, width: double.infinity),
+              height: _getResponsiveValue(mobile: 200, tablet: 300, desktop: 400),
+              autoPlay: true,
+              enlargeCenterPage: true,
+              viewportFraction: _getResponsiveValue(mobile: 0.85, tablet: 0.6, desktop: 0.5),
             ),
-          )).toList(),
-        ),
+            items: _carouselImages
+                .map((path) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.asset(path, fit: BoxFit.cover, width: double.infinity),
+                      ),
+                    ))
+                .toList(),
+          ),
 
           const SizedBox(height: 30),
 
-          // Quick Access Title
+          // ── Farm Alerts (IoT + Satellite) ────────────────────────
+          // Auto-loads conditions for the farmer's registered county.
+          // Shows flood, drought, fungal, spray-window alerts.
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Quick Access', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Farm Alerts',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: FarmAlertsHomeWidget(),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Quick Access ─────────────────────────────────────────
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Quick Access',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 12),
 
-          // Only TWO cards
+          // Row 1: Farming Tips + Market Price
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Expanded(child: _card(Icons.lightbulb, 'Farming Tips', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FarmingTipsWidget()));
-                })),
+                Expanded(
+                  child: _card(Icons.lightbulb, 'Farming Tips', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FarmingTipsWidget()),
+                    );
+                  }),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _card(Icons.price_check, 'Market Price', () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MarketPriceScreen()));
-                })),
+                Expanded(
+                  child: _card(Icons.price_check, 'Market Price', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MarketPriceScreen()),
+                    );
+                  }),
+                ),
               ],
             ),
           ),
 
+          const SizedBox(height: 16),
+
+          // Row 2: Season Analysis (full-width highlight card)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _seasonAnalysisCard(),
+          ),
+
           const SizedBox(height: 30),
 
-          // "More Features" Button – Opens Drawer
+          // ── More Features Button ──────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: SizedBox(
               width: double.infinity,
               height: 56,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  _scaffoldKey.currentState?.openDrawer(); // Now works!
-                },
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 icon: const Icon(Icons.menu, size: 28),
                 label: const Text('More Features', style: TextStyle(fontSize: 18)),
                 style: ElevatedButton.styleFrom(
@@ -319,6 +388,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ── Standard quick-access card ────────────────────────────────────────
   Widget _card(IconData icon, String title, VoidCallback onTap) {
     return Card(
       elevation: 6,
@@ -333,7 +403,11 @@ class _HomePageState extends State<HomePage> {
             children: [
               Icon(icon, size: 50, color: const Color.fromARGB(255, 3, 39, 4)),
               const SizedBox(height: 12),
-              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ),
@@ -341,7 +415,60 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Full-featured drawer
+  // ── Season Analysis highlighted card (full-width) ─────────────────────
+  Widget _seasonAnalysisCard() {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _openSeasonAnalysis,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                const Color.fromARGB(255, 3, 39, 4),
+                Colors.green[700]!,
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Row(
+            children: [
+              const Icon(Icons.bar_chart_rounded, size: 48, color: Colors.white),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Season Analysis',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'AI insights on your field data, pests, diseases & finances',
+                      style: TextStyle(fontSize: 13, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Drawer ────────────────────────────────────────────────────────────
   Widget _buildDrawer(String fullName) {
     return Drawer(
       child: Container(
@@ -354,18 +481,36 @@ class _HomePageState extends State<HomePage> {
               accountName: Text(fullName, style: const TextStyle(fontSize: 18)),
               currentAccountPicture: CircleAvatar(
                 radius: 40,
-                backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                child: _profileImageBytes == null ? const Icon(Icons.person, size: 40, color: Colors.white70) : null,
+                backgroundImage:
+                    _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                child: _profileImageBytes == null
+                    ? const Icon(Icons.person, size: 40, color: Colors.white70)
+                    : null,
               ),
               accountEmail: null,
             ),
             _drawerItem(Icons.home, 'Home', () => Navigator.pop(context)),
-            _drawerItem(Icons.cloud, 'Weather Forecast', () => _navigateTo(const WeatherScreen())),
-            _drawerItem(Icons.input, 'Field Data Input', () => _navigateTo(const FieldDataInputHomePage())),
-            _drawerItem(Icons.bug_report, 'Pests & Diseases', () => _navigateTo(const PestDiseaseHomePage())),
-            _drawerItem(Icons.account_balance_wallet, 'Farm Management', () => _navigateTo(const FarmManagementScreen())),
-            _drawerItem(Icons.book, 'Manuals', () => _navigateTo(const ManualsScreen())),
-            _drawerItem(Icons.settings, 'Settings', () => _navigateTo(const SettingsScreen(isEducation: false))),
+            _drawerItem(Icons.cloud, 'Weather Forecast',
+                () => _navigateTo(const WeatherScreen())),
+            _drawerItem(Icons.input, 'Field Data Input',
+                () => _navigateTo(const FieldDataInputHomePage())),
+            _drawerItem(Icons.bug_report, 'Pests & Diseases',
+                () => _navigateTo(const PestDiseaseHomePage())),
+            _drawerItem(Icons.account_balance_wallet, 'Farm Management',
+                () => _navigateTo(const FarmManagementScreen())),
+            _drawerItem(Icons.book, 'Manuals',
+                () => _navigateTo(const ManualsScreen())),
+            // ── Season Analysis drawer entry ──────────────────────
+            _drawerItem(
+              Icons.bar_chart_rounded,
+              'Season Analysis',
+              () {
+                Navigator.pop(context);
+                _openSeasonAnalysis();
+              },
+            ),
+            _drawerItem(Icons.settings, 'Settings',
+                () => _navigateTo(const SettingsScreen(isEducation: false))),
             const Divider(),
             _drawerItem(Icons.logout, 'Logout', _handleLogout),
           ],
@@ -375,7 +520,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _navigateTo(Widget page) {
-    Navigator.pop(context); // Close drawer first
+    Navigator.pop(context);
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 

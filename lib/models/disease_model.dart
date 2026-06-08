@@ -1073,6 +1073,7 @@ class DiseaseIntervention {
   final String diseaseName;
   final String cropType;
   final String cropStage;
+  final String? cycle;                    // ← NEW
   final String intervention;
   final double? dosage;
   final String? unit;
@@ -1080,12 +1081,14 @@ class DiseaseIntervention {
   final String areaUnit;
   final Timestamp timestamp;
   final String userId;
+  final bool isDeleted;
 
   DiseaseIntervention({
     this.id,
     required this.diseaseName,
     required this.cropType,
     required this.cropStage,
+    this.cycle,                           // ← NEW
     required this.intervention,
     this.dosage,
     this.unit,
@@ -1093,40 +1096,72 @@ class DiseaseIntervention {
     required this.areaUnit,
     required this.timestamp,
     required this.userId,
+    this.isDeleted = false,
   });
 
-  Map<String, dynamic> toMap() => {
-        'diseaseName': diseaseName,
-        'cropType': cropType,
-        'cropStage': cropStage,
-        'intervention': intervention,
-        'dosage': dosage,
-        'unit': unit,
-        'area': area,
-        'areaUnit': areaUnit,
-        'timestamp': timestamp,
-        'userId': userId,
-      };
+  Map<String, dynamic> toMap() {
+    return {
+      'diseaseName': diseaseName,
+      'cropType': cropType,
+      'cropStage': cropStage,
+      'cycle': cycle,                     // ← NEW
+      'intervention': intervention,
+      'dosage': dosage,
+      'unit': unit,
+      'area': area,
+      'areaUnit': areaUnit,
+      'timestamp': timestamp,
+      'userId': userId,
+      'isDeleted': isDeleted,
+    };
+  }
 
-  factory DiseaseIntervention.fromMap(Map<String, dynamic> map, String id) => DiseaseIntervention(
-        id: id,
-        diseaseName: map['diseaseName'] as String,
-        cropType: map['cropType'] as String,
-        cropStage: map['cropStage'] as String,
-        intervention: map['intervention'] as String,
-        dosage: map['dosage'] as double?,
-        unit: map['unit'] as String?,
-        area: map['area'] as double?,
-        areaUnit: map['areaUnit'] as String,
-        timestamp: map['timestamp'] as Timestamp,
-        userId: map['userId'] as String,
-      );
+  factory DiseaseIntervention.fromMap(Map<String, dynamic> data, String id) {
+    return DiseaseIntervention(
+      id: id,
+      diseaseName: data['diseaseName'] as String,
+      cropType: data['cropType'] as String,
+      cropStage: data['cropStage'] as String,
+      cycle: data['cycle'] as String?,                    // ← NEW
+      intervention: data['intervention'] as String? ?? '',
+      dosage: data['dosage']?.toDouble(),
+      unit: data['unit'] as String?,
+      area: data['area']?.toDouble(),
+      areaUnit: data['areaUnit'] as String,
+      timestamp: data['timestamp'] as Timestamp,
+      userId: data['userId'] as String,
+      isDeleted: data['isDeleted'] as bool? ?? false,
+    );
+  }
+
+  factory DiseaseIntervention.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> snapshot,
+    SnapshotOptions? options,
+  ) {
+    final data = snapshot.data()!;
+    return DiseaseIntervention(
+      id: snapshot.id,
+      diseaseName: data['diseaseName'] as String,
+      cropType: data['cropType'] as String,
+      cropStage: data['cropStage'] as String,
+      cycle: data['cycle'] as String?,                    // ← NEW
+      intervention: data['intervention'] as String? ?? '',
+      dosage: data['dosage']?.toDouble(),
+      unit: data['unit'] as String?,
+      area: data['area']?.toDouble(),
+      areaUnit: data['areaUnit'] as String,
+      timestamp: data['timestamp'] as Timestamp,
+      userId: data['userId'] as String,
+      isDeleted: data['isDeleted'] as bool? ?? false,
+    );
+  }
 
   DiseaseIntervention copyWith({
     String? id,
     String? diseaseName,
     String? cropType,
     String? cropStage,
+    String? cycle,                                    // ← NEW
     String? intervention,
     double? dosage,
     String? unit,
@@ -1134,17 +1169,22 @@ class DiseaseIntervention {
     String? areaUnit,
     Timestamp? timestamp,
     String? userId,
-  }) => DiseaseIntervention(
-        id: id ?? this.id,
-        diseaseName: diseaseName ?? this.diseaseName,
-        cropType: cropType ?? this.cropType,
-        cropStage: cropStage ?? this.cropStage,
-        intervention: intervention ?? this.intervention,
-        dosage: dosage ?? this.dosage,
-        unit: unit ?? this.unit,
-        area: area ?? this.area,
-        areaUnit: areaUnit ?? this.areaUnit,
-        timestamp: timestamp ?? this.timestamp,
-        userId: userId ?? this.userId,
-      );
+    bool? isDeleted,
+  }) {
+    return DiseaseIntervention(
+      id: id ?? this.id,
+      diseaseName: diseaseName ?? this.diseaseName,
+      cropType: cropType ?? this.cropType,
+      cropStage: cropStage ?? this.cropStage,
+      cycle: cycle ?? this.cycle,                     // ← NEW
+      intervention: intervention ?? this.intervention,
+      dosage: dosage ?? this.dosage,
+      unit: unit ?? this.unit,
+      area: area ?? this.area,
+      areaUnit: areaUnit ?? this.areaUnit,
+      timestamp: timestamp ?? this.timestamp,
+      userId: userId ?? this.userId,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
+  }
 }

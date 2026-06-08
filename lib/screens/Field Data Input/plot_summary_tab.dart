@@ -1,37 +1,121 @@
-// ignore_for_file: avoid_print
+// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/models/field_data_model.dart';
+import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 
 class PlotSummaryTab extends StatefulWidget {
   final String userId;
-
   const PlotSummaryTab({required this.userId, super.key});
 
   @override
   State<PlotSummaryTab> createState() => _PlotSummaryTabState();
 }
 
-class _PlotSummaryTabState extends State<PlotSummaryTab> {
+class _PlotSummaryTabState extends State<PlotSummaryTab>
+    with SingleTickerProviderStateMixin {
+  static const _darkGreen = Color.fromARGB(255, 3, 39, 4);
+  static const _accentGreen = Color(0xFF2A6B2A);
+
+  late TabController _tabController;
+  String _selectedFilter = 'All';
+  final List<String> _filters = ['All', 'Single', 'Intercrop', 'Multiple'];
+
+  // Track which card is expanded
+  String? _expandedDocId;
+
   @override
   void initState() {
     super.initState();
-    print('PlotSummaryTab User ID: ${widget.userId}'); // Log userId
+    _tabController = TabController(length: 2, vsync: this);
   }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  String _plotStatus(FieldData d) {
+    final n = d.npk['N'];
+    final p = d.npk['P'];
+    final k = d.npk['K'];
+    if (n == null && p == null && k == null) return 'Incomplete';
+    if ((n ?? 0) > 0 && (p ?? 0) > 0 && (k ?? 0) > 0) return 'Good';
+    return 'Needs attention';
+  }
+
+  Color _statusColor(String s) {
+    switch (s) {
+      case 'Good':
+        return const Color(0xFF1B5E20);
+      case 'Needs attention':
+        return const Color(0xFFE65100);
+      default:
+        return Colors.black54;
+    }
+  }
+
+  Color _statusBg(String s) {
+    switch (s) {
+      case 'Good':
+        return const Color(0xFFE8F5E9);
+      case 'Needs attention':
+        return const Color(0xFFFFF8E1);
+      default:
+        return Colors.grey[200]!;
+    }
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+    return '${(diff.inDays / 30).floor()}mo ago';
+  }
+
+  bool _matchesFilter(FieldData d) {
+    if (_selectedFilter == 'All') return true;
+    return d.structureType.toLowerCase() ==
+        _selectedFilter.toLowerCase();
+  }
+
+  // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F3),
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-        title: const Text(
-          'Plot Summary',
-          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-        ),
+        backgroundColor: _darkGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Plot history',
+          style: TextStyle(
+              color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white54,
+          indicatorColor: const Color(0xFF6AB04C),
+          indicatorWeight: 2.5,
+          labelStyle:
+              const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          tabs: const [
+            Tab(text: 'Records'),
+            Tab(text: 'Timeline'),
+          ],
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -41,145 +125,493 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
             .orderBy('timestamp', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          print('StreamBuilder state: ${snapshot.connectionState}'); // Log state
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
-            print('Firestore Error: ${snapshot.error}'); // Log error
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Error loading data: ${snapshot.error}',
-                    style: const TextStyle(fontSize: 16, color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() {}), // Retry
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
+            return _errorView(snapshot.error.toString());
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            print('No fielddata documents found for userId: ${widget.userId}'); // Log no data
-            return const Center(
-              child: Text(
-                'No saved data available. Please save data to view your history.',
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-                textAlign: TextAlign.center,
-              ),
-            );
+            return _emptyView();
           }
 
+          List<({FieldData data, String docId})> entries;
           try {
-            final entries = snapshot.data!.docs.map((doc) {
-              print('Parsing document: ${doc.id}, data: ${doc.data()}'); // Log raw document
-              return FieldData.fromMap(doc.data() as Map<String, dynamic>);
-            }).toList();
-            print('Parsed ${entries.length} entries successfully'); // Log success
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: entries.length,
-              itemBuilder: (context, index) {
-                final entry = entries[index];
-                return _buildPlotCard(entry, snapshot.data!.docs[index].id);
-              },
-            );
-          } catch (e, stackTrace) {
-            print('Parsing Error: $e\nStackTrace: $stackTrace'); // Log parsing error
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Error parsing data: $e',
-                    style: const TextStyle(fontSize: 16, color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() {}), // Retry
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
+            entries = snapshot.data!.docs
+                .map((doc) => (
+                      data: FieldData.fromMap(
+                          doc.data() as Map<String, dynamic>),
+                      docId: doc.id,
+                    ))
+                .toList();
+          } catch (e) {
+            return _errorView('Error parsing records: $e');
           }
+
+          final filtered =
+              entries.where((e) => _matchesFilter(e.data)).toList();
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildRecordsTab(entries, filtered),
+              _buildTimelineTab(entries),
+            ],
+          );
         },
       ),
     );
   }
 
-  Widget _buildPlotCard(FieldData entry, String docId) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Colors.white,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ExpansionTile(
-        title: Text(
-          '${entry.plotId} - ${entry.timestamp.toDate().toString().substring(0, 16)}',
-          style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color.fromARGB(255, 3, 39, 4)),
+  // ─── Records tab ───────────────────────────────────────────────────────────
+
+  Widget _buildRecordsTab(
+    List<({FieldData data, String docId})> all,
+    List<({FieldData data, String docId})> filtered,
+  ) {
+    return Column(
+      children: [
+        // Stats bar
+        _statsBar(all),
+        // Filter chips
+        _filterRow(),
+        // List
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text(
+                    'No records match "$_selectedFilter"',
+                    style: const TextStyle(
+                        fontSize: 14, color: Colors.black45),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) => _plotCard(
+                      filtered[i].data, filtered[i].docId),
+                ),
         ),
+      ],
+    );
+  }
+
+  Widget _statsBar(List<({FieldData data, String docId})> entries) {
+    final good =
+        entries.where((e) => _plotStatus(e.data) == 'Good').length;
+    final attention = entries
+        .where((e) => _plotStatus(e.data) == 'Needs attention')
+        .length;
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => _editPlot(context, entry, docId),
+          _statChip('${entries.length}', 'total', Colors.black54,
+              Colors.grey[100]!),
+          const SizedBox(width: 8),
+          _statChip('$good', 'good', const Color(0xFF1B5E20),
+              const Color(0xFFE8F5E9)),
+          const SizedBox(width: 8),
+          _statChip('$attention', 'attention', const Color(0xFFE65100),
+              const Color(0xFFFFF8E1)),
+        ],
+      ),
+    );
+  }
+
+  Widget _statChip(
+      String val, String label, Color textColor, Color bgColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(val,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: textColor)),
+          const SizedBox(width: 3),
+          Text(label,
+              style: TextStyle(fontSize: 11, color: textColor)),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterRow() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _filters.map((f) {
+            final selected = _selectedFilter == f;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedFilter = f),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(right: 7),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFF4F6F3),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0xFFA5D6A7)
+                        : Colors.grey[300]!,
+                  ),
+                ),
+                child: Text(
+                  f,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: selected
+                        ? const Color(0xFF1B5E20)
+                        : Colors.black54,
+                    fontWeight: selected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _plotCard(FieldData entry, String docId) {
+    final status = _plotStatus(entry);
+    final isExpanded = _expandedDocId == docId;
+    final cropLabel = entry.crops.isNotEmpty &&
+            (entry.crops.first['type'] ?? '').isNotEmpty
+        ? entry.crops
+            .map((c) => '${c['type']} · ${c['stage'] ?? ''}')
+            .join(', ')
+        : 'No crop recorded';
+    final date = entry.timestamp.toDate();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header — always visible
+          InkWell(
+            onTap: () => setState(() =>
+                _expandedDocId = isExpanded ? null : docId),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 13),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              entry.plotId,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _statusBg(status),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: _statusColor(status),
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          cropLabel,
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            if (entry.area != null) ...[
+                              const Icon(Icons.crop_square_rounded,
+                                  size: 11, color: Colors.black38),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${entry.area?.toStringAsFixed(1)} ac',
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.black38),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            const Icon(Icons.access_time_rounded,
+                                size: 11, color: Colors.black38),
+                            const SizedBox(width: 3),
+                            Text(
+                              _timeAgo(date),
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.black38),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deletePlot(context, docId),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: Colors.black26,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Expanded detail
+          if (isExpanded) ...[
+            Divider(height: 1, color: Colors.grey[200]),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // NPK chips
+                  if (entry.npk['N'] != null ||
+                      entry.npk['P'] != null ||
+                      entry.npk['K'] != null)
+                    _npkChips(entry),
+
+                  // Micro-nutrients
+                  if (entry.microNutrients.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _detailRow('Micronutrients',
+                        entry.microNutrients.join(', ')),
+                  ],
+
+                  // Interventions
+                  if (entry.interventions.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _sectionLabel('Interventions'),
+                    ...entry.interventions.map((i) => _interventionRow(i)),
+                  ],
+
+                  // Reminders
+                  if (entry.reminders.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _sectionLabel('Reminders'),
+                    ...entry.reminders.map((r) => _reminderRow(r)),
+                  ],
+
+                  // Fertiliser recommendation
+                  if ((entry.fertilizerRecommendation ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: const Color(0xFFA5D6A7)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.eco_outlined,
+                              size: 14,
+                              color: _accentGreen),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              entry.fertilizerRecommendation!,
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF1B5E20)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ),
-                _buildFieldRow('Structure Type', entry.structureType),
-                _buildFieldRow(
-                    'Crops',
-                    entry.crops.isNotEmpty
-                        ? entry.crops.map((c) => '${c['type']} (${c['stage']})').join(', ')
-                        : 'None'),
-                _buildFieldRow('Area', entry.area != null ? '${entry.area} Acres' : 'None'),
-                _buildFieldRow('Nitrogen (N)', entry.npk['N'] != null ? '${entry.npk['N']}' : 'None'),
-                _buildFieldRow('Phosphorus (P)', entry.npk['P'] != null ? '${entry.npk['P']}' : 'None'),
-                _buildFieldRow('Potassium (K)', entry.npk['K'] != null ? '${entry.npk['K']}' : 'None'),
-                _buildFieldRow('Micro-Nutrients',
-                    entry.microNutrients.isNotEmpty ? entry.microNutrients.join(', ') : 'None'),
-                _buildFieldRow(
-                    'Interventions',
-                    entry.interventions.isNotEmpty
-                        ? entry.interventions
-                            .map((i) => '${i['type']} (${i['quantity']} ${i['unit']})')
-                            .join(', ')
-                        : 'None'),
-                _buildFieldRow(
-                    'Reminders',
-                    entry.reminders.isNotEmpty
-                        ? entry.reminders
-                            .map((r) =>
-                                '${r['activity']} (${r['date'].toDate().toString().substring(0, 10)})')
-                            .join(', ')
-                        : 'None'),
-                _buildFieldRow('Fertilizer Recommendation',
-                    entry.fertilizerRecommendation ?? 'None'),
-              ],
+
+                  const SizedBox(height: 14),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _editPlot(context, entry, docId),
+                          icon: const Icon(Icons.edit_outlined, size: 14),
+                          label: const Text('Edit',
+                              style: TextStyle(fontSize: 12)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _darkGreen,
+                            side: const BorderSide(
+                                color: Color(0xFFA5D6A7)),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _deletePlot(context, docId),
+                          icon: const Icon(Icons.delete_outline, size: 14),
+                          label: const Text('Delete',
+                              style: TextStyle(fontSize: 12)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red[700],
+                            side: BorderSide(color: Colors.red[200]!),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FarmerPlotAnalysisScreen(
+                            plotId: entry.plotId,
+                            cycleName: entry.crops.isNotEmpty
+                                ? '${entry.crops.first['type'] ?? 'Farm'} ${date.year}'
+                                : 'Season ${date.year}',
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(Icons.analytics_outlined, size: 14),
+                      label: const Text('View / Generate Season Analysis',
+                          style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _darkGreen,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _npkChips(FieldData entry) {
+    return Row(
+      children: [
+        if (entry.npk['N'] != null)
+          _npkPill('N', entry.npk['N']!.toStringAsFixed(0)),
+        if (entry.npk['P'] != null) ...[
+          const SizedBox(width: 6),
+          _npkPill('P', entry.npk['P']!.toStringAsFixed(0)),
+        ],
+        if (entry.npk['K'] != null) ...[
+          const SizedBox(width: 6),
+          _npkPill('K', entry.npk['K']!.toStringAsFixed(0)),
+        ],
+      ],
+    );
+  }
+
+  Widget _npkPill(String key, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F6F3),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Text(
+        '$key: $value',
+        style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Colors.black54),
+      ),
+    );
+  }
+
+  Widget _interventionRow(Map<String, dynamic> item) {
+    final date = (item['date'] as dynamic)?.toDate?.call();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFFF57C00),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${item['type']}'
+              '${item['quantity'] != null ? '  ·  ${(item['quantity'] as num).toStringAsFixed(1)} ${item['unit'] ?? ''}' : ''}'
+              '${date != null ? '  ·  ${date.toString().substring(0, 10)}' : ''}',
+              style: const TextStyle(
+                  fontSize: 12, color: Colors.black87),
             ),
           ),
         ],
@@ -187,183 +619,331 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
     );
   }
 
-  Widget _buildFieldRow(String label, String value) {
+  Widget _reminderRow(Map<String, dynamic> r) {
+    final date = (r['date'] as dynamic)?.toDate?.call();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$label: ',
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+          const Icon(Icons.notifications_outlined,
+              size: 13, color: Colors.black38),
+          const SizedBox(width: 6),
           Expanded(
-              child: Text(value,
-                  style: const TextStyle(fontSize: 16, color: Colors.black))),
+            child: Text(
+              '${r['activity'] ?? '—'}${date != null ? '  ·  ${date.toString().substring(0, 10)}' : ''}',
+              style: const TextStyle(
+                  fontSize: 12, color: Colors.black87),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Future<void> _editPlot(BuildContext context, FieldData plot, String docId) async {
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12, color: Colors.black45)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 12, color: Colors.black87)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Timeline tab ──────────────────────────────────────────────────────────
+
+  Widget _buildTimelineTab(
+      List<({FieldData data, String docId})> entries) {
+    // Flatten all interventions + reminders into timeline events
+    final events = <({DateTime date, String title, String sub, Color dot})>[];
+
+    for (final e in entries) {
+      // Record saved event
+      events.add((
+        date: e.data.timestamp.toDate(),
+        title: '${e.data.plotId} — record saved',
+        sub: e.data.crops.isNotEmpty
+            ? (e.data.crops.first['type'] ?? '')
+            : e.data.structureType,
+        dot: _accentGreen,
+      ));
+
+      for (final i in e.data.interventions) {
+        final d = (i['date'] as dynamic)?.toDate?.call() as DateTime?;
+        if (d != null) {
+          events.add((
+            date: d,
+            title: '${i['type']}',
+            sub: '${e.data.plotId}  ·  ${i['quantity'] != null ? '${(i['quantity'] as num).toStringAsFixed(1)} ${i['unit'] ?? ''}' : ''}',
+            dot: const Color(0xFFF57C00),
+          ));
+        }
+      }
+
+      for (final r in e.data.reminders) {
+        final d = (r['date'] as dynamic)?.toDate?.call() as DateTime?;
+        if (d != null) {
+          events.add((
+            date: d,
+            title: '${r['activity'] ?? 'Reminder'}',
+            sub: e.data.plotId,
+            dot: const Color(0xFF1565C0),
+          ));
+        }
+      }
+    }
+
+    // Sort by date descending
+    events.sort((a, b) => b.date.compareTo(a.date));
+
+    if (events.isEmpty) {
+      return _emptyView();
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      itemCount: events.length,
+      itemBuilder: (_, i) {
+        final ev = events[i];
+        final isLast = i == events.length - 1;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline line + dot
+            SizedBox(
+              width: 24,
+              child: Column(
+                children: [
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ev.dot,
+                    ),
+                  ),
+                  if (!isLast)
+                    Container(
+                      width: 1.5,
+                      height: 44,
+                      color: Colors.grey[200],
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ev.title,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${ev.sub}  ·  ${_timeAgo(ev.date)}',
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.black45),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ─── Empty / error ──────────────────────────────────────────────────────────
+
+  Widget _emptyView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.grass_rounded, size: 52, color: Colors.grey[300]),
+            const SizedBox(height: 14),
+            const Text(
+              'No saved records yet',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Go back and fill in your first plot to see it here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.black38),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _errorView(String msg) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 40, color: Colors.black26),
+            const SizedBox(height: 12),
+            Text(
+              msg,
+              textAlign: TextAlign.center,
+              style:
+                  const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => setState(() {}),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _darkGreen, foregroundColor: Colors.white),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Section label ─────────────────────────────────────────────────────────
+
+  Widget _sectionLabel(String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 5),
+        child: Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.black38,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+      );
+
+  // ─── Edit ──────────────────────────────────────────────────────────────────
+
+  Future<void> _editPlot(
+      BuildContext context, FieldData plot, String docId) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final List<TextEditingController> cropControllers =
+
+    // Controllers pre-filled
+    final cropControllers =
         plot.crops.map((c) => TextEditingController(text: c['type'])).toList();
-    final List<TextEditingController> stageControllers =
+    final stageControllers =
         plot.crops.map((c) => TextEditingController(text: c['stage'])).toList();
-    final TextEditingController areaController =
-        TextEditingController(text: plot.area?.toString());
-    final TextEditingController nitrogenController =
-        TextEditingController(text: plot.npk['N']?.toString());
-    final TextEditingController phosphorusController =
-        TextEditingController(text: plot.npk['P']?.toString());
-    final TextEditingController potassiumController =
-        TextEditingController(text: plot.npk['K']?.toString());
-    final List<TextEditingController> microNutrientControllers =
-        plot.microNutrients.map((m) => TextEditingController(text: m)).toList()
-          ..add(TextEditingController());
+    final areaCtrl =
+        TextEditingController(text: plot.area?.toString() ?? '');
+    final nCtrl = TextEditingController(text: plot.npk['N']?.toString() ?? '');
+    final pCtrl = TextEditingController(text: plot.npk['P']?.toString() ?? '');
+    final kCtrl = TextEditingController(text: plot.npk['K']?.toString() ?? '');
 
     List<Map<String, String>> editedCrops = List.from(plot.crops);
-    List<String> editedMicroNutrients = List.from(plot.microNutrients);
-    List<Map<String, dynamic>> editedInterventions = List.from(plot.interventions);
-    List<Map<String, dynamic>> editedReminders = List.from(plot.reminders);
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Edit ${plot.plotId} Entry'),
+      builder: (dCtx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+        title: Text(
+          'Edit ${plot.plotId}',
+          style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _darkGreen),
+        ),
         content: StatefulBuilder(
-          builder: (context, setState) => SingleChildScrollView(
+          builder: (ctx, setS) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ...cropControllers.asMap().entries.map((entry) {
-                  int idx = entry.key;
+                  final idx = entry.key;
                   return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextField(
-                        controller: cropControllers[idx],
-                        decoration: const InputDecoration(labelText: 'Crop Type'),
-                      ),
-                      TextField(
-                        controller: stageControllers[idx],
-                        decoration: const InputDecoration(labelText: 'Crop Stage'),
-                      ),
-                      const SizedBox(height: 8),
+                      Text('Crop ${idx + 1}',
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.black45)),
+                      const SizedBox(height: 4),
+                      _editField('Crop type', cropControllers[idx]),
+                      const SizedBox(height: 6),
+                      _editField('Growth stage', stageControllers[idx]),
+                      const SizedBox(height: 12),
                     ],
                   );
                 }),
-                if (plot.structureType == 'intercrop')
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        cropControllers.add(TextEditingController());
-                        stageControllers.add(TextEditingController());
-                        editedCrops.add({'type': '', 'stage': ''});
-                      });
-                    },
-                    child: const Text('+ Additional Crop'),
-                  ),
+                _editField('Area (Acres)', areaCtrl,
+                    keyboardType: TextInputType.number),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: areaController,
-                  decoration: const InputDecoration(labelText: 'Area (Acres)'),
-                  keyboardType: TextInputType.text,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nitrogenController,
-                  decoration: const InputDecoration(labelText: 'Nitrogen (N)'),
-                  keyboardType: TextInputType.number,
-                ),
-                TextField(
-                  controller: phosphorusController,
-                  decoration: const InputDecoration(labelText: 'Phosphorus (P)'),
-                  keyboardType: TextInputType.number,
-                ),
-                TextField(
-                  controller: potassiumController,
-                  decoration: const InputDecoration(labelText: 'Potassium (K)'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 8),
-                Column(
-                  children: microNutrientControllers.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final controller = entry.value;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: controller,
-                              decoration: const InputDecoration(labelText: 'Micro-Nutrient'),
-                              onChanged: (value) {
-                                if (value.isNotEmpty && !editedMicroNutrients.contains(value)) {
-                                  setState(() => editedMicroNutrients.add(value));
-                                }
-                              },
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle, color: Colors.red),
-                            onPressed: () {
-                              setState(() {
-                                microNutrientControllers.removeAt(idx);
-                                if (controller.text.isNotEmpty) {
-                                  editedMicroNutrients.remove(controller.text);
-                                }
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-                ElevatedButton(
-                  onPressed: () =>
-                      setState(() => microNutrientControllers.add(TextEditingController())),
-                  child: const Text('Add Another Micro-Nutrient'),
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: editedMicroNutrients
-                      .map((m) => Chip(
-                            label: Text(m),
-                            onDeleted: () => setState(() {
-                              editedMicroNutrients.remove(m);
-                              final controller = microNutrientControllers
-                                  .firstWhere((c) => c.text == m, orElse: () => TextEditingController());
-                              microNutrientControllers.remove(controller);
-                            }),
-                          ))
-                      .toList(),
-                ),
+                Row(children: [
+                  Expanded(
+                      child: _editField('N (kg/ha)', nCtrl,
+                          keyboardType: TextInputType.number)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                      child: _editField('P (kg/ha)', pCtrl,
+                          keyboardType: TextInputType.number)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                      child: _editField('K (kg/ha)', kCtrl,
+                          keyboardType: TextInputType.number)),
+                ]),
               ],
             ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.black45)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
-              editedMicroNutrients = microNutrientControllers
-                  .map((c) => c.text.trim())
-                  .where((t) => t.isNotEmpty)
+              editedCrops = cropControllers.asMap().entries
+                  .map((e) => {
+                        'type': cropControllers[e.key].text,
+                        'stage': stageControllers[e.key].text,
+                      })
+                  .where((c) => c['type']!.isNotEmpty)
                   .toList();
-              editedCrops = cropControllers.asMap().entries.map((entry) {
-                int idx = entry.key;
-                return {
-                  'type': cropControllers[idx].text,
-                  'stage': stageControllers[idx].text,
-                };
-              }).where((c) => c['type']!.isNotEmpty).toList();
-              Navigator.pop(dialogContext, true);
+              Navigator.pop(dCtx, true);
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _darkGreen,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
             child: const Text('Save'),
           ),
         ],
@@ -371,25 +951,21 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
     );
 
     if (result == true && mounted) {
-      final updatedFieldData = FieldData(
+      final updated = FieldData(
         userId: widget.userId,
         plotId: plot.plotId,
         crops: editedCrops,
-        area: areaController.text.isNotEmpty ? double.tryParse(areaController.text) : null,
+        area: areaCtrl.text.isNotEmpty
+            ? double.tryParse(areaCtrl.text)
+            : null,
         npk: {
-          'N': nitrogenController.text.isNotEmpty
-              ? double.tryParse(nitrogenController.text)
-              : null,
-          'P': phosphorusController.text.isNotEmpty
-              ? double.tryParse(phosphorusController.text)
-              : null,
-          'K': potassiumController.text.isNotEmpty
-              ? double.tryParse(potassiumController.text)
-              : null,
+          'N': nCtrl.text.isNotEmpty ? double.tryParse(nCtrl.text) : null,
+          'P': pCtrl.text.isNotEmpty ? double.tryParse(pCtrl.text) : null,
+          'K': kCtrl.text.isNotEmpty ? double.tryParse(kCtrl.text) : null,
         },
-        microNutrients: editedMicroNutrients,
-        interventions: editedInterventions,
-        reminders: editedReminders,
+        microNutrients: plot.microNutrients,
+        interventions: plot.interventions,
+        reminders: plot.reminders,
         timestamp: Timestamp.now(),
         structureType: plot.structureType,
         fertilizerRecommendation: plot.fertilizerRecommendation,
@@ -399,35 +975,75 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
         await FirebaseFirestore.instance
             .collection('fielddata')
             .doc(docId)
-            .set(updatedFieldData.toMap());
+            .set(updated.toMap());
         if (mounted) {
-          scaffoldMessenger
-              .showSnackBar(const SnackBar(content: Text('Entry updated successfully')));
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF2E7D32),
+              behavior: SnackBarBehavior.floating,
+              content: Text('Record updated'),
+            ),
+          );
         }
       } catch (e) {
         if (mounted) {
-          scaffoldMessenger
-              .showSnackBar(SnackBar(content: Text('Error updating entry: $e')));
+          scaffoldMessenger.showSnackBar(
+              SnackBar(content: Text('Error: $e')));
         }
       }
     }
   }
 
+  Widget _editField(
+    String label,
+    TextEditingController ctrl, {
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: keyboardType,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        isDense: true,
+      ),
+    );
+  }
+
+  // ─── Delete ────────────────────────────────────────────────────────────────
+
   Future<void> _deletePlot(BuildContext context, String docId) async {
     final messenger = ScaffoldMessenger.of(context);
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: const Text('Are you sure you want to delete this entry?'),
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Delete record',
+            style:
+                TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        content: const Text(
+            'This record will be permanently deleted. This cannot be undone.',
+            style: TextStyle(fontSize: 13, color: Colors.black54)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.black45)),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8))),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -435,15 +1051,22 @@ class _PlotSummaryTabState extends State<PlotSummaryTab> {
 
     if (confirm == true && mounted) {
       try {
-        await FirebaseFirestore.instance.collection('fielddata').doc(docId).delete();
+        await FirebaseFirestore.instance
+            .collection('fielddata')
+            .doc(docId)
+            .delete();
         if (mounted) {
-          messenger
-              .showSnackBar(const SnackBar(content: Text('Entry deleted successfully')));
+          messenger.showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text('Record deleted'),
+            ),
+          );
         }
       } catch (e) {
         if (mounted) {
-          messenger
-              .showSnackBar(SnackBar(content: Text('Error deleting entry: $e')));
+          messenger.showSnackBar(
+              SnackBar(content: Text('Error deleting: $e')));
         }
       }
     }

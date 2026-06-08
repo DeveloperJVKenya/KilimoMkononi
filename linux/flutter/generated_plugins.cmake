@@ -3,7 +3,9 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_linux
   file_selector_linux
+  flutter_timezone
   open_file_linux
   url_launcher_linux
 )

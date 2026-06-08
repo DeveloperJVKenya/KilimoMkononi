@@ -37,6 +37,7 @@ class DiseaseIntervention {
   final String diseaseName;
   final String cropType;
   final String cropStage;
+  final String? cycle;                    // ← NEW
   final String intervention;
   final double? dosage;
   final String? unit;
@@ -51,6 +52,7 @@ class DiseaseIntervention {
     required this.diseaseName,
     required this.cropType,
     required this.cropStage,
+    this.cycle,                           // ← NEW
     required this.intervention,
     this.dosage,
     this.unit,
@@ -63,10 +65,10 @@ class DiseaseIntervention {
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'diseaseName': diseaseName,
       'cropType': cropType,
       'cropStage': cropStage,
+      'cycle': cycle,                     // ← NEW
       'intervention': intervention,
       'dosage': dosage,
       'unit': unit,
@@ -84,6 +86,7 @@ class DiseaseIntervention {
       diseaseName: data['diseaseName'] as String,
       cropType: data['cropType'] as String,
       cropStage: data['cropStage'] as String,
+      cycle: data['cycle'] as String?,                    // ← NEW
       intervention: data['intervention'] as String? ?? '',
       dosage: data['dosage']?.toDouble(),
       unit: data['unit'] as String?,
@@ -105,6 +108,7 @@ class DiseaseIntervention {
       diseaseName: data['diseaseName'] as String,
       cropType: data['cropType'] as String,
       cropStage: data['cropStage'] as String,
+      cycle: data['cycle'] as String?,                    // ← NEW
       intervention: data['intervention'] as String? ?? '',
       dosage: data['dosage']?.toDouble(),
       unit: data['unit'] as String?,
@@ -121,6 +125,7 @@ class DiseaseIntervention {
     String? diseaseName,
     String? cropType,
     String? cropStage,
+    String? cycle,                                    // ← NEW
     String? intervention,
     double? dosage,
     String? unit,
@@ -135,6 +140,7 @@ class DiseaseIntervention {
       diseaseName: diseaseName ?? this.diseaseName,
       cropType: cropType ?? this.cropType,
       cropStage: cropStage ?? this.cropStage,
+      cycle: cycle ?? this.cycle,                     // ← NEW
       intervention: intervention ?? this.intervention,
       dosage: dosage ?? this.dosage,
       unit: unit ?? this.unit,

@@ -50,7 +50,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
               _buildTocItem('4.  Permitted and Prohibited Conduct'),
               _buildTocItem('5.  Education Module — Institutional Obligations'),
               _buildTocItem('6.  Content and Agricultural Information'),
-              _buildTocItem('7.  KARLO Content Collaboration'),
+              _buildTocItem('7.  KALRO Content Collaboration'),
               _buildTocItem('8.  Intellectual Property'),
               _buildTocItem('9.  Service Availability'),
               _buildTocItem('10. Privacy'),
@@ -118,7 +118,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
                 'Do not share your password with any other person.',
               ),
               _buildBullet(
-                'You must notify us immediately at legal@jvalmacis.co.ke if you suspect any '
+                'You must notify us immediately at support@jvalmacis.co.ke if you suspect any '
                 'unauthorised access to your account.',
               ),
               _buildBullet(
@@ -169,7 +169,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
                   'be deactivated.'),
               _buildBullet(
                   'Report any concern, complaint, or incident relating to a minor user\'s safety '
-                  'or data to JV immediately at legal@jvalmacis.co.ke.'),
+                  'or data to JV immediately at support@jvalmacis.co.ke.'),
               _buildBullet(
                   'Ensure no direct communication is facilitated between minor students and adult '
                   'users outside the defined teacher-student class structure.'),
@@ -191,16 +191,16 @@ class TermsAndConditionsScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // ── 7 ───────────────────────────────────────────────────
-              _buildSectionTitle(context, '7.  KARLO Content Collaboration'),
+              _buildSectionTitle(context, '7.  KALRO Content Collaboration'),
               _buildBody(
                 'Certain agronomic content within the App is developed in collaboration with the Kenya '
-                'Agricultural and Livestock Research Organisation (KARLO) under a formal Memorandum of '
+                'Agricultural and Livestock Research Organisation (KALRO) under a formal Memorandum of '
                 'Understanding. Such content is provided for educational purposes only and is the '
-                'intellectual property of KARLO. You may not reproduce or commercially exploit KARLO '
+                'intellectual property of KALRO. You may not reproduce or commercially exploit KALRO '
                 'content outside the App.',
               ),
               _buildBody(
-                'JV does NOT share your personal data with KARLO. See the Privacy Policy (accessible '
+                'JV does NOT share your personal data with KALRO. See the Privacy Policy (accessible '
                 'from Settings) for full details.',
               ),
               const SizedBox(height: 24),
@@ -209,7 +209,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
               _buildSectionTitle(context, '8.  Intellectual Property'),
               _buildBody(
                 'All content, software, design, trademarks, and data within the App are the '
-                'intellectual property of JV ALMA CIS Kenya or its licensed partners (including KARLO '
+                'intellectual property of JV ALMA CIS Kenya or its licensed partners (including KALRO '
                 'for agronomic content). You may not reproduce, distribute, modify, or create '
                 'derivative works from any App content without prior written permission from JV. '
                 'The App is licensed to you for personal use only — it is not sold to you.',
@@ -295,7 +295,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
               _buildBody(
                 'Upon termination, your personal data will be handled in accordance with the '
                 'Privacy Policy. You may request deletion of your account and data at any time by '
-                'contacting legal@jvalmacis.co.ke.',
+                'contacting support@jvalmacis.co.ke.',
               ),
               const SizedBox(height: 24),
 
@@ -323,8 +323,8 @@ class TermsAndConditionsScreen extends StatelessWidget {
               _buildBody(
                 'For questions about these Terms or to exercise your rights, please contact us:',
               ),
-              _buildContactRow(Icons.email, 'legal@jvalmacis.co.ke'),
-              _buildContactRow(Icons.phone, '+254 712 174 516'),
+              _buildContactRow(Icons.email, 'support@jvalmacis.co.ke'),
+              _buildContactRow(Icons.phone, '+254 795 802 020'),
               _buildContactRow(Icons.language, 'www.jvalmacis.co.ke'),
               _buildContactRow(
                 Icons.location_on,

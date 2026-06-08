@@ -8,6 +8,7 @@ import 'field_data_input.dart';
 import 'field_quiz.dart';
 import 'simulations/field_operations_simulation.dart';
 import 'field_all_school_data.dart';
+import 'package:kilimomkononi/education/edu_farm_conditions_screen.dart';
 
 const Color primaryGreen = Color(0xFF032704);
 
@@ -15,12 +16,16 @@ class FieldHome extends StatefulWidget {
   final EduRole role;
   final String schoolName;
   final String classId;
+  /// Set to false when FieldHome is embedded inside a parent screen
+  /// that already provides an AppBar (e.g. education_home right-pane).
+  final bool showAppBar;
 
   const FieldHome({
     super.key,
     required this.role,
     required this.schoolName,
     required this.classId,
+    this.showAppBar = true,
   });
 
   @override
@@ -35,6 +40,9 @@ class _FieldHomeState extends State<FieldHome> {
       context,
       MaterialPageRoute(
         builder: (BuildContext context) => FieldOperationsSimulation(
+          classId: widget.classId,
+          module: 'field_operations',
+          studentName: 'Student',
           onComplete: () {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -73,8 +81,16 @@ class _FieldHomeState extends State<FieldHome> {
       tabs = [
         FieldDataInput(role: widget.role, schoolName: widget.schoolName, classId: widget.classId),
         FieldQuizScreen(role: widget.role, schoolName: widget.schoolName, classId: widget.classId),
+        EduFarmConditionsScreen(
+          role:        widget.role,
+          schoolName:  widget.schoolName,
+          classId:     widget.classId,
+          contentType: 'field_submissions',
+        ),
       ];
-      appBarTitle = _currentTab == 0 ? 'Field Data Entry' : 'Field Quiz';
+      appBarTitle = _currentTab == 0 ? 'Field Data Entry'
+          : _currentTab == 1 ? 'Field Quiz'
+          : 'Farm Conditions';
     }
 
     return WillPopScope(
@@ -87,27 +103,27 @@ class _FieldHomeState extends State<FieldHome> {
         return true;
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(appBarTitle),
-          backgroundColor: primaryGreen,
-          foregroundColor: Colors.white,
-          automaticallyImplyLeading: false,
-          leading: isMobile
-              ? (onQuizTab
-                  // Quiz tab → back to data entry tab
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      tooltip: 'Back to Field Data',
-                      onPressed: () => setState(() => _currentTab = 0),
-                    )
-                  // Data tab → back to menu/sidebar
-                  : IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      tooltip: 'Back',
-                      onPressed: () => Navigator.of(context).pop(),
-                    ))
-              : null, // Desktop/tablet: sidebar handles navigation
-        ),
+        appBar: widget.showAppBar
+            ? AppBar(
+                title: Text(appBarTitle),
+                backgroundColor: primaryGreen,
+                foregroundColor: Colors.white,
+                automaticallyImplyLeading: false,
+                leading: isMobile
+                    ? (onQuizTab
+                        ? IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            tooltip: 'Back to Field Data',
+                            onPressed: () => setState(() => _currentTab = 0),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            tooltip: 'Back',
+                            onPressed: () => Navigator.of(context).pop(),
+                          ))
+                    : null,
+              )
+            : null,
         body: IndexedStack(index: _currentTab, children: tabs),
         bottomNavigationBar: isHeadteacher
             ? BottomNavigationBar(
@@ -124,16 +140,17 @@ class _FieldHomeState extends State<FieldHome> {
             : BottomNavigationBar(
                 currentIndex: _currentTab,
                 onTap: (i) {
-                  if (i == 2) {
+                  if (i == 3) {
                     _launchSimulation();
-                  } else if (i < 2) {
+                  } else if (i < 3) {
                     setState(() => _currentTab = i);
                   }
                 },
-                items: [
-                  const BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Field Data'),
-                  const BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
-                  const BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
+                items: const [
+                  BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Field Data'),
+                  BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
+                  BottomNavigationBarItem(icon: Icon(Icons.sensors_rounded), label: 'Farm Data'),
+                  BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
                 ],
                 selectedItemColor: primaryGreen,
                 unselectedItemColor: Colors.grey,

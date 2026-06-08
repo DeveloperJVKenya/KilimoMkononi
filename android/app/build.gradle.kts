@@ -3,14 +3,12 @@ import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
-    // START: FlutterFire Configuration
     id("com.google.gms.google-services")
-    // END: FlutterFire Configuration
-    id("kotlin-android")
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// ✅ Load keystore properties
+// Load keystore properties
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
@@ -19,48 +17,59 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.jvalmacis.kilimomkononi"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "29.0.14033849"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-        isCoreLibraryDesugaringEnabled = true  
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
-        freeCompilerArgs = listOf("-Xlint:-options", "-Xlint:-deprecation")
+        jvmTarget = "11"
     }
 
     defaultConfig {
-    applicationId = "com.jvalmacis.kilimomkononi"
-    minSdk = flutter.minSdkVersion
-    targetSdk = flutter.targetSdkVersion
-    versionCode = flutter.flutterVersionCode?.toInt() ?: 1
-    versionName = flutter.flutterVersionName ?: "1.0.7"
-}
+        applicationId = "com.jvalmacis.kilimomkononi"
+        minSdk = flutter.minSdkVersion
+        targetSdk = 36
+        versionCode = 12
+        versionName = "1.1.3"
+        multiDexEnabled = true
+
+        ndk {
+            abiFilters.addAll(listOf(
+                "armeabi-v7a",
+                "arm64-v8a",
+                "x86_64"
+            ))
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
 
     signingConfigs {
         create("release") {
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
+            if (keystorePropertiesFile.exists()) {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
         }
     }
 
     buildTypes {
         release {
-            // ✅ Use the release signing config
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             isShrinkResources = false
         }
-    }
-
-    tasks.withType<JavaCompile>().configureEach {
-        options.compilerArgs.addAll(listOf("-Xlint:-options", "-Xlint:-deprecation"))
     }
 }
 
@@ -69,6 +78,5 @@ flutter {
 }
 
 dependencies {
-    // implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.21")
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")  
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

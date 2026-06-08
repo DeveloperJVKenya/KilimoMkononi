@@ -6,6 +6,8 @@ import 'disease_data_input.dart';
 import 'disease_quiz.dart';
 import 'simulations/disease_management_interactive_simulation.dart';
 import 'pest_disease_all_school_data.dart';
+import 'edu_ai_photo_tab.dart';
+import 'package:kilimomkononi/education/edu_farm_conditions_screen.dart';
 
 const Color primaryGreen = Color(0xFF388E3C);
 
@@ -29,12 +31,16 @@ class DiseaseHome extends StatefulWidget {
 
 class _DiseaseHomeState extends State<DiseaseHome> {
   int _currentTab = 0;
+  Map<String, String>? _prefillFromAi;
 
   void _launchSimulation() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (BuildContext context) => DiseaseManagementInteractiveSimulation(
+          classId: widget.classId,
+          module: 'disease',
+          studentName: 'Student',
           onComplete: () {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -74,11 +80,34 @@ class _DiseaseHomeState extends State<DiseaseHome> {
           role: widget.role,
           schoolName: widget.schoolName,
           classId: widget.classId,
-          prefillData: widget.prefillData,
+          prefillData: _prefillFromAi ?? widget.prefillData,
         ),
         DiseaseQuizScreen(role: widget.role, schoolName: widget.schoolName, classId: widget.classId),
+        EduAiPhotoTab(
+          isPest: false,
+          classId: widget.classId,
+          schoolName: widget.schoolName,
+          onPrefill: (data) {
+            setState(() {
+              _prefillFromAi = data;
+              _currentTab = 0;
+            });
+          },
+        ),
+        EduFarmConditionsScreen(
+          role:        widget.role,
+          schoolName:  widget.schoolName,
+          classId:     widget.classId,
+          contentType: 'disease_data',
+        ),
       ];
-      appBarTitle = _currentTab == 0 ? 'Disease Data Entry' : 'Disease Quiz';
+      appBarTitle = _currentTab == 0
+          ? 'Disease Data Entry'
+          : _currentTab == 1
+              ? 'Disease Quiz'
+              : _currentTab == 2
+                  ? 'AI Photo Diagnosis'
+                  : 'Farm Conditions';
     }
 
     return Scaffold(
@@ -105,16 +134,18 @@ class _DiseaseHomeState extends State<DiseaseHome> {
           : BottomNavigationBar(
               currentIndex: _currentTab,
               onTap: (i) {
-                if (i == 2 ) {
+                if (i == 4) {
                   _launchSimulation();
-                } else if (i < 2) {
+                } else {
                   setState(() => _currentTab = i);
                 }
               },
-              items: [
-                const BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Disease Data'),
-                const BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
-                const BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.note_add), label: 'Disease Data'),
+                BottomNavigationBarItem(icon: Icon(Icons.quiz), label: 'Quiz'),
+                BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: 'AI Photo'),
+                BottomNavigationBarItem(icon: Icon(Icons.sensors_rounded), label: 'Farm Data'),
+                BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Simulation'),
               ],
               selectedItemColor: primaryGreen,
               unselectedItemColor: Colors.grey,

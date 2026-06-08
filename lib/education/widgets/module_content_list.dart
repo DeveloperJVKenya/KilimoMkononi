@@ -4,9 +4,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:kilimomkononi/education/quiz/quiz_home.dart' as quiz_home;
-import 'package:kilimomkononi/education/simulation/simulation_home.dart' as sim_home;
+import 'package:kilimomkononi/education/simulation/simulation_home.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:kilimomkononi/models/education_user.dart'; // For EduRole
 
 class ModuleQuizList extends StatelessWidget {
   final String schoolName;
@@ -41,7 +41,7 @@ class ModuleQuizList extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => quiz_home.GenericQuizPlayer(
+            builder: (_) => GenericQuizPlayer(
               title: item['title'],
               questions: questions,
               module: item['module'],
@@ -80,16 +80,15 @@ class ModuleSimulationList extends StatelessWidget {
         return '${steps?.length ?? 0} step${steps?.length == 1 ? '' : 's'}';
       },
       onTap: (item) {
-        final Map sim = json.decode(item['data'] as String);
-        final steps = sim['steps'] as List;
+        // Redirect to the new modern Simulation Home instead of old GenericSimulationPlayer
         Navigator.pop(context);
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => sim_home.GenericSimulationPlayer(
-              title: item['title'],
-              steps: steps,
-              module: item['module'],
+            builder: (_) => SimulationHome(
+              classId: gradeId,
+              schoolName: schoolName,
+              role: EduRole.student,
             ),
           ),
         );
@@ -118,7 +117,7 @@ class ModuleManualList extends StatelessWidget {
       getTitle: (data, raw) => data['title']?.toString() ?? 'Manual',
       getSubtitle: (data, raw) => data['crop']?.toString().capitalize() ?? 'General',
       onTap: (item) {
-        // You can open PDF viewer or download here
+        // You can open PDF viewer or download here later
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Opening manual: ${item['title']}')),
         );
@@ -157,7 +156,7 @@ class _ModuleContentList extends StatelessWidget {
       'farming_content',
       'market_content',
       'weather_content',
-      'manuals_content', // Added for manuals
+      'manuals_content',
     ];
 
     final moduleInfo = {
@@ -292,6 +291,32 @@ class _ModuleContentList extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class GenericQuizPlayer extends StatelessWidget {
+  final String title;
+  final List<dynamic> questions;
+  final String module;
+
+  const GenericQuizPlayer({
+    super.key,
+    required this.title,
+    required this.questions,
+    required this.module,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Text(
+          'Quiz player for $module (${questions.length} questions)',
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 }

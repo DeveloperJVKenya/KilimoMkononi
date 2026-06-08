@@ -1,4 +1,4 @@
-// lib/education/disease/disease_simulation.dart
+/*// lib/education/disease/disease_simulation.dart
 
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
@@ -526,4 +526,4 @@ class _DiseaseSimulationBuilderDialogState extends State<DiseaseSimulationBuilde
           ),
         ],
       );
-}
+}*/

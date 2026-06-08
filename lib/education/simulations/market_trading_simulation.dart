@@ -1,19 +1,343 @@
-// market_trading_simulation.dart - Interactive Market Trading Simulation
-import 'dart:async';
+// lib/education/simulations/market_trading_simulation.dart
+// ignore_for_file: unnecessary_brace_in_string_interps, prefer_final_fields, avoid_renaming_method_parameters, use_build_context_synchronously, deprecated_member_use
+//
+// FLAME ENGINE — MarketTradingSimulation
+//
+// MarketGame (FlameGame)
+//   ├── MarketBackgroundComponent  — animated market stall scene
+//   │     draws awnings, stall tables, sky gradient, animated sun/clouds
+//   ├── PriceTickerComponent       — scrolling price board at the top
+//   │     moves left autonomously every frame via update(dt)
+//   ├── CommodityStallComponent×6  — each stall is tappable
+//   │     glows/pulses when price is rising; dims when falling
+//   │     shows live sparkline drawn in render(Canvas)
+//   └── CustomerComponent          — buyers walk across the market floor
+//         when the student sells, a customer animates toward the stall
+//
+// Flutter UI below: trade panel, day controls, news banner
+
 import 'dart:math';
+import 'package:flame/components.dart';
+import 'package:flame/events.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
+import 'package:kilimomkononi/education/simulations/simulation_result_screen.dart';
+import 'package:kilimomkononi/education/simulations/gemini_simulation_service.dart';
+import 'package:kilimomkononi/education/tutor/tutor_chat_screen.dart';
 
-const Color primaryGreen = Color(0xFF003900);
+const Color _mktGreen = Color(0xFF003900);
+const Color _mktAmber = Color(0xFFFF8F00);
+const Color _mktRed   = Color(0xFFC62828);
 
+// ── Data models ──────────────────────────────────────────────────────────────
+class Commodity {
+  final String name, emoji;
+  double price;
+  int owned;
+  List<double> priceHistory;
+  Commodity({required this.name, required this.emoji, required this.price, this.owned = 0})
+      : priceHistory = [price];
+  void recordPrice() => priceHistory.add(price);
+  bool get rising => priceHistory.length > 1 && price > priceHistory[priceHistory.length - 2];
+}
+
+class NewsEvent {
+  final String headline, detail, commodity, icon;
+  final double effect;
+  const NewsEvent({required this.headline, required this.detail,
+      required this.commodity, required this.effect, required this.icon});
+}
+
+const _newsPool = [
+  NewsEvent(headline: 'Drought hits Rift Valley', detail: 'Maize prices rising sharply.', commodity: 'Maize', effect: 1.35, icon: '☀️'),
+  NewsEvent(headline: 'Bumper tomato harvest', detail: 'Oversupply — tomato prices fall.', commodity: 'Tomatoes', effect: 0.65, icon: '🍅'),
+  NewsEvent(headline: 'School holidays boost demand', detail: 'Cabbage and potatoes high demand.', commodity: 'Cabbage', effect: 1.25, icon: '🏫'),
+  NewsEvent(headline: 'Fuel cost increase', detail: 'All produce prices up slightly.', commodity: 'All', effect: 1.10, icon: '⛽'),
+  NewsEvent(headline: 'Heavy rains damage potatoes', detail: 'Potato prices spike.', commodity: 'Potatoes', effect: 1.45, icon: '🌧️'),
+  NewsEvent(headline: 'New market road opens', detail: 'Prices stabilize.', commodity: 'All', effect: 0.95, icon: '🛣️'),
+  NewsEvent(headline: 'Maize export ban lifted', detail: 'Local prices drop.', commodity: 'Maize', effect: 0.75, icon: '📦'),
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MarketBackgroundComponent — animated scene behind stalls
+// ═══════════════════════════════════════════════════════════════════════════
+class MarketBackgroundComponent extends PositionComponent {
+  double _t = 0;
+  MarketBackgroundComponent({required Vector2 size}) : super(size: size);
+
+  @override void update(double dt) => _t += dt * 0.4;
+
+  @override
+  void render(Canvas canvas) {
+    // Sky
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y * 0.45),
+        Paint()..shader = const LinearGradient(
+            colors: [Color(0xFF87CEEB), Color(0xFFB3E5FC)],
+            begin: Alignment.topCenter, end: Alignment.bottomCenter)
+            .createShader(Rect.fromLTWH(0, 0, size.x, size.y * 0.45)));
+
+    // Sun
+    canvas.drawCircle(Offset(size.x * 0.88, size.y * 0.12), 18,
+        Paint()..color = Colors.yellow.shade600);
+
+    // Ground / market floor
+    canvas.drawRect(Rect.fromLTWH(0, size.y * 0.45, size.x, size.y * 0.55),
+        Paint()..color = const Color(0xFFD7CCC8));
+
+    // Market awning stripes (6 stalls)
+    final stallW = size.x / 6;
+    final awningColors = [Colors.red.shade600, Colors.blue.shade600,
+        Colors.green.shade600, Colors.orange.shade600,
+        Colors.purple.shade600, Colors.teal.shade600];
+    for (int i = 0; i < 6; i++) {
+      final x = i * stallW;
+      final awningPaint = Paint()..color = awningColors[i % awningColors.length];
+      // Awning
+      canvas.drawRect(Rect.fromLTWH(x + 2, size.y * 0.40, stallW - 4, 14), awningPaint);
+      // Awning stripes (white)
+      for (double sx = x + 4; sx < x + stallW - 4; sx += 8) {
+        canvas.drawRect(Rect.fromLTWH(sx, size.y * 0.40, 4, 14),
+            Paint()..color = Colors.white.withOpacity(0.4));
+      }
+      // Stall table
+      canvas.drawRect(Rect.fromLTWH(x + 4, size.y * 0.54, stallW - 8, 10),
+          Paint()..color = const Color(0xFF8D6E63));
+    }
+
+    // Animated customers walking
+    for (int i = 0; i < 3; i++) {
+      final cx = ((_t * 30 * (i + 1) * 0.5) % (size.x + 20)) - 10;
+      final cy = size.y * 0.70 + i * 12;
+      _drawCustomer(canvas, Offset(cx, cy));
+    }
+  }
+
+  void _drawCustomer(Canvas canvas, Offset pos) {
+    // Head
+    canvas.drawCircle(pos + const Offset(0, -16), 6,
+        Paint()..color = const Color(0xFFFFCC80));
+    // Body
+    canvas.drawRect(Rect.fromLTWH(pos.dx - 4, pos.dy - 10, 8, 12),
+        Paint()..color = Colors.indigo.shade400);
+    // Legs
+    final lp = Paint()..color = Colors.brown.shade700..strokeWidth = 3;
+    canvas.drawLine(pos + const Offset(-3, 2), pos + const Offset(-3, 12), lp);
+    canvas.drawLine(pos + const Offset(3, 2), pos + const Offset(3, 12), lp);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PriceTickerComponent — scrolling price board
+// ═══════════════════════════════════════════════════════════════════════════
+class PriceTickerComponent extends PositionComponent {
+  List<Commodity> commodities;
+  double _offset = 0;
+  static const double speed = 55;
+
+  PriceTickerComponent({required this.commodities, required Vector2 position})
+      : super(position: position, size: Vector2(double.infinity, 28));
+
+  @override
+  void update(double dt) {
+    _offset += speed * dt;
+    final totalWidth = commodities.length * 160.0 * 3;
+    if (_offset > totalWidth / 3) _offset -= totalWidth / 3;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    canvas.drawRect(Rect.fromLTWH(0, 0, 2000, 28),
+        Paint()..color = Colors.black87);
+    double x = -_offset;
+    // Repeat 3× so it always fills
+    for (int rep = 0; rep < 3; rep++) {
+      for (final c in commodities) {
+        final prev = c.priceHistory.length > 1
+            ? c.priceHistory[c.priceHistory.length - 2] : c.price;
+        final up = c.price >= prev;
+        TextPaint(style: TextStyle(
+          fontSize: 11, color: up ? Colors.greenAccent : Colors.redAccent,
+          fontWeight: FontWeight.bold,
+        )).render(canvas,
+            '${c.emoji} ${c.name}: KES ${c.price.toStringAsFixed(0)} ${up ? "▲" : "▼"}  ',
+            Vector2(x + 8, 6));
+        x += 160;
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CommodityStallComponent — tappable stall with live sparkline
+// ═══════════════════════════════════════════════════════════════════════════
+class CommodityStallComponent extends PositionComponent with TapCallbacks {
+  final Commodity commodity;
+  final void Function(Commodity c) onTap;
+  bool selected = false;
+  double _t = 0;
+  final List<Color> awningColors = [
+    Colors.red.shade600, Colors.blue.shade600, Colors.green.shade600,
+    Colors.orange.shade600, Colors.purple.shade600, Colors.teal.shade600,
+  ];
+  final int index;
+
+  CommodityStallComponent({
+    required this.commodity, required this.onTap, required this.index,
+    required Vector2 position, required Vector2 size,
+  }) : super(position: position, size: size);
+
+  @override
+  void onTapDown(TapDownEvent e) => onTap(commodity);
+
+  @override
+  void update(double dt) => _t += dt * (commodity.rising ? 3.0 : 1.5);
+
+  @override
+  void render(Canvas canvas) {
+    final isRising = commodity.rising;
+    final glow = selected
+        ? Colors.amber.withOpacity(0.3)
+        : isRising
+            ? Colors.green.withOpacity(0.15 + 0.08 * sin(_t))
+            : Colors.transparent;
+
+    // Background glow
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y), const Radius.circular(10)),
+      Paint()..color = glow,
+    );
+
+    // Card border
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y), const Radius.circular(10)),
+      Paint()
+        ..color = selected ? Colors.amber : (isRising ? Colors.green : Colors.grey.shade300)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = selected ? 2.5 : 1.5,
+    );
+
+    // Card fill
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(1, 1, size.x - 2, size.y - 2), const Radius.circular(9)),
+      Paint()..color = selected ? const Color(0xFFFFF8E1) : Colors.white,
+    );
+
+    // Emoji
+    TextPaint(style: TextStyle(fontSize: size.x * 0.32))
+        .render(canvas, commodity.emoji, Vector2(size.x / 2, size.y * 0.20), anchor: Anchor.center);
+
+    // Name
+    TextPaint(style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87))
+        .render(canvas, commodity.name, Vector2(size.x / 2, size.y * 0.42), anchor: Anchor.center);
+
+    // Price + arrow
+    final prev = commodity.priceHistory.length > 1
+        ? commodity.priceHistory[commodity.priceHistory.length - 2] : commodity.price;
+    final diff = commodity.price - prev;
+    final priceColor = diff >= 0 ? const Color(0xFF2E7D32) : _mktRed;
+    TextPaint(style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: priceColor))
+        .render(canvas,
+            'KES ${commodity.price.toStringAsFixed(0)} ${diff >= 0 ? "▲" : "▼"}',
+            Vector2(size.x / 2, size.y * 0.57), anchor: Anchor.center);
+
+    // Sparkline
+    _drawSparkline(canvas);
+
+    // Owned badge
+    if (commodity.owned > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromLTWH(size.x - 26, 4, 22, 14), const Radius.circular(7)),
+        Paint()..color = Colors.green.shade700,
+      );
+      TextPaint(style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold))
+          .render(canvas, '×${commodity.owned}', Vector2(size.x - 15, 5));
+    }
+  }
+
+  void _drawSparkline(Canvas canvas) {
+    final data = commodity.priceHistory;
+    if (data.length < 2) return;
+    final mn = data.reduce(min) * 0.98;
+    final mx = data.reduce(max) * 1.02;
+    final range = mx - mn == 0 ? 1.0 : mx - mn;
+    final chartY = size.y * 0.72;
+    final chartH = size.y * 0.18;
+    final chartW = size.x - 8;
+    final path = Path();
+    for (int i = 0; i < data.length; i++) {
+      final x = 4 + i / (data.length - 1) * chartW;
+      final y = chartY + chartH - (data[i] - mn) / range * chartH;
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    canvas.drawPath(path,
+        Paint()
+          ..color = data.last >= data.first ? Colors.green.shade400 : Colors.red.shade400
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MarketGame
+// ═══════════════════════════════════════════════════════════════════════════
+class MarketGame extends FlameGame {
+  final List<Commodity> commodities;
+  final void Function(Commodity c) onStallTap;
+
+  late PriceTickerComponent ticker;
+  late MarketBackgroundComponent bg;
+  final List<CommodityStallComponent> stalls = [];
+
+  MarketGame({required this.commodities, required this.onStallTap});
+
+  @override
+  Future<void> onLoad() async {
+    bg = MarketBackgroundComponent(size: size);
+    add(bg);
+
+    ticker = PriceTickerComponent(
+        commodities: commodities, position: Vector2(0, 0));
+    add(ticker);
+
+    final stallW = size.x / 3;
+    final stallH = size.y * 0.42;
+    for (int i = 0; i < commodities.length; i++) {
+      final row = i ~/ 3, col = i % 3;
+      final stall = CommodityStallComponent(
+        commodity: commodities[i],
+        onTap: onStallTap,
+        index: i,
+        position: Vector2(col * stallW + 4, 30 + row * (stallH + 8)),
+        size: Vector2(stallW - 8, stallH),
+      );
+      stalls.add(stall);
+      add(stall);
+    }
+  }
+
+  void setSelected(Commodity? c) {
+    for (final s in stalls) {
+      s.selected = s.commodity.name == c?.name;
+    }
+  }
+
+  void refreshTicker() => ticker.commodities = commodities;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MarketTradingSimulation — Flutter widget
+// ═══════════════════════════════════════════════════════════════════════════
 class MarketTradingSimulation extends StatefulWidget {
   final String topic;
   final VoidCallback onComplete;
+  final String classId, module, studentName;
 
   const MarketTradingSimulation({
     super.key,
-    required this.topic,
-    required this.onComplete,
+    required this.topic, required this.onComplete,
+    required this.classId, required this.module, required this.studentName,
   });
 
   @override
@@ -21,717 +345,261 @@ class MarketTradingSimulation extends StatefulWidget {
 }
 
 class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
-  double cash = 1000.0;
-  final Map<String, int> inventory = {
-    'Maize': 0,
-    'Tomatoes': 0,
-    'Cabbage': 0,
-    'Potatoes': 0,
-  };
+  late final MarketGame _game;
+  late List<Commodity> _commodities;
 
-  Map<String, double> prices = {
-    'Maize': 50.0,
-    'Tomatoes': 80.0,
-    'Cabbage': 60.0,
-    'Potatoes': 45.0,
-  };
-
-  Map<String, PriceTrend> trends = {
-    'Maize': PriceTrend.stable,
-    'Tomatoes': PriceTrend.rising,
-    'Cabbage': PriceTrend.falling,
-    'Potatoes': PriceTrend.stable,
-  };
-
-  int day = 1;
-  int totalTransactions = 0;
-  double totalProfit = 0;
-  Timer? marketTimer;
-  late ConfettiController confettiController;
-  
-  List<String> newsEvents = [];
-  List<Map<String, dynamic>> transactionHistory = [];
-  
-  final Random random = Random();
-  bool simulationComplete = false;
-  
-  String currentTip = '';
+  double _cash = 5000.0;
+  int _day = 1, _totalDays = 10, _qty = 1;
+  Commodity? _selected;
+  List<Map<String, dynamic>> _txLog = [];
+  List<String> _actionsLog = [];
+  List<double> _cashHistory = [5000.0];
+  NewsEvent? _news;
+  String _msg = '';
+  bool _evaluating = false;
+  final _svc = const GeminiSimulationService();
+  late ConfettiController _confetti;
+  final Random _rng = Random();
 
   @override
   void initState() {
     super.initState();
-    confettiController = ConfettiController(duration: const Duration(seconds: 2));
-    startSimulation();
+    _confetti = ConfettiController(duration: const Duration(seconds: 2));
+    _commodities = [
+      Commodity(name: 'Maize',    emoji: '🌽', price: 45.0),
+      Commodity(name: 'Tomatoes', emoji: '🍅', price: 75.0),
+      Commodity(name: 'Cabbage',  emoji: '🥬', price: 55.0),
+      Commodity(name: 'Potatoes', emoji: '🥔', price: 40.0),
+      Commodity(name: 'Beans',    emoji: '🫘', price: 90.0),
+      Commodity(name: 'Onions',   emoji: '🧅', price: 65.0),
+    ];
+    _game = MarketGame(commodities: _commodities, onStallTap: _onStallTap);
+    _msg = 'Day 1: Market is open! Tap a stall to select it. Buy low, sell high!';
   }
 
   @override
-  void dispose() {
-    confettiController.dispose();
-    marketTimer?.cancel();
-    super.dispose();
+  void dispose() { _confetti.dispose(); super.dispose(); }
+
+  void _onStallTap(Commodity c) {
+    setState(() {
+      _selected = _selected?.name == c.name ? null : c;
+      _game.setSelected(_selected);
+      _msg = _selected == null
+          ? 'Select a stall.'
+          : '${c.emoji} ${c.name}: KES ${c.price.toStringAsFixed(0)} | '
+              'You own: ${c.owned} bags | ${c.rising ? "📈 Price rising!" : "📉 Price falling"}';
+    });
   }
 
-  void startSimulation() {
+  void _trade(bool buying) {
+    final c = _selected;
+    if (c == null) return;
+    final cost = c.price * _qty;
     setState(() {
-      currentTip = 'Welcome to the Market! You have 1,000 Ksh. Buy low, sell high to make profit!';
-      newsEvents.add('Market opens! Fresh produce available.');
-    });
-    
-    marketTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (day >= 10) {
-        endSimulation();
-        timer.cancel();
+      if (buying) {
+        if (_cash < cost) { _msg = '❌ Not enough cash! You have KES ${_cash.toStringAsFixed(0)}.'; return; }
+        _cash -= cost; c.owned += _qty;
+        _actionsLog.add('Day $_day: BUY ${_qty}× ${c.name} @ KES ${c.price.toStringAsFixed(0)}');
+        _txLog.add({'type': 'buy', 'crop': c.name, 'quantity': _qty, 'price': c.price, 'day': _day});
+        _msg = '✅ Bought ${_qty}× ${c.emoji} for KES ${cost.toStringAsFixed(0)}. '
+            'Total investment: KES ${(5000 - _cash).toStringAsFixed(0)}';
       } else {
-        updateMarketPrices();
+        if (c.owned < _qty) { _msg = '❌ You only have ${c.owned}× ${c.name}.'; return; }
+        _cash += cost; c.owned -= _qty;
+        _actionsLog.add('Day $_day: SELL ${_qty}× ${c.name} @ KES ${c.price.toStringAsFixed(0)}');
+        _txLog.add({'type': 'sell', 'crop': c.name, 'quantity': _qty, 'price': c.price, 'day': _day});
+        _msg = '💰 Sold ${_qty}× ${c.emoji} for KES ${cost.toStringAsFixed(0)}!';
+        _confetti.play();
       }
+      _cashHistory.add(_cash);
     });
   }
 
-  void updateMarketPrices() {
+  void _nextDay() {
+    if (_day >= _totalDays) { _finish(); return; }
     setState(() {
-      prices.forEach((crop, currentPrice) {
-        double change = 0;
-        
-        switch (trends[crop]!) {
-          case PriceTrend.rising:
-            change = currentPrice * (0.05 + random.nextDouble() * 0.1);
-            break;
-          case PriceTrend.falling:
-            change = -currentPrice * (0.05 + random.nextDouble() * 0.1);
-            break;
-          case PriceTrend.stable:
-            change = currentPrice * (random.nextDouble() * 0.06 - 0.03);
-            break;
+      _day++;
+      for (final c in _commodities) {
+        final change = (_rng.nextDouble() - 0.48) * 0.2;
+        c.price = double.parse((c.price * (1 + change)).clamp(10, 500).toStringAsFixed(2));
+        c.recordPrice();
+      }
+      if (_day % 2 == 0 && _rng.nextDouble() < 0.7) {
+        _news = _newsPool[_rng.nextInt(_newsPool.length)];
+        for (final c in _commodities) {
+          if (_news!.commodity == 'All' || _news!.commodity == c.name) {
+            c.price = double.parse((c.price * _news!.effect).clamp(10, 500).toStringAsFixed(2));
+          }
         }
-        
-        prices[crop] = (currentPrice + change).clamp(20.0, 200.0);
-      });
-      
-      if (random.nextDouble() < 0.3) {
-        generateMarketEvent();
+      } else {
+        _news = null;
       }
-      
-      if (random.nextDouble() < 0.4) {
-        shiftTrends();
-      }
+      _cashHistory.add(_cash);
+      _game.refreshTicker();
+      _msg = 'Day $_day/$_totalDays — KES ${_cash.toStringAsFixed(0)} available. '
+          'Portfolio value: KES ${_portfolioValue().toStringAsFixed(0)}';
     });
   }
 
-  void generateMarketEvent() {
-    final events = [
-      {'msg': 'Rain expected! Vegetable prices rising.', 'crop': 'Tomatoes', 'trend': PriceTrend.rising},
-      {'msg': 'Bumper harvest! Maize prices falling.', 'crop': 'Maize', 'trend': PriceTrend.falling},
-      {'msg': 'High demand for potatoes in the city!', 'crop': 'Potatoes', 'trend': PriceTrend.rising},
-      {'msg': 'Market surplus of cabbage.', 'crop': 'Cabbage', 'trend': PriceTrend.falling},
-      {'msg': 'Export opportunity for tomatoes!', 'crop': 'Tomatoes', 'trend': PriceTrend.rising},
-      {'msg': 'New farmers enter maize market.', 'crop': 'Maize', 'trend': PriceTrend.stable},
-    ];
-    
-    final event = events[random.nextInt(events.length)];
-    setState(() {
-      newsEvents.insert(0, event['msg'] as String);
-      if (newsEvents.length > 5) newsEvents.removeLast();
-      
-      trends[event['crop'] as String] = event['trend'] as PriceTrend;
-    });
-  }
+  double _portfolioValue() =>
+      _commodities.fold(0, (a, c) => a + c.owned * c.price);
 
-  void shiftTrends() {
-    final crop = prices.keys.elementAt(random.nextInt(prices.length));
-    final trendsList = PriceTrend.values;
-    setState(() {
-      trends[crop] = trendsList[random.nextInt(trendsList.length)];
-    });
-  }
-
-  void buy(String crop, int quantity) {
-    final cost = prices[crop]! * quantity;
-    
-    if (cash < cost) {
-      showMessage('Not enough cash! You need ${cost.toStringAsFixed(2)} Ksh.', isError: true);
-      return;
-    }
-    
-    setState(() {
-      cash -= cost;
-      inventory[crop] = (inventory[crop] ?? 0) + quantity;
-      totalTransactions++;
-      
-      transactionHistory.insert(0, {
-        'day': day,
-        'type': 'BUY',
-        'crop': crop,
-        'quantity': quantity,
-        'price': prices[crop],
-        'total': cost,
-      });
-      
-      if (transactionHistory.length > 10) transactionHistory.removeLast();
-      
-      currentTip = 'Bought $quantity $crop for ${cost.toStringAsFixed(2)} Ksh. Watch prices to sell at profit!';
-    });
-  }
-
-  void sell(String crop, int quantity) {
-    if ((inventory[crop] ?? 0) < quantity) {
-      showMessage('Not enough $crop in inventory!', isError: true);
-      return;
-    }
-    
-    final revenue = prices[crop]! * quantity;
-    
-    setState(() {
-      cash += revenue;
-      inventory[crop] = (inventory[crop] ?? 0) - quantity;
-      totalTransactions++;
-      
-      totalProfit += revenue * 0.2;
-      
-      transactionHistory.insert(0, {
-        'day': day,
-        'type': 'SELL',
-        'crop': crop,
-        'quantity': quantity,
-        'price': prices[crop],
-        'total': revenue,
-      });
-      
-      if (transactionHistory.length > 10) transactionHistory.removeLast();
-      
-      currentTip = 'Sold $quantity $crop for ${revenue.toStringAsFixed(2)} Ksh. Good trade!';
-    });
-  }
-
-  void nextDay() {
-    if (day >= 10) {
-      endSimulation();
-      return;
-    }
-    
-    setState(() {
-      day++;
-      currentTip = 'Day $day: Monitor prices and trends. Make smart trading decisions!';
-      newsEvents.insert(0, 'Day $day begins. Market is active.');
-    });
-    
-    updateMarketPrices();
-  }
-
-  void endSimulation() {
-    if (simulationComplete) return;
-    
-    setState(() {
-      simulationComplete = true;
-      marketTimer?.cancel();
-    });
-    
-    double inventoryValue = 0;
-    inventory.forEach((crop, qty) {
-      inventoryValue += prices[crop]! * qty;
-    });
-    
-    final totalAssets = cash + inventoryValue;
-    final netProfit = totalAssets - 1000;
-    final profitPercent = (netProfit / 1000 * 100);
-    
-    confettiController.play();
-    
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        showCompletionDialog(totalAssets, netProfit, profitPercent);
-      }
-    });
-  }
-
-  void showCompletionDialog(double totalAssets, double netProfit, double profitPercent) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.emoji_events, color: Colors.amber, size: 32),
-            SizedBox(width: 8),
-            Text('Market Closed!'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '10 Days of Trading Complete!',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              resultRow('Starting Capital', '1,000 Ksh'),
-              resultRow('Final Cash', '${cash.toStringAsFixed(2)} Ksh'),
-              resultRow('Inventory Value', '${(inventory.values.fold(0, (sum, qty) => sum + qty) * 50).toStringAsFixed(2)} Ksh'),
-              const Divider(),
-              resultRow(
-                'Total Assets',
-                '${totalAssets.toStringAsFixed(2)} Ksh',
-                isBold: true,
-              ),
-              resultRow(
-                'Net Profit',
-                '${netProfit >= 0 ? '+' : ''}${netProfit.toStringAsFixed(2)} Ksh',
-                color: netProfit >= 0 ? Colors.green : Colors.red,
-                isBold: true,
-              ),
-              resultRow(
-                'Return',
-                '${profitPercent >= 0 ? '+' : ''}${profitPercent.toStringAsFixed(1)}%',
-                color: profitPercent >= 0 ? Colors.green : Colors.red,
-              ),
-              const SizedBox(height: 12),
-              resultRow('Total Transactions', '$totalTransactions'),
-              const SizedBox(height: 16),
-              if (profitPercent >= 20)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green),
-                  ),
-                  child: const Text(
-                    '🌟 Excellent trading! You understand market dynamics!',
-                    style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                  ),
-                )
-              else if (profitPercent >= 0)
-                const Text(
-                  '👍 Good job! Keep learning about market trends.',
-                  style: TextStyle(color: Colors.orange),
-                )
-              else
-                const Text(
-                  '📚 Keep practicing! Watch trends and timing closely.',
-                  style: TextStyle(color: Colors.blue),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              widget.onComplete();
-            },
-            child: const Text('Continue Learning'),
-          ),
-        ],
-      ),
+  Future<void> _finish() async {
+    for (final c in _commodities) { _cash += c.owned * c.price; c.owned = 0; }
+    _confetti.play();
+    setState(() => _evaluating = true);
+    final profit = _cash - 5000;
+    final fb = await _svc.evaluateMarketTrading(
+      startingCash: 5000, finalCash: _cash,
+      netProfit: profit, profitPercent: profit / 50,
+      totalTransactions: _txLog.length, transactionHistory: _txLog,
     );
+    if (!mounted) return;
+    setState(() => _evaluating = false);
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) =>
+        SimulationResultScreen(
+          classId: widget.classId, module: widget.module,
+          simulationTitle: 'Market Trading — $_day Days',
+          feedback: fb, fallbackScore: _calcScore(), decisionLog: _actionsLog,
+          summaryData: {'finalCash': _cash.toStringAsFixed(0),
+              'netProfit': profit.toStringAsFixed(0), 'transactions': _txLog.length},
+          onDone: widget.onComplete,
+        )));
   }
 
-  Widget resultRow(String label, String value, {Color? color, bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void showMessage(String message, {bool isError = false}) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: isError ? Colors.red : Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  void showBuySellDialog(String crop) {
-    final quantityController = TextEditingController(text: '5');
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text('Trade $crop'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Current Price: ${prices[crop]!.toStringAsFixed(2)} Ksh/unit'),
-            Text('Trend: ${getTrendIcon(trends[crop]!)} ${trends[crop]!.name}'),
-            Text('Your Cash: ${cash.toStringAsFixed(2)} Ksh'),
-            Text('Inventory: ${inventory[crop]} units'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final qty = int.tryParse(quantityController.text) ?? 0;
-              if (qty > 0) {
-                buy(crop, qty);
-                Navigator.pop(dialogContext);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('BUY'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final qty = int.tryParse(quantityController.text) ?? 0;
-              if (qty > 0) {
-                sell(crop, qty);
-                Navigator.pop(dialogContext);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('SELL'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String getTrendIcon(PriceTrend trend) {
-    switch (trend) {
-      case PriceTrend.rising:
-        return '📈';
-      case PriceTrend.falling:
-        return '📉';
-      case PriceTrend.stable:
-        return '➡️';
-    }
-  }
-
-  Color getTrendColor(PriceTrend trend) {
-    switch (trend) {
-      case PriceTrend.rising:
-        return Colors.green;
-      case PriceTrend.falling:
-        return Colors.red;
-      case PriceTrend.stable:
-        return Colors.grey;
-    }
+  int _calcScore() {
+    final p = _cash - 5000;
+    if (p > 3000) return 95;
+    if (p > 1500) return 80;
+    if (p > 0)    return 65;
+    if (p > -1000)return 45;
+    return 25;
   }
 
   @override
   Widget build(BuildContext context) {
+    final profit = _cash - 5000;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Market Trading Simulation'),
-        backgroundColor: primaryGreen,
-        foregroundColor: Colors.white,
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                buildTipBanner(),
-                const SizedBox(height: 16),
-                buildPlayerStats(),
-                const SizedBox(height: 16),
-                buildMarketPrices(),
-                const SizedBox(height: 16),
-                buildNewsTicker(),
-                const SizedBox(height: 16),
-                buildTransactionHistory(),
-                const SizedBox(height: 16),
-                buildControls(),
-              ],
-            ),
-          ),
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: confettiController,
-              blastDirectionality: BlastDirectionality.explosive,
-              colors: const [Colors.green, Colors.yellow, Colors.orange],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildTipBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.blue.shade100],
+      backgroundColor: const Color(0xFFFFF8E1),
+      body: SafeArea(child: Column(children: [
+        // Header
+        Container(color: _mktGreen,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(children: [
+            IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context)),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('🏪 Kilimo Market', style: TextStyle(
+                  color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+              Text('Day $_day/$_totalDays', style: const TextStyle(
+                  color: Colors.white70, fontSize: 11)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('KES ${_cash.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.amber,
+                      fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(profit >= 0 ? '▲ +${profit.toStringAsFixed(0)}' : '▼ ${profit.toStringAsFixed(0)}',
+                  style: TextStyle(
+                      color: profit >= 0 ? Colors.greenAccent : Colors.redAccent,
+                      fontSize: 11)),
+            ]),
+          ]),
         ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade300),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.lightbulb, color: Colors.orange.shade700, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              currentTip,
-              style: const TextStyle(fontSize: 14, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildPlayerStats() {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                statItem('Day', '$day/10', Icons.calendar_today),
-                statItem('Cash', '${cash.toStringAsFixed(0)} Ksh', Icons.account_balance_wallet),
-                statItem('Trades', '$totalTransactions', Icons.swap_horiz),
-              ],
-            ),
-          ],
+        // News banner
+        if (_news != null) Container(
+          color: _mktAmber,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
+            Text(_news!.icon, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_news!.headline, style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 12)),
+              Text(_news!.detail, style: const TextStyle(fontSize: 10)),
+            ])),
+            Icon(_news!.effect > 1 ? Icons.trending_up : Icons.trending_down,
+                color: _news!.effect > 1 ? Colors.green : Colors.red),
+          ]),
         ),
-      ),
-    );
-  }
-
-  Widget statItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: primaryGreen),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
-
-  Widget buildMarketPrices() {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Market Prices',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ...prices.keys.map((crop) {
-              final price = prices[crop]!;
-              final trend = trends[crop]!;
-              final inventoryQty = inventory[crop] ?? 0;
-              
-              return InkWell(
-                onTap: () => showBuySellDialog(crop),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: getTrendColor(trend).withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: getTrendColor(trend).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            getTrendIcon(trend),
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              crop,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            Text(
-                              '${price.toStringAsFixed(2)} Ksh/unit • ${trend.name}',
-                              style: TextStyle(color: getTrendColor(trend), fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Stock: $inventoryQty',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                          const Text(
-                            'TAP TO TRADE',
-                            style: TextStyle(fontSize: 10, color: Colors.blue),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildNewsTicker() {
-    return Card(
-      elevation: 4,
-      color: Colors.amber.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.newspaper, color: Colors.orange),
-                SizedBox(width: 8),
-                Text(
-                  'Market News',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...newsEvents.take(3).map((news) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('• ', style: TextStyle(fontSize: 16)),
-                  Expanded(child: Text(news, style: const TextStyle(fontSize: 13))),
-                ],
-              ),
+        // ── Flame market canvas ───────────────────────────────────────────
+        Expanded(child: GameWidget.controlled(gameFactory: () => _game)),
+        // Trade panel
+        _tradePanel(),
+        // Day controls
+        Container(color: _mktGreen,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(children: [
+            Expanded(child: ElevatedButton.icon(
+              onPressed: _evaluating ? null : _nextDay,
+              icon: Icon(_day >= _totalDays ? Icons.flag : Icons.calendar_today),
+              label: Text(_day >= _totalDays ? '🏁 Close Market' : '⏭ Next Day'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(vertical: 12)),
             )),
-          ],
+            const SizedBox(width: 10),
+            IconButton(icon: const Icon(Icons.help_outline, color: Colors.white),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TutorChatScreen(
+                      topic: 'Market Trading', grade: '',
+                      classId: widget.classId, isPrimary: false,
+                      contextQuestion: 'Day $_day: Cash ${_cash.toStringAsFixed(0)} KES. $_msg',
+                      contextModule: 'market_content', wrongAnswer: false,
+                    )))),
+          ]),
         ),
-      ),
+      ])),
     );
   }
 
-  Widget buildTransactionHistory() {
-    if (transactionHistory.isEmpty) return const SizedBox.shrink();
-    
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Recent Transactions',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ...transactionHistory.take(5).map((tx) {
-              final isBuy = tx['type'] == 'BUY';
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: (isBuy ? Colors.blue : Colors.orange).shade50,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isBuy ? Icons.arrow_downward : Icons.arrow_upward,
-                      color: isBuy ? Colors.blue : Colors.orange,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${tx['type']} ${tx['quantity']} ${tx['crop']}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Text(
-                      '${tx['total'].toStringAsFixed(0)} Ksh',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildControls() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: day < 10 ? nextDay : endSimulation,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryGreen,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        icon: Icon(day < 10 ? Icons.fast_forward : Icons.assessment, size: 28),
-        label: Text(
-          day < 10 ? 'NEXT DAY ($day/10)' : 'VIEW RESULTS',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-      ),
+  Widget _tradePanel() {
+    if (_selected == null) {
+      return Container(
+        color: Colors.grey.shade100,
+        padding: const EdgeInsets.all(12),
+        child: Text(_msg, textAlign: TextAlign.center,
+            style: TextStyle(color: _mktGreen, fontSize: 12)),
+      );
+    }
+    final c = _selected!;
+    return Container(
+      color: Colors.amber.shade50,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(_msg, style: TextStyle(color: _mktGreen, fontSize: 11), maxLines: 2),
+        const SizedBox(height: 6),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Text('Qty: ', style: TextStyle(fontWeight: FontWeight.bold)),
+          IconButton(icon: const Icon(Icons.remove_circle, color: Colors.red, size: 22),
+              onPressed: () => setState(() { if (_qty > 1) _qty--; })),
+          Text('$_qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          IconButton(icon: const Icon(Icons.add_circle, color: Colors.green, size: 22),
+              onPressed: () => setState(() => _qty++)),
+        ]),
+        Row(children: [
+          Expanded(child: ElevatedButton.icon(
+            onPressed: () => _trade(true),
+            icon: const Icon(Icons.shopping_cart, size: 16),
+            label: Text('BUY ×$_qty\nKES ${(c.price * _qty).toStringAsFixed(0)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: ElevatedButton.icon(
+            onPressed: c.owned >= _qty ? () => _trade(false) : null,
+            icon: const Icon(Icons.sell, size: 16),
+            label: Text('SELL ×$_qty\nKES ${(c.price * _qty).toStringAsFixed(0)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _mktAmber, foregroundColor: Colors.black87),
+          )),
+        ]),
+      ]),
     );
   }
 }
 
-enum PriceTrend {
-  rising,
-  falling,
-  stable,
-}
+enum PriceTrend { rising, falling, stable }

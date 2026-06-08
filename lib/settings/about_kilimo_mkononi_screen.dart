@@ -107,9 +107,9 @@ class AboutKilimoMkononiScreen extends StatelessWidget {
               _buildSectionTitle(context, 'Get in Touch'),
               const Text(
                 'Have questions or feedback? Reach out to us!\n'
-                'Email: infojvalmacis@gmail.com\n'
-                'Phone: +254712174516\n'
-                'Website: https://almagreentech.co.ke/#',
+                'Email: support@jvalmacis.co.ke\n'
+                'Phone: +254 795 802 020\n'
+                'Website: https://jvalmacis.com#',
                 style: TextStyle(fontSize: 16, height: 1.5),
               ),
               const SizedBox(height: 16),

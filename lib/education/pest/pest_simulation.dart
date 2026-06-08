@@ -1,4 +1,4 @@
-// lib/education/pest/pest_simulation.dart
+/*// lib/education/pest/pest_simulation.dart
 
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
@@ -526,4 +526,4 @@ class _PestSimulationBuilderDialogState extends State<PestSimulationBuilderDialo
           ),
         ],
       );
-}
+}*/

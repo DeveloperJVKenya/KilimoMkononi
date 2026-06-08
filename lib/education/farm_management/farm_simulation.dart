@@ -1,4 +1,4 @@
-// lib/education/farm_management/farm_simulation.dart
+/*// lib/education/farm_management/farm_simulation.dart
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'dart:convert';
@@ -515,4 +515,4 @@ class _FarmSimulationBuilderDialogState extends State<FarmSimulationBuilderDialo
           ),
         ],
       );
-}
+}*/

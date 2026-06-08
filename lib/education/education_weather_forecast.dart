@@ -1,9 +1,8 @@
-// education_weather_forecast.dart - FINAL VERSION WITH ROLE-BASED UX & FULL 5-DAY FORECAST
+// lib/education/education_weather_forecast.dart
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously, unused_element
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:confetti/confetti.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -14,40 +13,44 @@ import '../../utils/class_id_notifier.dart';
 import '../../models/education_user.dart';
 import '../../config.dart';
 import 'simulations/weather_prediction_simulation.dart';
-
+import 'quiz/shared_quiz_widgets.dart';
 
 const Color primaryGreen = Color(0xFF032704);
 
 extension StringExt on String {
-  String capitalize() => isNotEmpty ? '${this[0].toUpperCase()}${substring(1)}' : this;
+  String capitalize() =>
+      isNotEmpty ? '${this[0].toUpperCase()}${substring(1)}' : this;
 }
 
 extension TextEditingControllerExt on TextEditingController {
   String get safeText => text.trim();
 }
 
-// Weather Models
+// ─── Weather data models (unchanged) ──────────────────────────────────────
+
 class WeatherCurrent {
   final double temp;
   final String desc;
   final String icon;
   final double humidity;
   final double windSpeed;
-  final int pressure;
+  final int    pressure;
 
   WeatherCurrent.fromJson(Map<String, dynamic> json)
-      : temp = (json['main']['temp'] as num).toDouble(),
-        desc = json['weather'][0]['description'].toString().capitalize(),
-        icon = json['weather'][0]['icon'] as String,
-        humidity = (json['main']['humidity'] as num).toDouble(),
-        windSpeed = (json['wind']['speed'] as num).toDouble(),
-        pressure = json['main']['pressure'] as int;
+      : temp      = (json['main']['temp']      as num).toDouble(),
+        desc      = json['weather'][0]['description']
+                        .toString()
+                        .capitalize(),
+        icon      = json['weather'][0]['icon'] as String,
+        humidity  = (json['main']['humidity']  as num).toDouble(),
+        windSpeed = (json['wind']['speed']     as num).toDouble(),
+        pressure  = json['main']['pressure']   as int;
 }
 
 class WeatherForecastDay {
-  final String date;
-  final double minTemp;
-  final double maxTemp;
+  final String       date;
+  final double       minTemp;
+  final double       maxTemp;
   final List<String> descriptions;
   final List<String> icons;
 
@@ -60,10 +63,12 @@ class WeatherForecastDay {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+
 class EducationWeatherForecast extends StatefulWidget {
   final EduRole role;
-  final String schoolName;
-  final String classId;
+  final String  schoolName;
+  final String  classId;
 
   const EducationWeatherForecast({
     super.key,
@@ -73,54 +78,62 @@ class EducationWeatherForecast extends StatefulWidget {
   });
 
   @override
-  State<EducationWeatherForecast> createState() => _EducationWeatherForecastState();
+  State<EducationWeatherForecast> createState() =>
+      _EducationWeatherForecastState();
 }
 
-class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
+class _EducationWeatherForecastState
+    extends State<EducationWeatherForecast> {
   final _locCtrl = TextEditingController();
 
-  // Observed weather
   String? _observedWeather;
   final List<Map<String, dynamic>> _weatherConditions = [
-    {'label': 'Sunny', 'icon': Icons.wb_sunny, 'color': Colors.orange},
-    {'label': 'Partly Sunny', 'icon': Icons.wb_cloudy, 'color': Colors.amber},
-    {'label': 'Cloudy', 'icon': Icons.cloud, 'color': Colors.grey},
-    {'label': 'Rainy', 'icon': Icons.grain, 'color': Colors.blue},
-    {'label': 'Stormy', 'icon': Icons.flash_on, 'color': Colors.deepPurple},
-    {'label': 'Windy', 'icon': Icons.air, 'color': Colors.cyan},
-    {'label': 'Broken Clouds', 'icon': Icons.wb_cloudy, 'color': Colors.blueGrey},
-    {'label': 'Light Showers', 'icon': Icons.ac_unit, 'color': Colors.lightBlue},
+    {'label': 'Sunny',         'icon': Icons.wb_sunny,    'color': Colors.orange},
+    {'label': 'Partly Sunny',  'icon': Icons.wb_cloudy,   'color': Colors.amber},
+    {'label': 'Cloudy',        'icon': Icons.cloud,       'color': Colors.grey},
+    {'label': 'Rainy',         'icon': Icons.grain,       'color': Colors.blue},
+    {'label': 'Stormy',        'icon': Icons.flash_on,    'color': Colors.deepPurple},
+    {'label': 'Windy',         'icon': Icons.air,         'color': Colors.cyan},
+    {'label': 'Broken Clouds', 'icon': Icons.wb_cloudy,   'color': Colors.blueGrey},
+    {'label': 'Light Showers', 'icon': Icons.ac_unit,     'color': Colors.lightBlue},
   ];
 
-  // Forecast data
-  WeatherCurrent? _current;
+  WeatherCurrent?        _current;
   List<WeatherForecastDay>? _forecast;
-  String? _locationName;
-  bool _loading = false;
-  String _error = '';
+  String?                _locationName;
+  bool                   _loading = false;
+  String                 _error   = '';
 
   final String _contentType = 'weather_content';
 
-  void _showSimBuilder() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (BuildContext context) => WeatherPredictionSimulation(
-          onComplete: () {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Weather prediction simulation completed!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          },
-        ),
-      ),
-    );
+  // ── Grade helpers ────────────────────────────────────────────────
+
+  bool get _isPrimary {
+    if (widget.classId.contains('cbcPrimary')) return true;
+    final match = RegExp(r'_(\d+)$').firstMatch(widget.classId);
+    if (match != null) {
+      return (int.tryParse(match.group(1)!) ?? 7) <= 6;
+    }
+    return false;
   }
 
+  String get _gradeLabel {
+    final match =
+        RegExp(r'_(\d+)$').firstMatch(widget.classId);
+    if (match != null) {
+      final n = match.group(1)!;
+      if (widget.classId.contains('eightfourfour')) {
+        final num = int.tryParse(n) ?? 1;
+        return num <= 8 ? 'Standard $n' : 'Form ${num - 8}';
+      }
+      return 'Grade $n';
+    }
+    return widget.classId;
+  }
+
+  /// Subject string passed to Gemini.
+  String get _geminiSubject =>
+      'weather patterns, climate and agriculture in Kenya';
 
   @override
   void initState() {
@@ -133,6 +146,45 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
     _locCtrl.dispose();
     super.dispose();
   }
+
+  // ── Quiz builder ─────────────────────────────────────────────────
+
+  void _showQuizBuilder() => showDialog(
+        context: context,
+        builder: (_) => EduQuizBuilder(
+          onSave:        (d) => _saveContent('quiz', d),
+          topicLabel:    'Weather',
+          geminiSubject: _geminiSubject,
+          grade:         _gradeLabel,
+          isPrimary:     _isPrimary,
+        ),
+      );
+
+  void _showSimBuilder() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WeatherPredictionSimulation(
+          classId: widget.classId,
+          module: 'Weather Forecast',
+          studentName: FirebaseAuth.instance.currentUser?.displayName ?? 'Student',
+          onComplete: () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Weather prediction simulation completed!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── Weather API ───────────────────────────────────────────────────
 
   void _selectObservedWeather(String condition) {
     setState(() => _observedWeather = condition);
@@ -155,198 +207,258 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
     }
 
     setState(() {
-      _loading = true;
-      _error = '';
-      _current = null;
+      _loading  = true;
+      _error    = '';
+      _current  = null;
       _forecast = null;
     });
 
     try {
       final coords = await _getCoordinates(loc);
       if (coords == null) {
-        setState(() => _error = 'Location not found');
+        setState(() {
+          _error   = 'Location not found';
+          _loading = false;
+        });
         return;
       }
 
-      final current = await _fetchCurrentWeather(coords);
+      final current      = await _fetchCurrentWeather(coords);
       final forecastData = await _fetchForecast(coords);
 
       if (mounted) {
         setState(() {
-          _current = current;
-          _forecast = _groupForecastByDay(forecastData);
+          _current      = current;
+          _forecast     = _groupForecastByDay(forecastData);
           _locationName = loc.capitalize();
-          _loading = false;
+          _loading      = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Failed to load weather';
+          _error   = 'Failed to load weather';
           _loading = false;
         });
       }
     }
   }
 
-  Future<Map<String, double>?> _getCoordinates(String loc) async {
-    final url = 'https://api.openweathermap.org/geo/1.0/direct?q=$loc&limit=1&appid=${Config.weatherApiKey}';
+  Future<Map<String, double>?> _getCoordinates(
+      String loc) async {
+    final url =
+        'https://api.openweathermap.org/geo/1.0/direct?q=$loc&limit=1&appid=${Config.weatherApiKey}';
     final res = await http.get(Uri.parse(url));
     if (res.statusCode == 200 && res.body.isNotEmpty) {
       final data = jsonDecode(res.body)[0];
-      return {'lat': data['lat'] as double, 'lon': data['lon'] as double};
+      return {
+        'lat': data['lat'] as double,
+        'lon': data['lon'] as double
+      };
     }
     return null;
   }
 
-  Future<WeatherCurrent> _fetchCurrentWeather(Map<String, double> coords) async {
-    final url = 'https://api.openweathermap.org/data/2.5/weather?lat=${coords['lat']}&lon=${coords['lon']}&appid=${Config.weatherApiKey}&units=metric';
+  Future<WeatherCurrent> _fetchCurrentWeather(
+      Map<String, double> coords) async {
+    final url =
+        'https://api.openweathermap.org/data/2.5/weather?lat=${coords['lat']}&lon=${coords['lon']}&appid=${Config.weatherApiKey}&units=metric';
     final res = await http.get(Uri.parse(url));
-    if (res.statusCode == 200) return WeatherCurrent.fromJson(jsonDecode(res.body));
+    if (res.statusCode == 200) {
+      return WeatherCurrent.fromJson(jsonDecode(res.body));
+    }
     throw Exception('Failed current weather');
   }
 
-  Future<List<dynamic>> _fetchForecast(Map<String, double> coords) async {
-    final url = 'https://api.openweathermap.org/data/2.5/forecast?lat=${coords['lat']}&lon=${coords['lon']}&appid=${Config.weatherApiKey}&units=metric';
+  Future<List<dynamic>> _fetchForecast(
+      Map<String, double> coords) async {
+    final url =
+        'https://api.openweathermap.org/data/2.5/forecast?lat=${coords['lat']}&lon=${coords['lon']}&appid=${Config.weatherApiKey}&units=metric';
     final res = await http.get(Uri.parse(url));
-    if (res.statusCode == 200) return jsonDecode(res.body)['list'];
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body)['list'];
+    }
     throw Exception('Failed forecast');
   }
 
-  List<WeatherForecastDay> _groupForecastByDay(List<dynamic> list) {
+  List<WeatherForecastDay> _groupForecastByDay(
+      List<dynamic> list) {
     final Map<String, List<dynamic>> grouped = {};
     for (var item in list) {
-      final date = (item['dt_txt'] as String).split(' ')[0];
+      final date =
+          (item['dt_txt'] as String).split(' ')[0];
       grouped.putIfAbsent(date, () => []).add(item);
     }
 
     return grouped.entries.map((entry) {
-      final temps = entry.value.map((i) => (i['main']['temp'] as num).toDouble()).toList();
-      final descs = entry.value.map((i) => i['weather'][0]['description'] as String).toSet().toList();
-      final icons = entry.value.map((i) => i['weather'][0]['icon'] as String).toList();
+      final temps = entry.value
+          .map((i) =>
+              (i['main']['temp'] as num).toDouble())
+          .toList();
+      final descs = entry.value
+          .map((i) =>
+              i['weather'][0]['description'] as String)
+          .toSet()
+          .toList();
+      final icons = entry.value
+          .map((i) => i['weather'][0]['icon'] as String)
+          .toList();
 
       return WeatherForecastDay(
-        date: DateFormat('EEEE, MMM d').format(DateTime.parse(entry.key)),
-        minTemp: temps.reduce((a, b) => a < b ? a : b),
-        maxTemp: temps.reduce((a, b) => a > b ? a : b),
+        date:     DateFormat('EEEE, MMM d')
+            .format(DateTime.parse(entry.key)),
+        minTemp:  temps.reduce((a, b) => a < b ? a : b),
+        maxTemp:  temps.reduce((a, b) => a > b ? a : b),
         descriptions: descs,
-        icons: icons,
+        icons:    icons,
       );
     }).toList();
   }
 
-  Widget _buildWeatherIcon(String iconCode, {double size = 50}) {
+  Widget _buildWeatherIcon(String iconCode,
+      {double size = 50}) {
     return Image.network(
       'https://openweathermap.org/img/wn/$iconCode@2x.png',
-      width: size,
+      width:  size,
       height: size,
-      errorBuilder: (_, _, _) => Icon(Icons.cloud, size: size, color: Colors.grey),
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.cloud, size: size, color: Colors.grey),
     );
   }
 
-  Future<void> _saveContent(String type, Map<String, dynamic> data) async {
+  Future<void> _saveContent(
+      String type, Map<String, dynamic> data) async {
     await FirestoreHelper.ensureGradeExists(widget.classId);
-    final collection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+    final collection = FirestoreHelper.getContentFromClassId(
+        widget.classId, _contentType);
     if (collection == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid class configuration')),
+        const SnackBar(
+            content: Text('Invalid class configuration')),
       );
       return;
     }
 
-    final String title = data['title'] as String? ?? '${type.capitalize()} Activity';
+    final String title = data['title'] as String? ??
+        '${type.capitalize()} Activity';
 
     try {
       await collection.add({
-        'type': type,
-        'title': title,
-        'data': jsonEncode(type == 'quiz' ? data['questions'] : data['steps']),
+        'type':      type,
+        'title':     title,
+        'data':      jsonEncode(type == 'quiz'
+            ? data['questions']
+            : data['steps']),
         'createdAt': FieldValue.serverTimestamp(),
-        'userId': FirebaseAuth.instance.currentUser!.uid,
+        'userId':
+            FirebaseAuth.instance.currentUser!.uid,
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$title saved successfully!'), backgroundColor: Colors.green),
+          SnackBar(
+              content: Text('$title saved successfully!'),
+              backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Failed to save: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Future<void> _launchContent(String type, String docId) async {
-    final rawCollection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+  Future<void> _launchContent(
+      String type, String docId) async {
+    final rawCollection = FirestoreHelper.getContentFromClassId(
+        widget.classId, _contentType);
     if (rawCollection == null) return;
 
     try {
-      final doc = await rawCollection.doc(docId).get();
-      final dataMap = doc.data() as Map<String, dynamic>?;
+      final doc    = await rawCollection.doc(docId).get();
+      final dataMap =
+          doc.data() as Map<String, dynamic>?;
 
       if (dataMap == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load content')),
+          const SnackBar(
+              content: Text('Failed to load content')),
         );
         return;
       }
 
-      final String title = dataMap['title'] is String && (dataMap['title'] as String).trim().isNotEmpty
+      final String title = dataMap['title'] is String &&
+              (dataMap['title'] as String).trim().isNotEmpty
           ? (dataMap['title'] as String).trim()
           : '${type.capitalize()} Activity';
 
-      final payload = jsonDecode(dataMap['data'] as String);
+      final payload =
+          jsonDecode(dataMap['data'] as String);
 
       final fullPayload = {
-        'id': doc.id,
+        'id':    doc.id,
         'title': title,
-        if (type == 'quiz') 'questions': payload,
-        if (type == 'simulation') 'steps': payload,
+        'grade': _gradeLabel,
+        'module': 'Weather Forecast',
+        if (type == 'quiz')       'questions': payload,
+        if (type == 'simulation') 'steps':     payload,
       };
 
-      if (mounted) {
-        if (type == 'quiz') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => WeatherQuizScreen(payload: fullPayload, classId: widget.classId),
+      if (!mounted) return;
+
+      if (type == 'quiz') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EduQuizScreen(
+              payload:       fullPayload,
+              classId:       widget.classId,
+              isPrimary:     _isPrimary,
+              geminiSubject: _geminiSubject,
             ),
-          );
-        } else {
-          // Launch standalone weather prediction simulation
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => WeatherPredictionSimulation(
-                onComplete: () async {
-                  // Record completion
-                  final coll = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
-                  if (coll != null) {
-                    await coll.add({
-                      'type': 'simulation',
-                      'simulationId': doc.id,
-                      'title': title,
-                      'userId': FirebaseAuth.instance.currentUser!.uid,
-                      'createdAt': FieldValue.serverTimestamp(),
-                    });
-                  }
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Weather simulation completed! 🎉'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                },
-              ),
+          ),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WeatherPredictionSimulation(
+              classId: widget.classId,
+              module: 'Weather Forecast',
+              studentName: FirebaseAuth.instance.currentUser?.displayName ?? 'Student',
+              onComplete: () async {
+                final coll =
+                    FirestoreHelper.getSubmissionsFromClassId(
+                        widget.classId);
+                if (coll != null) {
+                  await coll.add({
+                    'type':         'simulation',
+                    'simulationId': doc.id,
+                    'title':        title,
+                    'userId':
+                        FirebaseAuth.instance.currentUser!.uid,
+                    'createdAt':
+                        FieldValue.serverTimestamp(),
+                  });
+                }
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Weather simulation completed! 🎉'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
             ),
-          );
-        }
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -357,11 +469,19 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
     }
   }
 
+  String _formatDate(DateTime date) {
+    final now  = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7)  return '${diff.inDays} days ago';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool _ = widget.role == EduRole.teacher;
-    final double width = MediaQuery.of(context).size.width;
-    final bool isMobile = width < 600;
+    final double width   = MediaQuery.of(context).size.width;
+    final bool isMobile  = width < 600;
 
     return Scaffold(
       appBar: AppBar(
@@ -372,7 +492,6 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
         leading: isMobile
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: 'Back',
                 onPressed: () => Navigator.of(context).pop(),
               )
             : null,
@@ -383,33 +502,62 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // OBSERVED WEATHER
-            const Text('How is the weather today at school?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+                'How is the weather today at school?',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: _weatherConditions.map((condition) {
-                final isSelected = _observedWeather == condition['label'];
+                final isSelected =
+                    _observedWeather == condition['label'];
                 return GestureDetector(
-                  onTap: () => _selectObservedWeather(condition['label']),
+                  onTap: () => _selectObservedWeather(
+                      condition['label']),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
+                    duration:
+                        const Duration(milliseconds: 250),
                     width: 110,
                     height: 110,
                     decoration: BoxDecoration(
-                      color: isSelected ? primaryGreen : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: isSelected ? primaryGreen : Colors.grey.shade300, width: 2),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4))],
+                      color: isSelected
+                          ? primaryGreen
+                          : Colors.white,
+                      borderRadius:
+                          BorderRadius.circular(16),
+                      border: Border.all(
+                          color: isSelected
+                              ? primaryGreen
+                              : Colors.grey.shade300,
+                          width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: const Offset(0, 4))
+                      ],
                     ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
                       children: [
-                        Icon(condition['icon'], size: 40, color: isSelected ? Colors.white : condition['color']),
+                        Icon(condition['icon'],
+                            size: 40,
+                            color: isSelected
+                                ? Colors.white
+                                : condition['color']),
                         const SizedBox(height: 8),
                         Text(
                           condition['label'],
-                          style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.w600, fontSize: 13),
+                          style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -421,62 +569,93 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
 
             const SizedBox(height: 32),
 
-            // ACTIVITIES SECTION — teachers and students (not headteacher)
+            // ACTIVITIES SECTION
             if (widget.role != EduRole.headteacher)
               Padding(
-                padding: const EdgeInsets.only(bottom: 24),
+                padding:
+                    const EdgeInsets.only(bottom: 24),
                 child: Card(
                   color: Colors.green.shade50,
                   elevation: 6,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: primaryGreen, width: 2),
+                    side: BorderSide(
+                        color: primaryGreen, width: 2),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Icon(Icons.assignment_turned_in, size: 28, color: primaryGreen),
+                          Icon(Icons.assignment_turned_in,
+                              size: 28, color: primaryGreen),
                           const SizedBox(width: 10),
                           Text('Practice Activities',
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryGreen)),
+                              style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryGreen)),
                         ]),
                         const SizedBox(height: 6),
-                        const Text('Test your weather knowledge!',
-                            style: TextStyle(fontSize: 14, color: Colors.black54)),
+                        const Text(
+                            'Test your weather knowledge!',
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54)),
                         const SizedBox(height: 14),
-
-                        // ── Quizzes (full width, dynamic count) ──
-                        SizedBox(width: double.infinity, child: _buildQuizSection()),
-
-                        // ── Divider ──
+                        SizedBox(
+                            width: double.infinity,
+                            child: _buildQuizSection()),
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding:
+                              const EdgeInsets.symmetric(
+                                  vertical: 12),
                           child: Row(children: [
-                            const Expanded(child: Divider(thickness: 1)),
+                            const Expanded(
+                                child:
+                                    Divider(thickness: 1)),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              child: Text('or try', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 10),
+                              child: Text('or try',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors
+                                          .grey.shade500)),
                             ),
-                            const Expanded(child: Divider(thickness: 1)),
+                            const Expanded(
+                                child:
+                                    Divider(thickness: 1)),
                           ]),
                         ),
-
-                        // ── Simulation (full width, always available) ──
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: _showSimBuilder,
-                            icon: const Icon(Icons.play_circle_outline, size: 22),
-                            label: const Text('Run Interactive Simulation',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            icon: const Icon(
+                                Icons.play_circle_outline,
+                                size: 22),
+                            label: const Text(
+                                'Run Interactive Simulation',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight:
+                                        FontWeight.w600)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: primaryGreen,
-                              side: const BorderSide(color: primaryGreen, width: 1.5),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              side: const BorderSide(
+                                  color: primaryGreen,
+                                  width: 1.5),
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                      vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                          10)),
                             ),
                           ),
                         ),
@@ -487,15 +666,23 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
               ),
 
             // FORECAST SECTION
-            const Text('5-Day Weather Forecast', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('5-Day Weather Forecast',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             TextField(
               controller: _locCtrl,
               decoration: InputDecoration(
-                hintText: 'Enter city name (e.g. Nairobi, Mombasa, London)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.location_on),
-                suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: _fetchWeather),
+                hintText:
+                    'Enter city name (e.g. Nairobi, Mombasa, London)',
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon:
+                    const Icon(Icons.location_on),
+                suffixIcon: IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: _fetchWeather),
               ),
               onSubmitted: (_) => _fetchWeather(),
             ),
@@ -503,71 +690,121 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _loading ? null : _fetchWeather,
+                onPressed:
+                    _loading ? null : _fetchWeather,
                 icon: const Icon(Icons.cloud_download),
                 label: const Text('Load Forecast'),
-                style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, padding: const EdgeInsets.all(16)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(16)),
               ),
             ),
 
-            if (_loading) const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: primaryGreen))),
-            if (_error.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: Text(_error, style: const TextStyle(color: Colors.red))),
-
-            // OBSERVED VS FORECASTED COMPARISON
-            if (_observedWeather != null && _current != null)
+            if (_loading)
+              const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: CircularProgressIndicator(
+                          color: primaryGreen))),
+            if (_error.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  child: Text(_error,
+                      style: const TextStyle(
+                          color: Colors.red))),
+
+            // OBSERVATION VS FORECAST
+            if (_observedWeather != null &&
+                _current != null)
+              Padding(
+                padding: const EdgeInsets.only(
+                    top: 24, bottom: 16),
                 child: Card(
                   color: Colors.blue.shade50,
                   elevation: 4,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.compare_arrows, color: primaryGreen, size: 28),
-                            const SizedBox(width: 10),
-                            Text('Observation vs Forecast', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryGreen)),
-                          ],
-                        ),
+                        Row(children: [
+                          Icon(Icons.compare_arrows,
+                              color: primaryGreen, size: 28),
+                          const SizedBox(width: 10),
+                          Text(
+                              'Observation vs Forecast',
+                              style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryGreen)),
+                        ]),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  Text('You observed:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 8),
-                                  Icon(_weatherConditions.firstWhere((c) => c['label'] == _observedWeather)['icon'], size: 50, color: _weatherConditions.firstWhere((c) => c['label'] == _observedWeather)['color']),
-                                  Text(_observedWeather!, style: const TextStyle(fontSize: 18)),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward, size: 30, color: Colors.grey),
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  Text('Forecast says:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 8),
-                                  _buildWeatherIcon(_current!.icon, size: 50),
-                                  Text(_current!.desc, style: const TextStyle(fontSize: 18)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                        Row(children: [
+                          Expanded(
+                            child: Column(children: [
+                              const Text('You observed:',
+                                  style: TextStyle(
+                                      fontWeight:
+                                          FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Icon(
+                                  _weatherConditions
+                                      .firstWhere((c) =>
+                                          c['label'] ==
+                                          _observedWeather)['icon'],
+                                  size: 50,
+                                  color: _weatherConditions
+                                      .firstWhere((c) =>
+                                          c['label'] ==
+                                          _observedWeather)['color']),
+                              Text(_observedWeather!,
+                                  style: const TextStyle(
+                                      fontSize: 18)),
+                            ]),
+                          ),
+                          const Icon(Icons.arrow_forward,
+                              size: 30, color: Colors.grey),
+                          Expanded(
+                            child: Column(children: [
+                              const Text('Forecast says:',
+                                  style: TextStyle(
+                                      fontWeight:
+                                          FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              _buildWeatherIcon(
+                                  _current!.icon, size: 50),
+                              Text(_current!.desc,
+                                  style: const TextStyle(
+                                      fontSize: 18)),
+                            ]),
+                          ),
+                        ]),
                         const SizedBox(height: 12),
                         Text(
-                          _observedWeather!.toLowerCase().contains(_current!.desc.toLowerCase()) ||
-                                  _current!.desc.toLowerCase().contains(_observedWeather!.toLowerCase())
+                          _observedWeather!
+                                      .toLowerCase()
+                                      .contains(_current!.desc
+                                          .toLowerCase()) ||
+                                  _current!.desc
+                                      .toLowerCase()
+                                      .contains(
+                                          _observedWeather!
+                                              .toLowerCase())
                               ? '✅ Your observation matches the forecast!'
                               : 'ℹ️ There might be a difference today — weather can be unpredictable!',
                           style: TextStyle(
                             fontSize: 16,
-                            color: _observedWeather!.toLowerCase().contains(_current!.desc.toLowerCase()) ? Colors.green : Colors.orange,
+                            color: _observedWeather!
+                                    .toLowerCase()
+                                    .contains(_current!.desc
+                                        .toLowerCase())
+                                ? Colors.green
+                                : Colors.orange,
                             fontWeight: FontWeight.w600,
                           ),
                           textAlign: TextAlign.center,
@@ -578,199 +815,215 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
                 ),
               ),
 
-            // FULL 5-DAY FORECAST DISPLAY
+            // 5-DAY FORECAST
             if (_forecast != null && _forecast!.isNotEmpty)
               Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
                   Text(
                     'Forecast for $_locationName',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryGreen),
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: primaryGreen),
                   ),
                   const SizedBox(height: 16),
-                  ..._forecast!.map((day) => Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
+                  ..._forecast!.map(
+                    (day) => Card(
+                      margin: const EdgeInsets.only(
+                          bottom: 12),
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(children: [
+                          Expanded(
+                            flex: 2,
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(day.date,
+                                    style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight:
+                                            FontWeight.bold)),
+                                const SizedBox(height: 8),
+                                ...day.descriptions.map(
+                                    (d) => Text('• $d',
+                                        style: const TextStyle(
+                                            fontSize: 15))),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              children: day.icons
+                                  .map((i) => Padding(
+                                        padding:
+                                            const EdgeInsets
+                                                .symmetric(
+                                                    vertical:
+                                                        4),
+                                        child:
+                                            _buildWeatherIcon(
+                                                i, size: 40),
+                                      ))
+                                  .toList(),
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.end,
                             children: [
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(day.date, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 8),
-                                    ...day.descriptions.map((d) => Text('• $d', style: const TextStyle(fontSize: 15))),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: day.icons.map((i) => Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 4),
-                                        child: _buildWeatherIcon(i, size: 40),
-                                      )).toList(),
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('${day.maxTemp.round()}°C', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
-                                  Text('${day.minTemp.round()}°C', style: const TextStyle(fontSize: 16, color: Colors.blue)),
-                                ],
-                              ),
+                              Text(
+                                  '${day.maxTemp.round()}°C',
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight:
+                                          FontWeight.bold,
+                                      color: Colors.red)),
+                              Text(
+                                  '${day.minTemp.round()}°C',
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.blue)),
                             ],
                           ),
-                        ),
-                      )),
+                        ]),
+                      ),
+                    ),
+                  ),
                 ],
               ),
           ],
         ),
       ),
-                 bottomNavigationBar: (widget.role == EduRole.headteacher || widget.role == EduRole.student)
-          ? null
-          : Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.grey[50],
-              child: ElevatedButton.icon(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => WeatherQuizBuilder(onSave: (d) => _saveContent('quiz', d)),
+      bottomNavigationBar:
+          (widget.role == EduRole.headteacher ||
+                  widget.role == EduRole.student)
+              ? null
+              : Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.grey[50],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _showQuizBuilder,
+                        icon: const Icon(Icons.quiz),
+                        label: const Text(
+                            'Create Weather Quiz'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen,
+                          foregroundColor: Colors.white,
+                          minimumSize:
+                              const Size(double.infinity, 52),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                TeacherEssayReviewScreen(
+                              classId:    widget.classId,
+                              schoolName: widget.schoolName,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(
+                            Icons.rate_review_outlined),
+                        label: const Text(
+                            'Review essay submissions'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryGreen,
+                          side: const BorderSide(
+                              color: primaryGreen),
+                          minimumSize:
+                              const Size(double.infinity, 44),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                icon: const Icon(Icons.quiz),
-                label: const Text('Create Weather Quiz'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryGreen,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 52),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
     );
   }
 
-  // ==================== ACTIVITY SECTION & LIST ====================
+  // ── Quiz section (same pattern as other modules) ──────────────────
 
-  // Full-width quiz button with dynamic count — used inside Practice Activities card
   Widget _buildQuizSection() {
     final raw = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
     if (raw == null) {
-      return ElevatedButton.icon(
-        onPressed: null,
-        icon: const Icon(Icons.quiz),
-        label: const Text('Quizzes'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.grey, foregroundColor: Colors.white),
-      );
+      return _SplitActivityButtons(mcqCount: 0, essayCount: 0, onMcqTap: null, onEssayTap: null);
     }
-
     final coll = raw.withConverter<Map<String, dynamic>>(
       fromFirestore: (s, _) => s.data()!,
-      toFirestore: (d, _) => d,
+      toFirestore:   (d, _) => d,
     );
-
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: coll.where('type', isEqualTo: 'quiz').snapshots(),
       builder: (context, snapshot) {
-        final total = snapshot.data?.docs.length ?? 0;
-        return ElevatedButton.icon(
-          onPressed: total == 0 ? null : () => _showActivityList('quiz'),
-          icon: const Icon(Icons.quiz, size: 22),
-          label: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Quizzes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              Text(
-                total == 0 ? 'None yet — check back soon' : '$total available',
-                style: TextStyle(fontSize: 12, color: total == 0 ? Colors.white54 : Colors.white70),
-              ),
-            ],
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: total == 0 ? Colors.grey.shade400 : primaryGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            alignment: Alignment.centerLeft,
-          ),
+        final docs = snapshot.data?.docs ?? [];
+        int mcqDocs = 0, essayDocs = 0;
+        for (final doc in docs) {
+          final data = doc.data();
+          List<dynamic> qs = [];
+          try {
+            final raw = data['data'];
+            qs = raw is String ? (jsonDecode(raw) as List? ?? []) : (raw as List? ?? []);
+          } catch (_) {}
+          if (qs.any((q) => (q as Map<String, dynamic>?)?['type'] != 'essay')) mcqDocs++;
+          if (qs.any((q) => (q as Map<String, dynamic>?)?['type'] == 'essay')) essayDocs++;
+        }
+        return _SplitActivityButtons(
+          mcqCount:   mcqDocs,
+          essayCount: essayDocs,
+          onMcqTap:   mcqDocs   == 0 ? null : () => _showActivityList('quiz', essayOnly: false),
+          onEssayTap: essayDocs == 0 ? null : () => _showActivityList('quiz', essayOnly: true),
         );
       },
     );
   }
 
-  Widget _buildActivitySection(String type, IconData icon) {
-    final raw = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
-    if (raw == null) {
-      return ElevatedButton.icon(
-        onPressed: null,
-        icon: Icon(icon),
-        label: Text(type == 'quiz' ? 'Quizzes' : 'Simulations'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
-      );
-    }
-
-    final coll = raw.withConverter<Map<String, dynamic>>(
-      fromFirestore: (s, _) => s.data()!,
-      toFirestore: (d, _) => d,
-    );
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: coll.where('type', isEqualTo: type).snapshots(),
-      builder: (context, snapshot) {
-        int total = snapshot.data?.docs.length ?? 0;
-
-        return ElevatedButton.icon(
-          onPressed: total == 0 ? null : () => _showActivityList(type),
-          icon: Icon(icon, size: 28),
-          label: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(type == 'quiz' ? 'Quizzes' : 'Simulations', style: const TextStyle(fontSize: 18)),
-              if (total > 0) Text('$total available', style: const TextStyle(fontSize: 14)),
-            ],
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showActivityList(String type) {
+  void _showActivityList(String type, {bool essayOnly = false}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => DraggableScrollableSheet(
         initialChildSize: 0.8,
-        maxChildSize: 0.95,
-        minChildSize: 0.6,
+        maxChildSize:     0.95,
+        minChildSize:     0.6,
         expand: false,
-        builder: (_, controller) => _buildContentList(type, scrollController: controller),
+        builder: (_, controller) =>
+            _buildContentList(type, scrollController: controller, essayOnly: essayOnly),
       ),
     );
   }
 
-  Widget _buildContentList(String type, {ScrollController? scrollController}) {
-    final rawCollection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
+  Widget _buildContentList(String type,
+      {ScrollController? scrollController, bool essayOnly = false}) {
+    final rawCollection = FirestoreHelper.getContentFromClassId(
+        widget.classId, _contentType);
     if (rawCollection == null) {
-      return const Center(child: Text('Invalid configuration'));
+      return const Center(
+          child: Text('Invalid configuration'));
     }
 
-    final CollectionReference<Map<String, dynamic>> collection = rawCollection.withConverter<Map<String, dynamic>>(
-      fromFirestore: (snapshot, _) => snapshot.data()!,
-      toFirestore: (data, _) => data,
+    final CollectionReference<Map<String, dynamic>>
+        collection = rawCollection
+            .withConverter<Map<String, dynamic>>(
+      fromFirestore: (s, _) => s.data()!,
+      toFirestore:   (d, _) => d,
     );
 
     return Column(
@@ -778,29 +1031,43 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            '${type.capitalize()}s Available',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryGreen),
+            essayOnly ? 'Essay Assignments' : 'Quizzes',
+            style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: primaryGreen),
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: collection.where('type', isEqualTo: type).orderBy('createdAt', descending: true).snapshots(),
+          child:
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: collection
+                .where('type', isEqualTo: type)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: primaryGreen));
+              if (snapshot.connectionState ==
+                  ConnectionState.waiting) {
+                return const Center(
+                    child: CircularProgressIndicator(
+                        color: primaryGreen));
               }
-
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              if (!snapshot.hasData ||
+                  snapshot.data!.docs.isEmpty) {
                 return Center(
-                  child: Text(
-                    'No ${type}s available yet',
-                    style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: Colors.grey),
-                  ),
+                  child: Text('No ${type}s available yet',
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey)),
                 );
               }
 
-              final userId = FirebaseAuth.instance.currentUser!.uid;
-              final submissionsColl = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
+              final userId =
+                  FirebaseAuth.instance.currentUser!.uid;
+              final submissionsColl =
+                  FirestoreHelper.getSubmissionsFromClassId(
+                      widget.classId);
 
               return FutureBuilder<Set<String>>(
                 future: submissionsColl == null
@@ -812,26 +1079,48 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
                         .then((s) => s.docs
                             .map((d) {
                               final data = d.data();
-                              if (data is Map<String, dynamic>) {
-                                return data['${type}Id'] as String?;
+                              if (data
+                                  is Map<String, dynamic>) {
+                                return data['${type}Id']
+                                    as String?;
                               }
                               return null;
                             })
                             .whereType<String>()
                             .toSet()),
                 builder: (context, completedSnap) {
-                  final completedIds = completedSnap.data ?? <String>{};
-                  final isTeacher = widget.role == EduRole.teacher;
+                  final completedIds =
+                      completedSnap.data ?? <String>{};
+                  final filteredByType = essayOnly
+                      ? snapshot.data!.docs.where((doc) {
+                          final raw = doc.data()['data'];
+                          List<dynamic> qs = [];
+                          try {
+                            qs = raw is String
+                                ? (jsonDecode(raw) as List? ?? [])
+                                : (raw as List? ?? []);
+                          } catch (_) {}
+                          return qs.any((q) =>
+                              (q as Map<String, dynamic>?)?['type'] ==
+                              'essay');
+                        }).toList()
+                      : snapshot.data!.docs;
 
-                  // Teachers see all content; students only see what they haven't completed
+                  final isTeacher =
+                      widget.role == EduRole.teacher;
                   final availableDocs = isTeacher
-                      ? snapshot.data!.docs
-                      : snapshot.data!.docs.where((doc) => !completedIds.contains(doc.id)).toList();
+                      ? filteredByType
+                      : filteredByType
+                          .where((doc) => !completedIds
+                              .contains(doc.id))
+                          .toList();
 
                   if (availableDocs.isEmpty) {
                     return Center(
                       child: Text(
-                        isTeacher ? 'No ${type}s created yet' : 'All completed! Great job! 🎉',
+                        isTeacher
+                            ? 'No ${type}s created yet'
+                            : 'All completed! Great job! 🎉',
                         style: const TextStyle(fontSize: 18),
                       ),
                     );
@@ -842,22 +1131,36 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
                     padding: const EdgeInsets.all(16),
                     itemCount: availableDocs.length,
                     itemBuilder: (context, index) {
-                      final doc = availableDocs[index];
-                      final data = doc.data();
-                      final title = data['title'] as String? ?? 'Untitled ${type.capitalize()}';
-                      final createdAt = data['createdAt'] as Timestamp?;
+                      final doc   = availableDocs[index];
+                      final data  = doc.data();
+                      final title = data['title'] as String? ??
+                          'Untitled ${type.capitalize()}';
+                      final createdAt =
+                          data['createdAt'] as Timestamp?;
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
+                        margin: const EdgeInsets.only(
+                            bottom: 12),
                         elevation: 4,
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: primaryGreen,
-                            child: Icon(type == 'quiz' ? Icons.quiz : Icons.play_circle, color: Colors.white),
+                            child: Icon(
+                                type == 'quiz'
+                                    ? Icons.quiz
+                                    : Icons.play_circle,
+                                color: Colors.white),
                           ),
-                          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: createdAt != null ? Text('Created: ${_formatDate(createdAt.toDate())}') : null,
-                          trailing: const Icon(Icons.arrow_forward_ios),
+                          title: Text(title,
+                              style: const TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold)),
+                          subtitle: createdAt != null
+                              ? Text(
+                                  'Created: ${_formatDate(createdAt.toDate())}')
+                              : null,
+                          trailing: const Icon(
+                              Icons.arrow_forward_ios),
                           onTap: () {
                             Navigator.pop(context);
                             _launchContent(type, doc.id);
@@ -874,302 +1177,58 @@ class _EducationWeatherForecastState extends State<EducationWeatherForecast> {
       ],
     );
   }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inDays == 0) return 'Today';
-    if (diff.inDays == 1) return 'Yesterday';
-    if (diff.inDays < 7) return '${diff.inDays} days ago';
-    return '${date.day}/${date.month}/${date.year}';
-  }
 }
 
-// === QUIZ & SIMULATION SCREENS (with submission tracking) ===
-class WeatherQuizScreen extends StatefulWidget {
-  final Map<String, dynamic> payload;
-  final String classId;
+// ─── Shared split-button widget ──────────────────────────────────────────────
 
-  const WeatherQuizScreen({super.key, required this.payload, required this.classId});
-
-  @override
-  State<WeatherQuizScreen> createState() => _WeatherQuizScreenState();
-}
-
-class _WeatherQuizScreenState extends State<WeatherQuizScreen> {
-  int _idx = 0;
-  int _score = 0;
-  late final ConfettiController _conf = ConfettiController(duration: const Duration(seconds: 2));
-
-  void _ans(int sel) {
-    if (sel == widget.payload['questions'][_idx]['correct']) {
-      _score++;
-      _conf.play();
-    }
-    if (_idx < widget.payload['questions'].length - 1) {
-      setState(() => _idx++);
-    } else {
-      _submit();
-    }
-  }
-
-  Future<void> _submit() async {
-    final coll = FirestoreHelper.getSubmissionsFromClassId(widget.classId);
-    if (coll != null) {
-      await coll.add({
-        'type': 'quiz',
-        'quizId': widget.payload['id'],
-        'title': widget.payload['title'],
-        'score': _score,
-        'total': widget.payload['questions'].length,
-        'userId': FirebaseAuth.instance.currentUser!.uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Quiz Complete!'),
-          content: Text('Score: $_score / ${widget.payload['questions'].length}\n\nSaved!'),
-          actions: [TextButton(onPressed: () => Navigator.of(context)..pop()..pop(), child: const Text('Done'))],
-        ),
-      );
-    }
-  }
+class _SplitActivityButtons extends StatelessWidget {
+  final int mcqCount, essayCount;
+  final VoidCallback? onMcqTap, onEssayTap;
+  const _SplitActivityButtons({required this.mcqCount, required this.essayCount, required this.onMcqTap, required this.onEssayTap});
 
   @override
-  void dispose() {
-    _conf.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final q = widget.payload['questions'][_idx];
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.payload['title'] ?? 'Weather Quiz'), backgroundColor: primaryGreen, foregroundColor: Colors.white),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ConfettiWidget(confettiController: _conf, blastDirectionality: BlastDirectionality.explosive),
-            const SizedBox(height: 30),
-            Text(q['question'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-            const SizedBox(height: 40),
-            ...(q['options'] as List).asMap().entries.map((e) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: ElevatedButton(
-                    onPressed: () => _ans(e.key),
-                    style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 56)),
-                    child: Text('${String.fromCharCode(65 + e.key)}. ${e.value}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                  ),
-                )),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
-// BUILDERS (your original ones – unchanged)
-class WeatherQuizBuilder extends StatefulWidget {
-  final Function(Map<String, dynamic>) onSave;
-  const WeatherQuizBuilder({super.key, required this.onSave});
-
-  @override
-  State<WeatherQuizBuilder> createState() => _WeatherQuizBuilderState();
-}
-
-class _WeatherQuizBuilderState extends State<WeatherQuizBuilder> {
-  final _titleCtrl = TextEditingController();
-  final List<Map<String, dynamic>> _questions = [];
-
-  void _addQuestion() {
-    final questionCtrl = TextEditingController();
-    final optionCtrls = List.generate(4, (_) => TextEditingController());
-    int correctIndex = 0;
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add Question'),
-        content: StatefulBuilder(
-          builder: (context, setStateInner) => SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: questionCtrl, decoration: const InputDecoration(labelText: 'Question')),
-              const SizedBox(height: 12),
-              ...optionCtrls.asMap().entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(children: [
-                      Radio<int>(value: e.key, groupValue: correctIndex, onChanged: (v) => setStateInner(() => correctIndex = v ?? 0)),
-                      Expanded(child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Option ${e.key + 1}'))),
-                    ]),
-                  )),
-            ]),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: () {
-              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
-              if (questionCtrl.safeText.isEmpty || filled.isEmpty) return;
-              setState(() {
-                _questions.add({
-                  'question': questionCtrl.safeText,
-                  'options': filled.map((c) => c.safeText).toList(),
-                  'correct': correctIndex,
-                });
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Add', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Create Weather Quiz'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Quiz Title')),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(onPressed: _addQuestion, icon: const Icon(Icons.add), label: const Text('Add Question')),
-            const SizedBox(height: 16),
-            ..._questions.asMap().entries.map((e) {
-              final q = e.value;
-              final correctLetter = String.fromCharCode(65 + (q['correct'] as int));
-              return Card(
-                child: ListTile(
-                  title: Text(q['question']),
-                  subtitle: Text('Correct: $correctLetter. ${(q['options'] as List)[q['correct']]}',
-                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _questions.removeAt(e.key))),
-                ),
-              );
-            }),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: _questions.isEmpty ? null : () {
-              widget.onSave({
-                'title': _titleCtrl.safeText.isEmpty ? 'Weather Quiz' : _titleCtrl.safeText,
-                'questions': _questions,
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Save Quiz', style: TextStyle(color: Colors.white)),
-          ),
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _btn(icon: Icons.check_circle_outline, label: 'Quizzes', count: mcqCount,
+              color: Colors.blue.shade600, bgColor: Colors.blue.shade50, onTap: onMcqTap),
+          const SizedBox(height: 8),
+          _btn(icon: Icons.edit_note, label: 'Essay assignments', count: essayCount,
+              color: Colors.purple.shade600, bgColor: Colors.purple.shade50, onTap: onEssayTap),
         ],
       );
-}
 
-class WeatherSimBuilder extends StatefulWidget {
-  final Function(Map<String, dynamic>) onSave;
-  const WeatherSimBuilder({super.key, required this.onSave});
-
-  @override
-  State<WeatherSimBuilder> createState() => _WeatherSimBuilderState();
-}
-
-class _WeatherSimBuilderState extends State<WeatherSimBuilder> {
-  final _titleCtrl = TextEditingController();
-  final List<Map<String, dynamic>> _steps = [];
-
-  void _addStep() {
-    final promptCtrl = TextEditingController();
-    final optionCtrls = List.generate(4, (_) => TextEditingController());
-    int correctIndex = 0;
-    final explanationCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add Step'),
-        content: StatefulBuilder(
-          builder: (context, setStateInner) => SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: promptCtrl, decoration: const InputDecoration(labelText: 'Situation / Prompt')),
-              const SizedBox(height: 12),
-              ...optionCtrls.asMap().entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(children: [
-                      Checkbox(value: correctIndex == e.key, onChanged: (v) => setStateInner(() => correctIndex = v == true ? e.key : correctIndex)),
-                      Expanded(child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Option ${e.key + 1}'))),
-                    ]),
-                  )),
-              const SizedBox(height: 12),
-              TextField(controller: explanationCtrl, decoration: const InputDecoration(labelText: 'Explanation if wrong (optional)'), maxLines: 3),
-            ]),
+  Widget _btn({required IconData icon, required String label, required int count,
+      required Color color, required Color bgColor, required VoidCallback? onTap}) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: onTap == null ? Colors.grey.shade100 : bgColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: onTap == null ? Colors.grey.shade300 : color.withOpacity(0.35)),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: () {
-              final filled = optionCtrls.where((c) => c.safeText.isNotEmpty).toList();
-              if (promptCtrl.safeText.isEmpty || filled.isEmpty) return;
-              final options = filled.map((c) => {'text': c.safeText, 'correct': filled.indexOf(c) == correctIndex}).toList();
-              setState(() => _steps.add({'prompt': promptCtrl.safeText, 'options': options, 'explanation': explanationCtrl.safeText}));
-              Navigator.pop(context);
-            },
-            child: const Text('Add Step', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Create Weather Simulation'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Simulation Title')),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(onPressed: _addStep, icon: const Icon(Icons.add), label: const Text('Add Step')),
-            const SizedBox(height: 16),
-            ..._steps.asMap().entries.map((e) {
-              final s = e.value;
-              final correctOpt = (s['options'] as List).firstWhere((o) => o['correct'] == true, orElse: () => {'text': 'None'});
-              final letter = String.fromCharCode(65 + (s['options'] as List).indexOf(correctOpt));
-              return Card(
-                child: ListTile(
-                  title: Text(s['prompt']),
-                  subtitle: Text('Correct: $letter. ${correctOpt['text']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _steps.removeAt(e.key))),
-                ),
-              );
-            }),
+          child: Row(children: [
+            Icon(icon, color: onTap == null ? Colors.grey : color, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14,
+                color: onTap == null ? Colors.grey : color))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: onTap == null ? Colors.grey.shade200 : color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(count == 0 ? 'None yet' : '$count available',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                      color: onTap == null ? Colors.grey.shade500 : color)),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.arrow_forward_ios, size: 13,
+                color: onTap == null ? Colors.grey.shade300 : color.withOpacity(0.6)),
           ]),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
-            onPressed: _steps.isEmpty ? null : () {
-              widget.onSave({
-                'title': _titleCtrl.safeText.isEmpty ? 'Weather Simulation' : _titleCtrl.safeText,
-                'steps': _steps,
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Save Simulation', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       );
 }

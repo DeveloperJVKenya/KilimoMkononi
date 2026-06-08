@@ -1,11 +1,11 @@
 // lib/screens/user_profile.dart
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -54,6 +54,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Uint8List? _displayedImageBytes;
   bool _isLoading = false;
   bool _isEducationUser = false;
+  bool _isHeadteacher = false;
+  String? _schoolCode;
   String? _resolvedFullName;
 
   @override
@@ -61,7 +63,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     super.initState();
     _displayedImageBytes = widget.profileImageBytes;
     _resolvedFullName = widget.fullName;
-    _isEducationUser = widget.role == 'teacher' || widget.role == 'student';
+    // Include headteacher so their schoolCode also shows
+    _isEducationUser = widget.role == 'teacher' ||
+        widget.role == 'student' ||
+        widget.role == 'headteacher';
 
     _nameCtrl = TextEditingController(text: _resolvedFullName ?? '');
     _emailCtrl = TextEditingController();
@@ -94,13 +99,46 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         if (imgBase64 != null && imgBase64.isNotEmpty) {
           _displayedImageBytes = base64Decode(imgBase64);
         }
+        final isHT = data['role'] == 'headteacher';
+        final isTeacher = data['role'] == 'teacher';
+        // Load schoolCode directly from user doc first
+        String? code = data['schoolCode'] as String?;
+        // If teacher/student has no code on their record, look up from Schools
+        if ((isTeacher || isHT) && (code == null || code.isEmpty)) {
+          final schoolName = data['schoolName'] as String?;
+          if (schoolName != null && schoolName.isNotEmpty) {
+            try {
+              final schoolSnap = await _firestore
+                  .collection('Schools')
+                  .where('schoolName', isEqualTo: schoolName)
+                  .limit(1)
+                  .get();
+              if (schoolSnap.docs.isNotEmpty) {
+                code = schoolSnap.docs.first.data()['schoolCode'] as String?;
+                // Backfill silently onto the user's own doc
+                if (code != null && code.isNotEmpty) {
+                  await _firestore
+                      .collection('EducationUsers')
+                      .doc(_currentUser.uid)
+                      .update({'schoolCode': code});
+                }
+              }
+            } catch (_) {}
+          }
+        }
         if (mounted) {
           setState(() {
             _resolvedFullName = name;
             _nameCtrl.text = name ?? '';
             _emailCtrl.text = data['email'] ?? '';
             _phoneCtrl.text = phone ?? '';
+            // Ensure school name is populated even if not passed via widget
+            if (_schoolCtrl.text.isEmpty && data['schoolName'] != null) {
+              _schoolCtrl.text = data['schoolName'] as String;
+            }
             _isEducationUser = true;
+            _isHeadteacher = isHT;
+            _schoolCode = code;
           });
         }
         return;
@@ -277,6 +315,82 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   _editableField(_phoneCtrl, 'Phone Number', Icons.phone),
                   const SizedBox(height: 24),
 
+
+                  // School code — visible to headteachers AND teachers
+                  // Teachers need it so they can share with new students
+                  if (_isEducationUser && _schoolCode != null && _schoolCode!.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF81C784)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(children: [
+                            Icon(Icons.vpn_key, color: Color(0xFF2E7D32), size: 18),
+                            SizedBox(width: 8),
+                            Text('School Code',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2E7D32),
+                                    fontSize: 14)),
+                          ]),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color.fromARGB(255, 3, 39, 4),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                _schoolCode!,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                // ignore: deprecated_member_use
+                                Clipboard.setData(
+                                    ClipboardData(text: _schoolCode!));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('School code copied!')),
+                                );
+                              },
+                              icon: const Icon(Icons.copy, size: 16),
+                              label: const Text('Copy'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2E7D32),
+                                side: const BorderSide(
+                                    color: Color(0xFF81C784)),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ]),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isHeadteacher
+                              ? 'Share this code with teachers and students so they can join your school.'
+                              : 'Share this with new students so they can join your class.',
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF388E3C)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   // Role-Specific Fields
                   if (_isEducationUser) ...[
                     _editableField(_schoolCtrl, 'School Name', Icons.school),
