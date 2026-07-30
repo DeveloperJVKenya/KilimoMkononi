@@ -22,9 +22,6 @@
 // STUDENT (always visible, compact):
 //   • Same weather + soil tiles
 //   • Teacher's saved question highlighted above the submission form
-
-// ignore_for_file: dead_code, unused_element, deprecated_member_use
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,7 +30,6 @@ import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/education/services/edu_school_conditions_service.dart';
 
 // ── Colour tokens ──────────────────────────────────────────────────────────
-const _kDarkGreen  = Color(0xFF032704);
 const _kGreen      = Color(0xFF1B5E20);
 const _kMidGreen   = Color(0xFF2A6B2A);
 const _kLightGreen = Color(0xFFE8F5E9);
@@ -41,7 +37,6 @@ const _kAmber      = Color(0xFFE65100);
 const _kLightAmber = Color(0xFFFFF8E1);
 const _kBlue       = Color(0xFF0D47A1);
 const _kRed        = Color(0xFFB71C1C);
-const _kLightRed   = Color(0xFFFFEBEE);
 const _kBorder     = Color(0xFFDDE5DD);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -304,7 +299,7 @@ Return only the question text — no preamble, no numbering, no markdown.
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: _kLightGreen.withOpacity(0.45),
+        color: _kLightGreen.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFA5C9A5)),
       ),
@@ -473,7 +468,7 @@ Return only the question text — no preamble, no numbering, no markdown.
         Text(value, style: const TextStyle(fontSize: 14,
             fontWeight: FontWeight.w700, color: Colors.black87)),
         const SizedBox(height: 4),
-        _pill(badge, color, color.withOpacity(0.1)),
+        _pill(badge, color, color.withValues(alpha: 0.1)),
       ]),
     );
   }
@@ -544,7 +539,7 @@ Return only the question text — no preamble, no numbering, no markdown.
               ),
             ],
           ]),
-          _pill(verdict, color, color.withOpacity(0.12)),
+          _pill(verdict, color, color.withValues(alpha: 0.12)),
         ],
       ),
     );
@@ -660,7 +655,7 @@ Return only the question text — no preamble, no numbering, no markdown.
         _questionBox(_savedQuestion!, Colors.green),
         const SizedBox(height: 8),
       ],
-      if (_aiQuestion?.isNotEmpty ?? false &&
+      if ((_aiQuestion?.isNotEmpty ?? false) &&
           _aiQuestion != _savedQuestion) ...[
         _questionBox(_aiQuestion!, Colors.blue),
         const SizedBox(height: 8),
@@ -712,7 +707,7 @@ Return only the question text — no preamble, no numbering, no markdown.
       decoration: BoxDecoration(
         color: const Color(0xFFF0F7FF),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _kBlue.withOpacity(0.3)),
+        border: Border.all(color: _kBlue.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -780,8 +775,8 @@ class _RiskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg     = entry.color.withOpacity(0.07);
-    final border = entry.color.withOpacity(0.25);
+    final bg     = entry.color.withValues(alpha: 0.07);
+    final border = entry.color.withValues(alpha: 0.25);
 
     return Container(
       width: double.infinity,
@@ -806,9 +801,9 @@ class _RiskCard extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 4),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('• ', style: TextStyle(fontSize: 12.5,
-                  color: entry.color.withOpacity(0.6), height: 1.45)),
+                  color: entry.color.withValues(alpha: 0.6), height: 1.45)),
               Expanded(child: Text(b, style: TextStyle(fontSize: 12.5,
-                  color: entry.color.withOpacity(0.85), height: 1.45))),
+                  color: entry.color.withValues(alpha: 0.85), height: 1.45))),
             ]),
           )),
       ]),

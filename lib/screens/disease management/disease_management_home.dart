@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_is_empty
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -77,7 +75,7 @@ class _DiseaseManagementHomePageState extends State<DiseaseManagementHomePage> {
         setState(() {
           _activeCrops = uniqueCrops.length;
           // Count high-risk diseases (simplified - in production, check disease risk levels)
-          _flaggedDiseases = interventionSnap.docs.length > 0 ? 2 : 0;
+          _flaggedDiseases = interventionSnap.docs.isNotEmpty ? 2 : 0;
           _recentInterventions = interventionSnap.docs
               .map((doc) =>
                   DiseaseIntervention.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>, null))

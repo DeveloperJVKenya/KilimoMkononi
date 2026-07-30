@@ -1,5 +1,4 @@
 // lib/widgets/plot_history_card.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/plot_analysis_service.dart';
@@ -64,8 +63,8 @@ class _PlotHistoryCardState extends State<PlotHistoryCard>
       decoration: BoxDecoration(
         color: _mintBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _cardGreen.withOpacity(0.3), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+        border: Border.all(color: _cardGreen.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(children: [
@@ -79,7 +78,7 @@ class _PlotHistoryCardState extends State<PlotHistoryCard>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _cardGreen.withOpacity(0.1),
+                  color: _cardGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.history_edu, color: _cardGreen, size: 22),
@@ -202,7 +201,7 @@ class _Section extends StatelessWidget {
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: color.withOpacity(0.1),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(6)),
         child: Icon(icon, color: color, size: 16),
       ),

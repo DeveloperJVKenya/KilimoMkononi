@@ -21,12 +21,10 @@
 //   function.
 //
 // No changes to NasaPowerService or IotSensorService APIs.
-
-// ignore_for_file: unnecessary_string_interpolations, deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 
 // ── Shared colour tokens (keeps parity with app theme) ─────────────────────
@@ -204,7 +202,7 @@ Color _riskFg(ConditionRisk r) => switch (r) {
   ConditionRisk.critical => _C.red,
 };
 
-Color _riskBorder(ConditionRisk r) => _riskFg(r).withOpacity(0.3);
+Color _riskBorder(ConditionRisk r) => _riskFg(r).withValues(alpha: 0.3);
 
 String _riskLabel(ConditionRisk r) => switch (r) {
   ConditionRisk.low      => 'Low',
@@ -474,13 +472,13 @@ class _RiskCard extends StatelessWidget {
                   children: [
                     Text('• ',
                         style: TextStyle(
-                            fontSize: 13, color: fg.withOpacity(0.7),
+                            fontSize: 13, color: fg.withValues(alpha: 0.7),
                             height: 1.4)),
                     Expanded(
                       child: Text(b,
                           style: TextStyle(
                               fontSize: 12.5,
-                              color: fg.withOpacity(0.85),
+                              color: fg.withValues(alpha: 0.85),
                               height: 1.45)),
                     ),
                   ],
@@ -510,6 +508,9 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
   bool _loading        = true;
   String? _error;
   FarmLocation? _location;
+  // Plot switcher
+  List<PlotSummary> _plots       = [];
+  String?           _selectedPlotId;
   SatelliteReading? _today;
   List<SatelliteReading> _history = [];
   IotSensorReading? _iot;
@@ -518,7 +519,34 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
   @override
   void initState() {
     super.initState();
+    _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     _load();
+    _loadPlots();
+  }
+
+  String _userId = '';
+
+  Future<void> _loadPlots() async {
+    if (_userId.isEmpty) return;
+    try {
+      final plots = await FarmLocationService.loadPlots(_userId);
+      final selectedId = await FarmLocationService.getSelectedPlotId();
+      if (mounted) {
+        setState(() {
+          _plots = plots;
+          _selectedPlotId = selectedId ?? (plots.isNotEmpty ? plots.first.id : null);
+        });
+      }
+    } catch (_) {
+      // Plot list stays empty; the rest of the screen still loads via _load().
+    }
+  }
+
+  Future<void> _switchPlot(String plotId) async {
+    setState(() { _selectedPlotId = plotId; _loading = true; });
+    await FarmLocationService.selectPlot(plotId);
+    await NasaPowerService.refresh();
+    await _load();
   }
 
   Future<void> _load() async {
@@ -564,6 +592,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       if (_today?.isStale == true) _staleBanner(),
+                      _noGpsBanner(),
                       _sourceNote(),
                       const SizedBox(height: 14),
 
@@ -621,6 +650,16 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
       ],
     ),
     actions: [
+      // ── Plot switcher ──────────────────────────────────────────────────
+      if (_plots.length > 1)
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: _PlotSwitcherButton(
+            plots:          _plots,
+            selectedPlotId: _selectedPlotId,
+            onSelect:       _switchPlot,
+          ),
+        ),
       if (!_loading)
         IconButton(
           icon: const Icon(Icons.info_outline_rounded, color: Colors.white70, size: 20),
@@ -661,7 +700,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
       if (risk.goodSprayWindow) {
         return _bannerCard(
           bg: _C.lightGreen,
-          border: _C.midGreen.withOpacity(0.25),
+          border: _C.midGreen.withValues(alpha: 0.25),
           icon: Icons.air_rounded,
           iconColor: _C.midGreen,
           title: 'Good spray window today',
@@ -675,7 +714,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
     final isCritical = worst.$1 == ConditionRisk.critical;
     return _bannerCard(
       bg: isCritical ? _C.lightRed : const Color(0xFFFFF3E0),
-      border: (isCritical ? _C.red : _C.amber).withOpacity(0.35),
+      border: (isCritical ? _C.red : _C.amber).withValues(alpha: 0.35),
       icon: worst.$3,
       iconColor: isCritical ? _C.red : _C.amber,
       title: worst.$4,
@@ -826,9 +865,9 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(
-            color: verdictColor.withOpacity(0.1),
+            color: verdictColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: verdictColor.withOpacity(0.25)),
+            border: Border.all(color: verdictColor.withValues(alpha: 0.25)),
           ),
           child: Text(verdict,
               style: TextStyle(fontSize: 10, color: verdictColor,
@@ -936,10 +975,10 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
             margin: EdgeInsets.only(left: i == 0 ? 0 : 6),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
-              color: isFirst ? _C.midGreen.withOpacity(0.07) : _C.cardBg,
+              color: isFirst ? _C.midGreen.withValues(alpha: 0.07) : _C.cardBg,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isFirst ? _C.midGreen.withOpacity(0.3) : _C.border,
+                color: isFirst ? _C.midGreen.withValues(alpha: 0.3) : _C.border,
                 width: isFirst ? 1.5 : 1,
               ),
             ),
@@ -1007,7 +1046,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
   Widget _miniLabel(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(text,
@@ -1019,13 +1058,13 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
   Widget _buildIotTiles() {
     final iot = _iot!;
     final tiles = [
-      _iotTile('N', '${iot.n.toStringAsFixed(0)}', 'mg/kg',
+      _iotTile('N', iot.n.toStringAsFixed(0), 'mg/kg',
           iot.n < 15 ? _C.red : iot.n < 20 ? Colors.orange : _C.midGreen,
           iot.n < 15 ? 'Low' : iot.n < 20 ? 'Fair' : 'Good'),
-      _iotTile('P', '${iot.p.toStringAsFixed(0)}', 'mg/kg',
+      _iotTile('P', iot.p.toStringAsFixed(0), 'mg/kg',
           iot.p < 8 ? _C.red : iot.p < 10 ? Colors.orange : _C.midGreen,
           iot.p < 8 ? 'Low' : iot.p < 10 ? 'Fair' : 'Good'),
-      _iotTile('K', '${iot.k.toStringAsFixed(0)}', 'mg/kg',
+      _iotTile('K', iot.k.toStringAsFixed(0), 'mg/kg',
           iot.k < 80 ? _C.red : iot.k < 100 ? Colors.orange : _C.midGreen,
           iot.k < 80 ? 'Low' : iot.k < 100 ? 'Fair' : 'Good'),
       _iotTile('pH', iot.ph.toStringAsFixed(1), '',
@@ -1093,7 +1132,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(verdict,
@@ -1187,9 +1226,9 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
   Widget _histChip(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.3)),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
     ),
     child: Text(text,
         style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500, color: color)),
@@ -1203,7 +1242,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
     label: const Text('About this data'),
     style: OutlinedButton.styleFrom(
       foregroundColor: _C.midGreen,
-      side: BorderSide(color: _C.midGreen.withOpacity(0.4)),
+      side: BorderSide(color: _C.midGreen.withValues(alpha: 0.4)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     ),
@@ -1335,9 +1374,9 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _C.lightBlue.withOpacity(0.5),
+        color: _C.lightBlue.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _C.skyBlue.withOpacity(0.15)),
+        border: Border.all(color: _C.skyBlue.withValues(alpha: 0.15)),
       ),
       child: Row(children: [
         const Icon(Icons.satellite_alt_rounded, size: 13, color: _C.skyBlue),
@@ -1549,5 +1588,181 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${diff.inDays}d ago';
+  }
+
+  // ── No-GPS banner — shown when location is a county estimate ──────────────
+  Widget _noGpsBanner() {
+    if (_location == null || _location!.isPlotGps) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE65100).withValues(alpha: 0.35)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.add_location_alt_outlined, size: 17,
+            color: Color(0xFFE65100)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(
+          'Using ${_location!.county} county estimate — '
+          'add a GPS pin to your plot in Field Data → Plot Setup for '
+          'exact satellite data for your farm.',
+          style: const TextStyle(fontSize: 12, color: Color(0xFFE65100),
+              height: 1.4),
+        )),
+      ]),
+    );
+  }
+}
+
+// ── Shared plot-switcher button ────────────────────────────────────────────────
+// Used by both SatelliteDataScreen and WeatherStationScreen.
+
+class _PlotSwitcherButton extends StatelessWidget {
+  final List<PlotSummary> plots;
+  final String?           selectedPlotId;
+  final void Function(String plotId) onSelect;
+
+  const _PlotSwitcherButton({
+    required this.plots,
+    required this.selectedPlotId,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final current = plots.where((p) => p.id == selectedPlotId).firstOrNull
+        ?? plots.firstOrNull;
+
+    return GestureDetector(
+      onTap: () => _showPicker(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(
+            current?.hasGps == true
+                ? Icons.location_on_rounded
+                : Icons.location_searching_rounded,
+            size: 14, color: Colors.white,
+          ),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Text(
+              current?.name ?? 'Select farm',
+              style: const TextStyle(fontSize: 12, color: Colors.white,
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 3),
+          const Icon(Icons.expand_more, size: 14, color: Colors.white70),
+        ]),
+      ),
+    );
+  }
+
+  void _showPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (_) => _PlotPickerSheet(
+        plots: plots,
+        selectedPlotId: selectedPlotId,
+        onSelect: (id) {
+          Navigator.pop(context);
+          onSelect(id);
+        },
+      ),
+    );
+  }
+}
+
+class _PlotPickerSheet extends StatelessWidget {
+  final List<PlotSummary>          plots;
+  final String?                    selectedPlotId;
+  final void Function(String)      onSelect;
+
+  const _PlotPickerSheet({
+    required this.plots,
+    required this.selectedPlotId,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+            child: Text('Switch farm',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+                    color: Color(0xFF032704))),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Text(
+              'Satellite and weather data will update to use the selected farm\'s GPS.',
+              style: TextStyle(fontSize: 12.5, color: Colors.black54, height: 1.4),
+            ),
+          ),
+          const Divider(height: 1),
+          ...plots.map((p) {
+            final isSelected = p.id == selectedPlotId;
+            return ListTile(
+              leading: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFFE8F5E9)
+                      : Colors.grey[100],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  p.hasGps
+                      ? Icons.location_on_rounded
+                      : Icons.location_searching_rounded,
+                  size: 18,
+                  color: isSelected
+                      ? const Color(0xFF2A6B2A)
+                      : Colors.grey,
+                ),
+              ),
+              title: Text(p.name,
+                  style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      fontSize: 14,
+                      color: isSelected
+                          ? const Color(0xFF032704)
+                          : Colors.black87)),
+              subtitle: Text(
+                p.hasGps ? p.locationLabel : '${p.county} (county estimate)',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: p.hasGps ? Colors.black54 : const Color(0xFFE65100)),
+              ),
+              trailing: isSelected
+                  ? const Icon(Icons.check_circle,
+                      color: Color(0xFF2A6B2A), size: 20)
+                  : null,
+              onTap: () => onSelect(p.id),
+            );
+          }),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
   }
 }

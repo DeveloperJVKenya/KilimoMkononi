@@ -1,5 +1,4 @@
 // lib/education/education_chat.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -102,7 +101,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
             width: 280,
             decoration: BoxDecoration(
               color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, spreadRadius: 2)],
+              boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, spreadRadius: 2)],
             ),
             child: Column(
               children: [
@@ -147,7 +146,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
     required VoidCallback onTap,
   }) {
     return Material(
-      color: isSelected ? const Color(0xFF003900).withOpacity(0.1) : Colors.transparent,
+      color: isSelected ? const Color(0xFF003900).withValues(alpha: 0.1) : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -197,7 +196,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
           ),
           child: Row(
             children: [
@@ -323,7 +322,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, -2))],
+        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, -2))],
       ),
       child: Row(
         children: [
@@ -403,7 +402,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
           ),
           child: Row(
             children: [
@@ -490,7 +489,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
           ),
           child: Row(
             children: [
@@ -582,7 +581,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, -2))],
+            boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, -2))],
           ),
           child: Row(
             children: [
@@ -748,7 +747,9 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
 
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+      }
     }
   }
 
@@ -899,4 +900,4 @@ extension StringExtension on String {
     if (isEmpty) return this;
     return '${this[0].toUpperCase()}${substring(1)}';
   }
-} 
+}

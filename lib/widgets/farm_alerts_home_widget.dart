@@ -16,8 +16,6 @@
 //   _sectionLabel('Farm alerts'),
 //   const FarmAlertsHomeWidget(),
 
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/farm_alert_service.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
@@ -185,7 +183,7 @@ class _FarmAlertsHomeWidgetState extends State<FarmAlertsHomeWidget> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: border.withOpacity(0.3)),
+        side: BorderSide(color: border.withValues(alpha: 0.3)),
       ),
       color: bg,
       margin: const EdgeInsets.only(bottom: 8),

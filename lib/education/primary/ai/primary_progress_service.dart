@@ -4,9 +4,6 @@
 //   { quizScores: {topic: [scores]}, completions: {topic: count},
 //     spotMistakes: {topic: correct}, fillBlanks: {topic: correct},
 //     whatAmI: {topic: stars}, updatedAt: Timestamp }
-
-// ignore_for_file: avoid_types_as_parameter_names
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -126,8 +123,8 @@ class PrimaryProgressService {
             scoresByTopic.putIfAbsent(topic, () => []);
             if (scores is List) scoresByTopic[topic]!.addAll(scores.cast<int>());
           });
-          completions.forEach((topic, count) {
-            completionsByTopic[topic] = (completionsByTopic[topic] ?? 0) + (count as int);
+          completions.forEach((topic, value) {
+            completionsByTopic[topic] = (completionsByTopic[topic] ?? 0) + (value as int);
           });
         }
       }

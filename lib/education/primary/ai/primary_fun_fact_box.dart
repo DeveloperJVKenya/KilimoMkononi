@@ -1,5 +1,4 @@
 // lib/education/primary/primary_fun_fact_box.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 

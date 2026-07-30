@@ -6,6 +6,7 @@ import 'package:kilimomkononi/screens/Field Data Input/field_data_input_page.dar
 import 'package:kilimomkononi/screens/Field Data Input/plot_summary_tab.dart';
 import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 import 'package:kilimomkononi/screens/Field Data Input/satellite_data_screen.dart';
+import 'package:kilimomkononi/screens/Field Data Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/offline_sync_banner.dart';
@@ -180,6 +181,15 @@ class _FieldDataInputHomePageState extends State<FieldDataInputHomePage> {
               description: 'Rainfall, soil moisture, temperature & spray windows for your farm',
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const SatelliteDataScreen())),
+            ),
+            _quickCard(
+              icon: Icons.wb_cloudy_rounded,
+              iconBg: const Color(0xFFE8F5E9),
+              iconColor: const Color(0xFF2A6B2A),
+              title: 'Weather station',
+              description: 'Live air temp, humidity, wind, leaf wetness & agronomic advice',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const WeatherStationScreen())),
             ),
             _quickCard(
               icon: Icons.history_rounded,

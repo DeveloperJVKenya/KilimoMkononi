@@ -4,9 +4,6 @@
 // AI photo diagnoses — via the unified FarmerIssueService.
 // No longer depends on FarmerDiagnosisRecord or DiagnosisService.
 
-// ignore_for_file: unused_import, unused_element, unnecessary_underscores, deprecated_member_use
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:kilimomkononi/models/pest_disease_model.dart';
@@ -19,7 +16,6 @@ const _kDark    = Color.fromARGB(255, 3, 39, 4);
 const _kMid     = Color(0xFF1B5E20);
 const _kBg      = Color(0xFFF0F2EF);
 const _kCardBg  = Color(0xFFF7F8F6);
-const _kBorder  = Color(0xFFBBBFBA);
 const _kHint    = Color(0xFF5C6B5A);
 const _kText    = Color(0xFF111A10);
 const _kTextSec = Color(0xFF3D4A3C);
@@ -146,7 +142,7 @@ class _ViewInterventionsPageState extends State<ViewInterventionsPage>
     return ListView.separated(
       padding: const EdgeInsets.all(14),
       itemCount: list.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _RecordCard(
         record: list[i],
         notificationsPlugin: widget.notificationsPlugin,
@@ -195,7 +191,7 @@ class _RecordCardState extends State<_RecordCard> {
     return Container(
       decoration: BoxDecoration(
         color: _kCardBg, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accentColor.withOpacity(0.3), width: 1.5)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.3), width: 1.5)),
       child: Column(children: [
         // ── Header ─────────────────────────────────────────────────────────
         InkWell(
@@ -206,7 +202,7 @@ class _RecordCardState extends State<_RecordCard> {
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: accentColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                 child: Icon(r.isAI ? Icons.psychology : Icons.edit_note, color: accentColor, size: 18),
               ),
               const SizedBox(width: 12),
@@ -218,8 +214,8 @@ class _RecordCardState extends State<_RecordCard> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: accentColor.withOpacity(0.3))),
+                      color: accentColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: accentColor.withValues(alpha: 0.3))),
                     child: Text(r.isAI ? 'AI Scan' : 'By Eye',
                         style: TextStyle(fontSize: 10, color: accentColor, fontWeight: FontWeight.w700)),
                   ),
@@ -233,9 +229,9 @@ class _RecordCardState extends State<_RecordCard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                          color: _confColor(r.aiConfidence!).withOpacity(0.1),
+                          color: _confColor(r.aiConfidence!).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _confColor(r.aiConfidence!).withOpacity(0.4))),
+                          border: Border.all(color: _confColor(r.aiConfidence!).withValues(alpha: 0.4))),
                       child: Text(r.aiConfidence!.toUpperCase(),
                           style: TextStyle(fontSize: 9, color: _confColor(r.aiConfidence!), fontWeight: FontWeight.w700)),
                     ),
@@ -316,7 +312,7 @@ class _RecordCardState extends State<_RecordCard> {
               if (r.photoUrl != null) ...[
                 ClipRRect(borderRadius: BorderRadius.circular(8),
                     child: Image.network(r.photoUrl!, height: 160, width: double.infinity, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox())),
+                        errorBuilder: (_, _, _) => const SizedBox())),
                 const SizedBox(height: 12),
               ],
 
@@ -356,8 +352,8 @@ class _RecordCardState extends State<_RecordCard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3), width: 1.5)),
+          color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 13, color: color), const SizedBox(width: 4),
           Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),

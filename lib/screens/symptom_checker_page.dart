@@ -1,5 +1,3 @@
-// ignore_for_file: library_private_types_in_public_api
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -10,7 +8,7 @@ class SymptomCheckerPage extends StatefulWidget {
   const SymptomCheckerPage({super.key});
 
   @override
-  _SymptomCheckerPageState createState() => _SymptomCheckerPageState();
+  State<SymptomCheckerPage> createState() => _SymptomCheckerPageState();
 }
 
 class _SymptomCheckerPageState extends State<SymptomCheckerPage> {

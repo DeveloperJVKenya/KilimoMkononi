@@ -3,7 +3,6 @@
 // SHARED Gemini Vision helper — used by all three AI photo diagnosis surfaces.
 // Works on Flutter Web (Chrome), Android, and iOS.
 //
-// ignore_for_file: deprecated_member_use
 
 import 'dart:convert';
 import 'dart:typed_data';

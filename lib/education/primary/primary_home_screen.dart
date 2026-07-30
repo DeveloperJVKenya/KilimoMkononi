@@ -1,6 +1,4 @@
 // lib/education/primary/primary_home_screen.dart
-// ignore_for_file: curly_braces_in_flow_control_structures, unused_import, library_private_types_in_public_api, avoid_types_as_parameter_names, deprecated_member_use, use_build_context_synchronously
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -30,14 +28,12 @@ import 'package:kilimomkononi/education/primary/features/primary_farming_story.d
 
 // ── AI activity widgets (lib/education/primary/ai/) ───────────────────────
 import 'package:kilimomkononi/education/primary/ai/primary_mini_quiz_sheet.dart';
-import 'package:kilimomkononi/education/primary/ai/primary_spot_mistake.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_what_am_i_sheet.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_fill_blank_sheet.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_lesson_plan_sheet.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_class_summary_sheet.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_daily_challenge_service.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_progress_service.dart';
-import 'package:kilimomkononi/education/primary/ai/primary_ai_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
 //  Topic definition (used by sidebar + grid + daily challenge)
@@ -318,7 +314,7 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
         return PrimaryBuyingSellingScreen(role: _role ?? EduRole.student,
             schoolName: schoolName, classId: classId);
       default:
-        return PrimaryCategoryScreen(
+        return _PrimaryCategoryScreen(
             topic: _topics.firstWhere((t) => t.id == id,
                 orElse: () => _topics.first),
             schoolName: schoolName, classId: classId);
@@ -390,9 +386,11 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
       if (i == 1) {
         _openScreen(EducationResources(
           role: _role ?? EduRole.student, schoolName: sn, classId: cid));
-      } else if (i == 2) _openScreen(EducationChat(
+      } else if (i == 2) {
+        _openScreen(EducationChat(
           role: _role ?? EduRole.student, schoolName: sn, classId: cid,
           userName: _userData?['fullName'] ?? 'User'));
+      }
     },
     items: const [
       BottomNavigationBarItem(icon: Icon(Icons.home),        label: 'Home'),
@@ -778,12 +776,12 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF003900).withOpacity(0.2)),
-            boxShadow: [BoxShadow(color: const Color(0xFF003900).withOpacity(0.05),
+            border: Border.all(color: const Color(0xFF003900).withValues(alpha: 0.2)),
+            boxShadow: [BoxShadow(color: const Color(0xFF003900).withValues(alpha: 0.05),
                 blurRadius: 6, offset: const Offset(0,3))]),
           child: Row(children: [
             Container(width: 44, height: 44,
-              decoration: BoxDecoration(color: const Color(0xFF003900).withOpacity(0.08),
+              decoration: BoxDecoration(color: const Color(0xFF003900).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12)),
               child: const Icon(Icons.bar_chart_rounded, color: Color(0xFF003900), size: 24)),
             const SizedBox(width: 14),
@@ -821,10 +819,10 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
       width: double.infinity, padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: const Color(0xFFE8F5E9),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.25))),
+          border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.25))),
       child: Row(children: [
         Container(width: 60, height: 60,
-          decoration: BoxDecoration(color: const Color(0xFF2E7D32).withOpacity(0.12),
+          decoration: BoxDecoration(color: const Color(0xFF2E7D32).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14)),
           child: const Center(child: Text('📖', style: TextStyle(fontSize: 32)))),
         const SizedBox(width: 14),
@@ -863,8 +861,8 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white, borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: t.color.withOpacity(0.2)),
-              boxShadow: [BoxShadow(color: t.color.withOpacity(0.07),
+              border: Border.all(color: t.color.withValues(alpha: 0.2)),
+              boxShadow: [BoxShadow(color: t.color.withValues(alpha: 0.07),
                   blurRadius: 6, offset: const Offset(0,3))]),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Container(width: 48, height: 48,
@@ -926,11 +924,11 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
           border: Border.all(
               color: currentId != null ? const Color(0xFF003900) : Colors.grey.shade300,
               width: currentId != null ? 2 : 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 6, offset: const Offset(0,2))]),
         child: Row(children: [
           Container(padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFF003900).withOpacity(0.08),
+            decoration: BoxDecoration(color: const Color(0xFF003900).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10)),
             child: const Icon(Icons.swap_horiz, color: Color(0xFF003900), size: 22)),
           const SizedBox(width: 14),
@@ -966,8 +964,8 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
                 fontWeight: FontWeight.bold)),
             ValueListenableBuilder<int>(
               valueListenable: _studentCount,
-              builder: (_, count, _) => Text(
-                '$count student${count == 1 ? '' : 's'} enrolled',
+              builder: (_, enrolled, _) => Text(
+                '$enrolled student${enrolled == 1 ? '' : 's'} enrolled',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
             ),
           ])),
@@ -1052,13 +1050,13 @@ class _DailyChallengeState extends State<_PrimaryDailyChallengeBanner> {
             color: const Color(0xFF003900), borderRadius: BorderRadius.circular(16)),
         child: Row(children: [
           Container(width: 52, height: 52,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(14)),
             child: Center(child: Text(emoji, style: const TextStyle(fontSize: 28)))),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8)),
               child: const Text("Today's challenge",
                   style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600))),
@@ -1069,7 +1067,7 @@ class _DailyChallengeState extends State<_PrimaryDailyChallengeBanner> {
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.25),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(10)),
             child: const Text('Start!', style: TextStyle(color: Colors.white, fontSize: 13,
                 fontWeight: FontWeight.bold))),
@@ -1150,17 +1148,17 @@ class _ActivityCard extends StatelessWidget {
     return Container(
       width: 160,
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: c.withOpacity(0.2)),
-          boxShadow: [BoxShadow(color: c.withOpacity(0.08), blurRadius: 8, offset: const Offset(0,3))]),
+          border: Border.all(color: c.withValues(alpha: 0.2)),
+          boxShadow: [BoxShadow(color: c.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0,3))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Container(height: 58,
-          decoration: BoxDecoration(color: c.withOpacity(0.1),
+          decoration: BoxDecoration(color: c.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
           child: Row(children: [
             const SizedBox(width: 12),
             Container(width: 36, height: 36,
-              decoration: BoxDecoration(color: c.withOpacity(0.15),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10)),
               child: Icon(topic.icon, color: c, size: 20)),
             const SizedBox(width: 8),
@@ -1191,9 +1189,9 @@ class _ActivityCard extends StatelessWidget {
               builder: (_, sc) => PrimaryWhatAmISheet(
                   topic: topic.label, grade: grade, accentColor: c))),
             child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 7),
-              decoration: BoxDecoration(color: c.withOpacity(0.08),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: c.withOpacity(0.25))),
+                  border: Border.all(color: c.withValues(alpha: 0.25))),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.help_outline_rounded, color: c, size: 13),
                 const SizedBox(width: 4),
@@ -1208,9 +1206,9 @@ class _ActivityCard extends StatelessWidget {
               builder: (_, sc) => PrimaryFillBlankSheet(
                   topic: topic.label, grade: grade, accentColor: c))),
             child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 7),
-              decoration: BoxDecoration(color: c.withOpacity(0.08),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: c.withOpacity(0.25))),
+                  border: Border.all(color: c.withValues(alpha: 0.25))),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.text_fields_rounded, color: c, size: 13),
                 const SizedBox(width: 4),
@@ -1225,10 +1223,10 @@ class _ActivityCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────
 //  Fallback category screen (Firestore content)
 // ─────────────────────────────────────────────────────────────────
-class PrimaryCategoryScreen extends StatelessWidget {
+class _PrimaryCategoryScreen extends StatelessWidget {
   final _Topic  topic;
   final String schoolName, classId;
-  const PrimaryCategoryScreen({super.key, required this.topic,
+  const _PrimaryCategoryScreen({required this.topic,
       required this.schoolName, required this.classId});
 
   @override
@@ -1249,7 +1247,7 @@ class PrimaryCategoryScreen extends StatelessWidget {
         if (docs.isEmpty) {
           return Center(child: Padding(padding: const EdgeInsets.all(32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(topic.icon, size: 72, color: topic.color.withOpacity(0.3)),
+              Icon(topic.icon, size: 72, color: topic.color.withValues(alpha: 0.3)),
               const SizedBox(height: 20),
               Text('Nothing here yet!', style: TextStyle(fontSize: 20,
                   fontWeight: FontWeight.bold, color: topic.color)),
@@ -1273,7 +1271,7 @@ class PrimaryCategoryScreen extends StatelessWidget {
             return Container(
               decoration: BoxDecoration(color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: topic.color.withOpacity(0.1),
+                  boxShadow: [BoxShadow(color: topic.color.withValues(alpha: 0.1),
                       blurRadius: 8, offset: const Offset(0,3))]),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Expanded(child: ClipRRect(
@@ -1303,7 +1301,7 @@ class PrimaryCategoryScreen extends StatelessWidget {
 
   Widget _placeholder() => Container(color: topic.lightColor,
       child: Center(child: Icon(topic.icon, size: 48,
-          color: topic.color.withOpacity(0.4))));
+          color: topic.color.withValues(alpha: 0.4))));
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1480,7 +1478,7 @@ class _PrimaryClassPickerSheetState extends State<_PrimaryClassPickerSheet> {
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: isOpen ? color : Colors.grey.shade200, width: isOpen ? 2 : 1),
-          color: isOpen ? color.withOpacity(0.03) : Colors.white),
+          color: isOpen ? color.withValues(alpha: 0.03) : Colors.white),
       child: Column(children: [
         InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -1490,7 +1488,7 @@ class _PrimaryClassPickerSheetState extends State<_PrimaryClassPickerSheet> {
             child: Row(children: [
               Container(width: 40, height: 40,
                 decoration: BoxDecoration(
-                    color: isOpen ? color : color.withOpacity(0.1),
+                    color: isOpen ? color : color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10)),
                 child: Icon(icon, color: isOpen ? Colors.white : color, size: 20)),
               const SizedBox(width: 12),
@@ -1547,8 +1545,8 @@ class _PrimaryClassPickerSheetState extends State<_PrimaryClassPickerSheet> {
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? color.withOpacity(0.08)
-              : isAdd ? Colors.teal.withOpacity(0.04) : Colors.grey.shade50,
+          color: isActive ? color.withValues(alpha: 0.08)
+              : isAdd ? Colors.teal.withValues(alpha: 0.04) : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color: isActive ? color : isAdd ? Colors.teal.shade200 : Colors.grey.shade200,
@@ -1556,7 +1554,7 @@ class _PrimaryClassPickerSheetState extends State<_PrimaryClassPickerSheet> {
         child: Row(children: [
           Container(width: 36, height: 36,
             decoration: BoxDecoration(
-              color: isActive ? color : isAdd ? Colors.teal.withOpacity(0.1) : color.withOpacity(0.1),
+              color: isActive ? color : isAdd ? Colors.teal.withValues(alpha: 0.1) : color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8)),
             child: Icon(isAdd ? Icons.add : Icons.class_,
                 color: isActive ? Colors.white : isAdd ? Colors.teal : color, size: 18)),
@@ -1583,10 +1581,10 @@ class _PrimaryClassPickerSheetState extends State<_PrimaryClassPickerSheet> {
         'currentClassId':  classId,
         'lastClassSwitch': FieldValue.serverTimestamp(),
       });
-      if (context.mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
       widget.onClassSelected(classId);
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')));
       }

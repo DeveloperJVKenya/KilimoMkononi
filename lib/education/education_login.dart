@@ -1,12 +1,15 @@
 // lib/education/education_login.dart
-// ignore_for_file: use_build_context_synchronously
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'package:kilimomkononi/education/education_tier_selection.dart';
 import 'package:kilimomkononi/education/primary/primary_home_screen.dart';
+import 'package:kilimomkononi/education/education_registration.dart';
+import 'package:kilimomkononi/services/google_auth_service.dart';
+import 'package:provider/provider.dart';
+import 'package:kilimomkononi/services/auth_state_service.dart';
+import 'package:kilimomkononi/widgets/google_logo.dart';
 
 class EducationLoginScreen extends StatefulWidget {
   const EducationLoginScreen({super.key});
@@ -31,8 +34,34 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text.trim(),
       );
+      await _handlePostAuth(cred.user!.uid);
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Invalid email or password';
+      if (e.code != 'user-not-found' &&
+          e.code != 'wrong-password' &&
+          e.code != 'invalid-credential') {
+        msg = e.message ?? 'Login failed';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
-      final uid = cred.user!.uid;
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _loading = true);
+
+    // See the comment in the Farmer login screen's _handleGoogleSignIn —
+    // must be armed BEFORE the credential exchange, not after.
+    final authService = Provider.of<AuthStateService>(context, listen: false);
+    authService.setSkipNext();
+
+    try {
+      final result = await GoogleAuthService.signIn();
+      final uid = result.uid;
 
       // Block Farmers app users from logging in here
       final farmerDoc = await FirebaseFirestore.instance
@@ -41,7 +70,7 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
           .get();
 
       if (farmerDoc.exists) {
-        await FirebaseAuth.instance.signOut();
+        await GoogleAuthService.signOut();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -59,131 +88,192 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
           .get();
 
       if (!eduDoc.exists) {
-        await FirebaseAuth.instance.signOut();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No school account found.')),
-        );
-        return;
-      }
-
-      final data = eduDoc.data()!;
-
-      // Account disabled check
-      if (data['isDisabled'] == true) {
-        await FirebaseAuth.instance.signOut();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Account disabled. Contact your admin.')),
-        );
-        return;
-      }
-
-      // Still pending approval
-      if (data['approvalStatus'] != 'approved') {
-        if (!mounted) return;
-        _showPendingDialog(data['approvalStatus'] as String? ?? 'pending');
-        await FirebaseAuth.instance.signOut();
-        return;
-      }
-
-      // ── Routing logic ──────────────────────────────────────────
-      final role = data['role'] as String?;
-      final tier = data['educationTier'] as String?;
-
-      // Headteacher with no tier set → tier selection screen (one-time)
-      if (role == 'headteacher' && (tier == null || tier.isEmpty)) {
+        // Brand-new Google user → send them into the normal
+        // registration flow (role picker + school code), just with
+        // password skipped and name/email pre-filled.
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-              builder: (_) => const EducationTierSelectionScreen()),
+            builder: (_) => EducationRegistrationScreen(
+              googleUid: uid,
+              googleEmail: result.email,
+              googleDisplayName: result.displayName,
+            ),
+          ),
         );
         return;
       }
 
-      // ── Silent backfill for teachers & students ────────────────
-      // Existing users registered before the school code system have
-      // no schoolCode on their record. Look it up from their school
-      // and save it silently.
-      final existingCode = data['schoolCode'] as String?;
-      if (existingCode == null || existingCode.isEmpty) {
-        final schoolName = data['schoolName'] as String?;
-        if (schoolName != null && schoolName.isNotEmpty) {
-          try {
-            final schoolSnap = await FirebaseFirestore.instance
-                .collection('Schools')
-                .where('schoolName', isEqualTo: schoolName)
-                .limit(1)
-                .get();
-            if (schoolSnap.docs.isNotEmpty) {
-              final code =
-                  schoolSnap.docs.first.data()['schoolCode'] as String?;
-              if (code != null && code.isNotEmpty) {
-                await FirebaseFirestore.instance
-                    .collection('EducationUsers')
-                    .doc(uid)
-                    .update({'schoolCode': code});
-              }
-            }
-          } catch (_) {
-            // Non-critical — user can still log in fine
-          }
-        }
-      }
-      // ──────────────────────────────────────────────────────────
-
-      // ── Primary routing ────────────────────────────────────────
-      // Route based on the USER's own class, NOT the school's tier list.
-      // A school may offer all 4 systems — we only check THIS user's class.
-      final currentClassId = data['currentClassId'] as String?;
-
-      // A user is "primary" only if their OWN class is a primary class.
-      // Primary classIds contain 'primary' in the legacy format OR
-      // 'cbcPrimary' in the pipe format.
-      bool isPrimary = false;
-      if (currentClassId != null && currentClassId.isNotEmpty) {
-        isPrimary = currentClassId.toLowerCase().contains('_primary_') ||
-            currentClassId.contains('cbcPrimary') ||
-            currentClassId.contains('|cbcPrimary');
-      }
-
-      // For teachers: check if ALL their classes are primary
-      // If mixed (primary + junior), send to main home where they can switch
-      if (role == 'teacher') {
-        final classIds = List<String>.from(data['classIds'] ?? []);
-        if (classIds.isNotEmpty) {
-          final allPrimary = classIds.every((id) =>
-              id.toLowerCase().contains('_primary_') ||
-              id.contains('cbcPrimary'));
-          isPrimary = allPrimary;
-        }
-      }
-
-      if (!mounted) return;
-
-      if (isPrimary && (role == 'student' || role == 'teacher')) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const PrimaryHomeScreen()),
-        );
-      } else {
-        Navigator.pushReplacementNamed(context, '/edu_home');
-      }
-    } on FirebaseAuthException catch (e) {
-      String msg = 'Invalid email or password';
-      if (e.code != 'user-not-found' &&
-          e.code != 'wrong-password' &&
-          e.code != 'invalid-credential') {
-        msg = e.message ?? 'Login failed';
-      }
+      await _handlePostAuth(uid, eduDocData: eduDoc.data());
+    } on GoogleAuthCancelledException {
+      // User closed the picker.
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google sign-in failed: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email above first, then tap "Forgot Password?"')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset email sent to $email')),
+      );
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Could not send reset email.';
+      if (e.code == 'user-not-found') msg = 'No account found with this email.';
+      if (e.code == 'invalid-email') msg = 'Enter a valid email address.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Shared post-authentication routing for both email/password and
+  /// Google sign-in. [eduDocData] can be passed in to avoid a second
+  /// Firestore read when the caller already fetched it.
+  Future<void> _handlePostAuth(String uid, {Map<String, dynamic>? eduDocData}) async {
+    final eduDoc = eduDocData ??
+        (await FirebaseFirestore.instance
+                .collection('EducationUsers')
+                .doc(uid)
+                .get())
+            .data();
+
+    if (eduDoc == null) {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No school account found.')),
+      );
+      return;
+    }
+
+    final data = eduDoc;
+
+    // Account disabled check
+    if (data['isDisabled'] == true) {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Account disabled. Contact your admin.')),
+      );
+      return;
+    }
+
+    // Still pending approval
+    if (data['approvalStatus'] != 'approved') {
+      if (!mounted) return;
+      _showPendingDialog(data['approvalStatus'] as String? ?? 'pending');
+      await FirebaseAuth.instance.signOut();
+      return;
+    }
+
+    // ── Routing logic ──────────────────────────────────────────
+    final role = data['role'] as String?;
+    final tier = data['educationTier'] as String?;
+
+    // Headteacher with no tier set → tier selection screen (one-time)
+    if (role == 'headteacher' && (tier == null || tier.isEmpty)) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+            builder: (_) => const EducationTierSelectionScreen()),
+      );
+      return;
+    }
+
+    // ── Silent backfill for teachers & students ────────────────
+    // Existing users registered before the school code system have
+    // no schoolCode on their record. Look it up from their school
+    // and save it silently.
+    final existingCode = data['schoolCode'] as String?;
+    if (existingCode == null || existingCode.isEmpty) {
+      final schoolName = data['schoolName'] as String?;
+      if (schoolName != null && schoolName.isNotEmpty) {
+        try {
+          final schoolSnap = await FirebaseFirestore.instance
+              .collection('Schools')
+              .where('schoolName', isEqualTo: schoolName)
+              .limit(1)
+              .get();
+          if (schoolSnap.docs.isNotEmpty) {
+            final code =
+                schoolSnap.docs.first.data()['schoolCode'] as String?;
+            if (code != null && code.isNotEmpty) {
+              await FirebaseFirestore.instance
+                  .collection('EducationUsers')
+                  .doc(uid)
+                  .update({'schoolCode': code});
+            }
+          }
+        } catch (_) {
+          // Non-critical — user can still log in fine
+        }
+      }
+    }
+    // ──────────────────────────────────────────────────────────
+
+    // ── Primary routing ────────────────────────────────────────
+    // Route based on the USER's own class, NOT the school's tier list.
+    // A school may offer all 4 systems — we only check THIS user's class.
+    final currentClassId = data['currentClassId'] as String?;
+
+    // A user is "primary" only if their OWN class is a primary class.
+    // Primary classIds contain 'primary' in the legacy format OR
+    // 'cbcPrimary' in the pipe format.
+    bool isPrimary = false;
+    if (currentClassId != null && currentClassId.isNotEmpty) {
+      isPrimary = currentClassId.toLowerCase().contains('_primary_') ||
+          currentClassId.contains('cbcPrimary') ||
+          currentClassId.contains('|cbcPrimary');
+    }
+
+    // For teachers: check if ALL their classes are primary
+    // If mixed (primary + junior), send to main home where they can switch
+    if (role == 'teacher') {
+      final classIds = List<String>.from(data['classIds'] ?? []);
+      if (classIds.isNotEmpty) {
+        final allPrimary = classIds.every((id) =>
+            id.toLowerCase().contains('_primary_') ||
+            id.contains('cbcPrimary'));
+        isPrimary = allPrimary;
+      }
+    }
+
+    if (!mounted) return;
+
+    if (isPrimary && (role == 'student' || role == 'teacher')) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PrimaryHomeScreen()),
+      );
+    } else {
+      Navigator.pushReplacementNamed(context, '/edu_home');
     }
   }
 
@@ -332,7 +422,16 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
                                     ? null
                                     : 'Password required',
                           ),
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _loading ? null : _handleForgotPassword,
+                              child: const Text('Forgot Password?',
+                                  style: TextStyle(color: Colors.teal)),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           SizedBox(
                             width: double.infinity,
                             height: 56,
@@ -355,6 +454,33 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white),
                                     ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(child: Divider(color: Colors.grey.shade400)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                child: Text('OR', style: TextStyle(color: Colors.grey.shade600)),
+                              ),
+                              Expanded(child: Divider(color: Colors.grey.shade400)),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: OutlinedButton.icon(
+                              onPressed: _loading ? null : _handleGoogleSignIn,
+                              icon: const GoogleLogo(size: 20),
+                              label: const Text('Continue with Google',
+                                  style: TextStyle(fontSize: 16, color: Colors.black87)),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.grey.shade400),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),

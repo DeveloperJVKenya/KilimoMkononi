@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
-
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
@@ -210,6 +208,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
       final fileName = file.name;
       final title = _titleController.text.trim().isEmpty ? fileName : _titleController.text.trim();
 
+      if (!mounted) return;
       final confirm = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
@@ -223,6 +222,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
       );
       if (confirm != true) return;
 
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -301,12 +301,14 @@ class _ManualsScreenState extends State<ManualsScreen> {
 
   Future<void> _downloadManual(String url, String fileName) async {
     if (!await Permission.storage.request().isGranted) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission denied')));
       return;
     }
     final dir = await getExternalStorageDirectory();
     final path = '${dir!.path}/$fileName';
     await Dio().download(url, path);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to $path')));
     OpenFile.open(path);
   }
@@ -359,7 +361,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
                   padding: const EdgeInsets.all(40),
                   child: Column(
                     children: [
-                      Icon(Icons.menu_book, size: 90, color: appPrimaryColor.withOpacity(0.7)),
+                      Icon(Icons.menu_book, size: 90, color: appPrimaryColor.withValues(alpha: 0.7)),
                       const SizedBox(height: 24),
                       const Text('Select a crop to view its manual', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey)),
                       const SizedBox(height: 12),

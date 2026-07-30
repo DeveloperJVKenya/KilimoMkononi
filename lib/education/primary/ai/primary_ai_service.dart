@@ -1,8 +1,8 @@
 // lib/education/primary/primary_ai_service.dart
-// ignore_for_file: avoid_print
 
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 const String _geminiApiKey = 'AIzaSyDW-YIRD8p3cdveFgKG2o6KBEKWXP7mp7U';
@@ -191,7 +191,7 @@ Return ONLY a valid JSON array. No markdown, no backticks.
       final list = jsonDecode(_extractJson(raw)) as List;
       return list.map((e) => PrimaryQuestion.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('[PrimaryAiService] generateMiniQuiz parse error: $e');
+      debugPrint('[PrimaryAiService] generateMiniQuiz parse error: $e');
       return [];
     }
   }
@@ -218,7 +218,7 @@ Return ONLY this JSON object:
     try {
       return SpotMistakeItem.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateSpotMistake parse error: $e');
+      debugPrint('[PrimaryAiService] generateSpotMistake parse error: $e');
       return null;
     }
   }
@@ -246,7 +246,7 @@ Return ONLY: {"story":"...","question":"...","answer":"..."}
     try {
       return FarmingStory.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateFarmingStory parse error: $e');
+      debugPrint('[PrimaryAiService] generateFarmingStory parse error: $e');
       return null;
     }
   }
@@ -296,7 +296,7 @@ Return ONLY: {"item":"exact name","clues":["hardest clue","medium clue","easiest
     try {
       return WhatAmIClues.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateWhatAmIClues parse error: $e');
+      debugPrint('[PrimaryAiService] generateWhatAmIClues parse error: $e');
       return null;
     }
   }
@@ -326,7 +326,7 @@ Return ONLY:
     try {
       return FillBlankItem.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateFillBlank parse error: $e');
+      debugPrint('[PrimaryAiService] generateFillBlank parse error: $e');
       return null;
     }
   }
@@ -351,7 +351,7 @@ Return ONLY: {"type":"quiz","topic":"Farm Animals","emoji":"🐄","title":"Farm 
     try {
       return Map<String, String>.from(jsonDecode(_extractJson(raw)) as Map);
     } catch (e) {
-      print('[PrimaryAiService] generateDailyChallenge parse error: $e');
+      debugPrint('[PrimaryAiService] generateDailyChallenge parse error: $e');
       return null;
     }
   }
@@ -380,7 +380,7 @@ Keep each field concise. Use plain simple language.
     try {
       return LessonPlan.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateLessonPlan parse error: $e');
+      debugPrint('[PrimaryAiService] generateLessonPlan parse error: $e');
       return null;
     }
   }
@@ -417,7 +417,7 @@ Be encouraging and practical. Keep each field concise.
     try {
       return ClassSummary.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateClassSummary parse error: $e');
+      debugPrint('[PrimaryAiService] generateClassSummary parse error: $e');
       return null;
     }
   }
@@ -446,7 +446,7 @@ Return ONLY this JSON:
     try {
       return StudentHint.fromJson(jsonDecode(_extractJson(raw)) as Map<String, dynamic>);
     } catch (e) {
-      print('[PrimaryAiService] generateStudentHint parse error: $e');
+      debugPrint('[PrimaryAiService] generateStudentHint parse error: $e');
       return null;
     }
   }
@@ -476,8 +476,8 @@ Return ONLY this JSON:
         }),
       ).timeout(const Duration(seconds: 30));
 
-      if (response.statusCode == 429) { print('[PrimaryAiService] Rate limited.'); return null; }
-      if (response.statusCode != 200) { print('[PrimaryAiService] HTTP ${response.statusCode}'); return null; }
+      if (response.statusCode == 429) { debugPrint('[PrimaryAiService] Rate limited.'); return null; }
+      if (response.statusCode != 200) { debugPrint('[PrimaryAiService] HTTP ${response.statusCode}'); return null; }
 
       final body       = jsonDecode(response.body) as Map<String, dynamic>;
       final candidates = body['candidates'] as List?;
@@ -487,10 +487,10 @@ Return ONLY this JSON:
       if (parts == null || parts.isEmpty) return null;
       return (parts[0] as Map<String, dynamic>)['text'] as String?;
     } on TimeoutException {
-      print('[PrimaryAiService] Timed out.');
+      debugPrint('[PrimaryAiService] Timed out.');
       return null;
     } catch (e) {
-      print('[PrimaryAiService] Network error: $e');
+      debugPrint('[PrimaryAiService] Network error: $e');
       return null;
     }
   }

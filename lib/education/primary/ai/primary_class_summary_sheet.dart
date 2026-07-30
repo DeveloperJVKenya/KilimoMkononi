@@ -1,5 +1,4 @@
 // lib/education/primary/primary_class_summary_sheet.dart
-// ignore_for_file: unused_local_variable, deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 import 'primary_progress_service.dart';
@@ -67,7 +66,6 @@ class _PrimaryClassSummarySheetState extends State<PrimaryClassSummarySheet> {
 
   @override
   Widget build(BuildContext context) {
-    const c = Color(0xFF003900);
     return Container(
       decoration: const BoxDecoration(
           color: Colors.white,
@@ -80,7 +78,7 @@ class _PrimaryClassSummarySheetState extends State<PrimaryClassSummarySheet> {
           padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
           child: Row(children: [
             Container(padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: const Color(0xFF003900).withOpacity(0.1),
+              decoration: BoxDecoration(color: const Color(0xFF003900).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.bar_chart_rounded, color: Color(0xFF003900), size: 20)),
             const SizedBox(width: 12),
@@ -145,7 +143,7 @@ class _PrimaryClassSummarySheetState extends State<PrimaryClassSummarySheet> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
             color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.2))),
+            border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.2))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Row(children: [
             Text('📊 ', style: TextStyle(fontSize: 16)),

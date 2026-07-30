@@ -1,6 +1,4 @@
 // lib/screens/pests_diseases_home.dart
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/screens/pest%20management/pest_management_home.dart';
 import 'package:kilimomkononi/screens/disease%20management/disease_management_home.dart';
@@ -175,7 +173,7 @@ class _PageHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _kGreen.withOpacity(0.08),
+            color: _kGreen.withValues(alpha: 0.08),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.agriculture, size: 48, color: _kGreen),
@@ -221,7 +219,7 @@ class _OptionCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        splashColor: color.withOpacity(0.1),
+        splashColor: color.withValues(alpha: 0.1),
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -232,7 +230,7 @@ class _OptionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 28),

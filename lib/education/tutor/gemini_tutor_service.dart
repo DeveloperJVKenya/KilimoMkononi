@@ -1,5 +1,4 @@
 // lib/education/tutor/gemini_tutor_service.dart
-// ignore_for_file: avoid_print
 
 import 'dart:async';
 import 'dart:convert';

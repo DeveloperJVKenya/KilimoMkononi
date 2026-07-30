@@ -1,6 +1,4 @@
 // farming_tips_widget.dart - UPDATED WITH Image.asset
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -86,7 +84,7 @@ class _FarmingTipsWidgetState extends State<FarmingTipsWidget> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.menu_book, size: 90, color: const Color.fromARGB(255, 3, 39, 4).withOpacity(0.7)),
+                            Icon(Icons.menu_book, size: 90, color: const Color.fromARGB(255, 3, 39, 4).withValues(alpha: 0.7)),
                             const SizedBox(height: 24),
                             const Text('Select a crop to view detailed farming guide', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey)),
                             const SizedBox(height: 12),
@@ -121,7 +119,7 @@ class _FarmingTipsWidgetState extends State<FarmingTipsWidget> {
           initiallyExpanded: isExpanded,
           onExpansionChanged: (expanded) => setState(() => _expandedCrops[cropKey] = expanded),
           leading: CircleAvatar(
-            backgroundColor: Colors.green.withOpacity(0.1),
+            backgroundColor: Colors.green.withValues(alpha: 0.1),
             child: Text(cropData['icon'] ?? '🌱', style: const TextStyle(fontSize: 28)),
           ),
           title: Text(

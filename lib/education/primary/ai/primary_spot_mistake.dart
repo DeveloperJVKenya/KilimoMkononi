@@ -1,5 +1,4 @@
 // lib/education/primary/primary_spot_mistake.dart
-// ignore_for_file: unused_field, deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 
@@ -47,9 +46,9 @@ class PrimarySpotMistakeButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
           decoration: BoxDecoration(
-              color: c.withOpacity(0.08),
+              color: c.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.withOpacity(0.2))),
+              border: Border.all(color: c.withValues(alpha: 0.2))),
           child: Row(children: [
             Text('🔍', style: const TextStyle(fontSize: 18)),
             const SizedBox(width: 10),
@@ -59,7 +58,7 @@ class PrimarySpotMistakeButton extends StatelessWidget {
               Text('Can you find the one wrong word?',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
             ])),
-            Icon(Icons.arrow_forward_ios, size: 14, color: c.withOpacity(0.5)),
+            Icon(Icons.arrow_forward_ios, size: 14, color: c.withValues(alpha: 0.5)),
           ]),
         ),
       ),
@@ -84,7 +83,6 @@ class _SpotMistakeSheetState extends State<_SpotMistakeSheet> {
 
   _SMState       _state = _SMState.loading;
   SpotMistakeItem? _item;
-  String?        _errorMsg;
 
   // Phase 2: after True/False
   bool?          _answeredTrue;  // true if pupil chose TRUE, false if FALSE
@@ -135,7 +133,7 @@ class _SpotMistakeSheetState extends State<_SpotMistakeSheet> {
           padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
           child: Row(children: [
             Container(padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
               child: Icon(Icons.search_rounded, color: c, size: 20)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -342,7 +340,7 @@ class _TFButton extends StatelessWidget {
         backgroundColor: color.shade50,
         foregroundColor: color.shade800,
         elevation: 0,
-        side: BorderSide(color: color.withOpacity(0.2)),
+        side: BorderSide(color: color.withValues(alpha: 0.2)),
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
     child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),

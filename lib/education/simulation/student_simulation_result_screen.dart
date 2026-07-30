@@ -1,5 +1,4 @@
 // lib/education/simulation/student_simulation_result_screen.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -258,9 +257,9 @@ class _ResultBody extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: gradeColor.withOpacity(0.1),
+                          color: gradeColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: gradeColor.withOpacity(0.4)),
+                          border: Border.all(color: gradeColor.withValues(alpha: 0.4)),
                         ),
                         child: Text(aiGrade,
                             style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: gradeColor)),
@@ -375,7 +374,7 @@ class _ResultBody extends StatelessWidget {
                           width: 22,
                           height: 22,
                           alignment: Alignment.center,
-                          decoration: BoxDecoration(color: lineColor.withOpacity(0.15), shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: lineColor.withValues(alpha: 0.15), shape: BoxShape.circle),
                           child: Text('${e.key + 1}',
                               style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: lineColor)),
                         ),
@@ -394,7 +393,7 @@ class _ResultBody extends StatelessWidget {
                           child: Icon(
                             isPos ? Icons.arrow_upward : isNeg ? Icons.arrow_downward : Icons.remove,
                             size: 13,
-                            color: lineColor.withOpacity(0.7),
+                            color: lineColor.withValues(alpha: 0.7),
                           ),
                         ),
                       ],
@@ -537,15 +536,15 @@ class _InfoBanner extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.07),
+            color: color.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, color: color, size: 18),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(text, style: TextStyle(fontSize: 13, color: color.withOpacity(0.9), height: 1.4)),
+              child: Text(text, style: TextStyle(fontSize: 13, color: color.withValues(alpha: 0.9), height: 1.4)),
             ),
           ]),
         ),

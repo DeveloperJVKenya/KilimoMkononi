@@ -1,5 +1,5 @@
 // lib/education/field/field_data_input.dart
-// ignore_for_file: unused_element, avoid_print, use_build_context_synchronously, deprecated_member_use, unused_local_variable
+import 'package:kilimomkononi/education/widgets/edu_ai_advice_card.dart';
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +13,8 @@ import 'package:kilimomkononi/education/data/fertilizer_recommendations.dart';
 import 'package:kilimomkononi/education/tutor/tutor_suppressor.dart';
 import 'package:kilimomkononi/services/plot_analysis_service.dart';
 import 'package:kilimomkononi/widgets/plot_history_card.dart';
+import 'package:kilimomkononi/services/offline_queue_service.dart';
+import 'package:kilimomkononi/education/widgets/school_conditions_widget.dart';
 
 const String baseUrl = "https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini";
 
@@ -83,7 +85,7 @@ Future<String> _callAI(String prompt) async {
     ).timeout(const Duration(seconds: 60));
 
     if (response.statusCode != 200) {
-      print('AI backend error: ${response.statusCode} ${response.body}');
+      debugPrint('AI backend error: ${response.statusCode} ${response.body}');
       return 'AI service is temporarily unavailable. Please try again.';
     }
 
@@ -95,7 +97,7 @@ Future<String> _callAI(String prompt) async {
 
     return text.toString().trim();
   } catch (e) {
-    print('AI call error: $e');
+    debugPrint('AI call error: $e');
     return 'Could not reach AI service. Please check your connection.';
   }
 }
@@ -165,8 +167,6 @@ class _FieldDataInputState extends State<FieldDataInput>
 
   // AI state — per-card loading keys so only the tapped card spins
   final Set<String> _aiLoadingKeys = {};
-
-  bool get _aiAnalysisLoading => _aiLoadingKeys.isNotEmpty;
 
   bool _isCardLoading(String key) => _aiLoadingKeys.contains(key);
 
@@ -272,14 +272,6 @@ class _FieldDataInputState extends State<FieldDataInput>
     };
   }
 
-  DocumentReference _gradeDocRef() {
-    final p = _parseClassId(widget.classId);
-    return FirebaseFirestore.instance
-        .collection('schools').doc(p['school'])
-        .collection('systems').doc(p['system'])
-        .collection('grades').doc(p['grade']);
-  }
-
   bool get isTeacher => widget.role == EduRole.teacher || widget.role == EduRole.headteacher;
   bool get isStudent  => widget.role == EduRole.student;
 
@@ -307,6 +299,17 @@ class _FieldDataInputState extends State<FieldDataInput>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            SchoolConditionsWidget(
+              role:          widget.role,
+              schoolName:    widget.schoolName,
+              classId:       widget.classId,
+              selectedCrop:  _selectedCrop,
+              selectedStage: _selectedStage,
+              selectedTopic: _selectedIssue,
+              contentType:   'field_submissions',
+            ),
+            const SizedBox(height: 12),
+
             PlotHistoryCard(
               analysis:    _previousAnalysis,
               seasonLabel: '${DateTime.now().year - 1} Season',
@@ -334,6 +337,7 @@ class _FieldDataInputState extends State<FieldDataInput>
             ],
 
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
               value: _selectedCrop,
               decoration: const InputDecoration(
                 labelText: 'Select Crop *',
@@ -355,6 +359,7 @@ class _FieldDataInputState extends State<FieldDataInput>
               child: Opacity(
                 opacity: _selectedCrop == null ? 0.45 : 1.0,
                 child: DropdownButtonFormField<String>(
+                  // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
                   value: _selectedStage,
                   decoration: const InputDecoration(
                     labelText: 'Growth Stage *',
@@ -374,6 +379,7 @@ class _FieldDataInputState extends State<FieldDataInput>
               child: Opacity(
                 opacity: _selectedStage == null ? 0.45 : 1.0,
                 child: DropdownButtonFormField<String>(
+                  // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
                   value: _selectedIssue,
                   decoration: const InputDecoration(
                     labelText: 'Field Issue *',
@@ -611,125 +617,76 @@ Keep language practical for Kenyan secondary school teachers.
     });
 
     if (!mounted) return;
-    _showAiResultDialog(
+    await showEduAiResultDialog(
+      context: context,
       title: studentData != null
-          ? '🤖 AI Analysis: ${studentData['studentName'] ?? 'Student'}\'s Submission'
-          : '🤖 AI Field Issue Analysis',
-      result: result,
+          ? 'AI Analysis: ${studentData['studentName'] ?? 'Student'}\'s Submission'
+          : 'AI Field Issue Analysis',
+      markdownResult: result,
+      mode: studentData != null ? EduAiMode.student : EduAiMode.teacher,
     );
   }
 
-  void _showAiResultDialog({required String title, required String result}) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)]),
-                borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20)),
-              ),
-              child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.auto_awesome,
-                      color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Text(title,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold))),
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: const Icon(Icons.close,
-                      color: Colors.white70, size: 20),
-                ),
-              ]),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: _AiMarkdownCard(content: result),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(ctx),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Got it!'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ── Submit Field Issue ───────────────────────────────────────────────────
   Future<void> _submitFieldIssue() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
+
+    final payload = {
+      'crop':               _selectedCrop,
+      'stage':              _selectedStage,
+      'issue':              _selectedIssue,
+      'studentObservation': isStudent ? _observationsCtrl.text.trim() : '',
+      'studentIdea':        isStudent ? _studentIdeaCtrl.text.trim()  : '',
+      'studentName':        isStudent ? _studentNameCtrl.text.trim()  : 'Teacher Observation',
+      'submittedBy':        isStudent ? 'student' : 'teacher',
+      'schoolName':         widget.schoolName,
+      'className':          widget.classId,
+      'reviewStatus':       'pending',
+      'submittedAt':        FieldValue.serverTimestamp(),
+    };
+
+    bool savedOnline = false;
     try {
-      await _fieldSubmissionsCollection?.add({
-        'crop':               _selectedCrop,
-        'stage':              _selectedStage,
-        'issue':              _selectedIssue,
-        'studentObservation': isStudent ? _observationsCtrl.text.trim() : '',
-        'studentIdea':        isStudent ? _studentIdeaCtrl.text.trim()  : '',
-        'studentName':        isStudent ? _studentNameCtrl.text.trim()  : 'Teacher Observation',
-        'submittedBy':        isStudent ? 'student' : 'teacher',
-        'schoolName':         widget.schoolName,
-        'className':          widget.classId,
-        'reviewStatus':       'pending',
-        'submittedAt':        FieldValue.serverTimestamp(),
-      });
-      final submittedName = isStudent ? _studentNameCtrl.text.trim() : '';
-      _resetFieldForm();
-      if (isStudent && submittedName.isNotEmpty && _soilTestStudentNameCtrl.text.trim().isEmpty) {
-        _soilTestStudentNameCtrl.text = submittedName;
+      await _fieldSubmissionsCollection?.add(payload);
+      savedOnline = true;
+    } catch (_) {
+      // Offline — save to queue. Use direct Firestore path from classId.
+      final parts = widget.classId.split('_');
+      if (parts.length >= 3) {
+        final school  = parts[0];
+        final system  = parts[1];
+        final grade   = parts.sublist(2).join('_');
+        final colPath = 'schools/$school/systems/$system/grades/$grade/field_submissions';
+        await OfflineQueueService.enqueue(
+          id:         'edu_field_${widget.classId}_${DateTime.now().millisecondsSinceEpoch}',
+          collection: colPath,
+          payload:    payload,
+        );
       }
+    }
+
+    final submittedName = isStudent ? _studentNameCtrl.text.trim() : '';
+    _resetFieldForm();
+    if (isStudent && submittedName.isNotEmpty &&
+        _soilTestStudentNameCtrl.text.trim().isEmpty) {
+      _soilTestStudentNameCtrl.text = submittedName;
+    }
+
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Submission sent! Go to Soil Testing to view soil data.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 4),
+        SnackBar(
+          content: Text(savedOnline
+              ? '✅ Submission sent! Go to Soil Testing to view soil data.'
+              : '📥 Saved offline — will sync when connected.'),
+          backgroundColor: savedOnline ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 4),
         ),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      setState(() => _isSaving = false);
     }
+
+    setState(() => _isSaving = false);
   }
 
   // ── Student submission cards — Field Issues ──────────────────────────────
@@ -989,11 +946,14 @@ Keep language practical for Kenyan secondary school teachers.
                     ? {'studentReply2': reply, 'studentRepliedAt2': FieldValue.serverTimestamp()}
                     : {'studentReply': reply, 'studentRepliedAt': FieldValue.serverTimestamp()};
                 await _fieldSubmissionsCollection?.doc(docId).update(fields);
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx);
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ Reply sent!'), backgroundColor: Colors.green),
                 );
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
               }
             },
@@ -1032,7 +992,7 @@ Keep language practical for Kenyan secondary school teachers.
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10)),
                   child: const Icon(Icons.lightbulb,
                       color: Colors.white, size: 22),
@@ -1132,7 +1092,7 @@ Keep language practical for Kenyan secondary school teachers.
         color: bg,
         borderRadius: BorderRadius.circular(12),
         border:
-            Border.all(color: borderColor.withOpacity(0.4), width: 1.5),
+            Border.all(color: borderColor.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
@@ -1140,7 +1100,7 @@ Keep language practical for Kenyan secondary school teachers.
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: borderColor.withOpacity(0.12),
+            color: borderColor.withValues(alpha: 0.12),
             borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(11),
                 topRight: Radius.circular(11)),
@@ -1554,7 +1514,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
         ]),
         content: SizedBox(
           width: double.maxFinite,
-          child: SingleChildScrollView(child: _AiMarkdownCard(content: raw)),
+          child: SingleChildScrollView(child: EduAiMarkdownContent(content: raw)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
@@ -1708,9 +1668,9 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
   Widget _quizSectionHeader(String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Text(label,
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
@@ -1738,10 +1698,10 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isSelected ? color.withOpacity(0.5) : Colors.grey.shade300,
+          color: isSelected ? color.withValues(alpha: 0.5) : Colors.grey.shade300,
           width: isSelected ? 1.5 : 1,
         ),
-        color: isSelected ? color.withOpacity(0.04) : Colors.grey.shade50,
+        color: isSelected ? color.withValues(alpha: 0.04) : Colors.grey.shade50,
       ),
       child: CheckboxListTile(
         value: isSelected,
@@ -2173,7 +2133,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.15),
+              color: statusColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(status, style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold)),
@@ -2236,6 +2196,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
         _pHCtrl, _organicMatterCtrl, _soilTestFieldLocationCtrl,
       ]) { c.clear(); }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Soil data saved! Students can now view it.'),
@@ -2243,11 +2204,12 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -2294,15 +2256,17 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
       _soilObservationsCtrl.clear();
       _soilStudentIdeaCtrl.clear();
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Observations submitted!'), backgroundColor: Colors.green),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -2638,9 +2602,11 @@ Please:
     });
 
     if (!mounted) return;
-    _showAiResultDialog(
-      title: '🤖 AI Soil Observation Feedback',
-      result: result,
+    await showEduAiResultDialog(
+      context: context,
+      title: 'AI Soil Observation Feedback',
+      markdownResult: result,
+      mode: EduAiMode.teacher,
     );
   }
 
@@ -2694,11 +2660,14 @@ Please:
                     ? {'soilStudentReply2': reply, 'soilStudentRepliedAt2': FieldValue.serverTimestamp()}
                     : {'soilStudentReply': reply, 'soilStudentRepliedAt': FieldValue.serverTimestamp()};
                 await _soilTestResultsCollection?.doc(docId).update(fields);
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx);
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ Reply sent to teacher!'), backgroundColor: Colors.green),
                 );
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                 );
@@ -3063,11 +3032,14 @@ Write a 2–3 sentence teaching comment/question for this student. Be encouragin
                     update['teacherFollowUpAt'] = FieldValue.serverTimestamp();
                   }
                   await _fieldSubmissionsCollection?.doc(docId).update(update);
+                  if (!dlgCtx.mounted) return;
                   Navigator.pop(dlgCtx);
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('✅ Review saved!'), backgroundColor: Colors.green),
                   );
                 } catch (e) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                   );
@@ -3337,11 +3309,14 @@ Write a 2–3 sentence teaching comment for this student's soil observation. Be 
                     update['soilTeacherFollowUpAt'] = FieldValue.serverTimestamp();
                   }
                   await _soilTestResultsCollection?.doc(docId).update(update);
+                  if (!dlgCtx.mounted) return;
                   Navigator.pop(dlgCtx);
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('✅ Review saved!'), backgroundColor: Colors.green),
                   );
                 } catch (e) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                   );
@@ -3359,18 +3334,18 @@ Write a 2–3 sentence teaching comment for this student's soil observation. Be 
   // ── Grade helpers ────────────────────────────────────────────────────────
   Widget _buildGradeButton(String grade, String? selectedGrade, void Function(String) onSelect) {
     final isSelected = selectedGrade == grade;
-    Color color; String label; IconData icon;
+    Color color; IconData icon;
     switch (grade) {
-      case 'correct':   color = Colors.green;  label = '✅'; icon = Icons.check_circle; break;
-      case 'needsWork': color = Colors.orange; label = '⚠️'; icon = Icons.warning;      break;
-      case 'incorrect': color = Colors.red;    label = '❌'; icon = Icons.cancel;        break;
-      default:          color = Colors.grey;   label = '?';  icon = Icons.help;
+      case 'correct':   color = Colors.green;  icon = Icons.check_circle; break;
+      case 'needsWork': color = Colors.orange; icon = Icons.warning;      break;
+      case 'incorrect': color = Colors.red;    icon = Icons.cancel;        break;
+      default:          color = Colors.grey;   icon = Icons.help;
     }
     return Expanded(
       child: OutlinedButton(
         onPressed: () => onSelect(grade),
         style: OutlinedButton.styleFrom(
-          backgroundColor: isSelected ? color.withOpacity(0.1) : null,
+          backgroundColor: isSelected ? color.withValues(alpha: 0.1) : null,
           side: BorderSide(color: isSelected ? color : Colors.grey, width: isSelected ? 2 : 1),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -3457,226 +3432,3 @@ Write a 2–3 sentence teaching comment for this student's soil observation. Be 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  _AiMarkdownCard — renders Gemini markdown responses beautifully
-// ═══════════════════════════════════════════════════════════════════════════
-class _AiMarkdownCard extends StatelessWidget {
-  final String content;
-  const _AiMarkdownCard({required this.content});
-
-  static const List<Color> _sectionBg = [
-    Color(0xFFE8F5E9), Color(0xFFE3F2FD), Color(0xFFFFF8E1),
-    Color(0xFFFCE4EC), Color(0xFFEDE7F6), Color(0xFFE0F7FA),
-  ];
-  static const List<Color> _sectionBorder = [
-    Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFF9A825),
-    Color(0xFFC62828), Color(0xFF6A1B9A), Color(0xFF00695C),
-  ];
-  static const List<Color> _sectionTitle = [
-    Color(0xFF1B5E20), Color(0xFF0D47A1), Color(0xFFE65100),
-    Color(0xFFB71C1C), Color(0xFF4A148C), Color(0xFF004D40),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final sections = _parseSections(content);
-    if (sections.isEmpty) return _plainText(content);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: sections.asMap().entries.map((entry) {
-        final i = entry.key % _sectionBg.length;
-        final s = entry.value;
-        if (s['type'] == 'intro') {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F8E9),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF81C784)),
-              ),
-              child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.info_outline,
-                        color: Color(0xFF2E7D32), size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(child: _renderBody(s['body'] ?? '')),
-                  ]),
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: _sectionBg[i],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: _sectionBorder[i].withOpacity(0.5), width: 1.5),
-            ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _sectionBorder[i].withOpacity(0.12),
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(11),
-                      topRight: Radius.circular(11)),
-                ),
-                child: Row(children: [
-                  Icon(_sectionIcon(s['title'] ?? ''),
-                      color: _sectionTitle[i], size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Text(
-                    _cleanTitle(s['title'] ?? ''),
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: _sectionTitle[i]),
-                  )),
-                ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-                child: _renderBody(s['body'] ?? ''),
-              ),
-            ]),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  List<Map<String, String>> _parseSections(String raw) {
-    final lines = raw.split('\n');
-    final sections = <Map<String, String>>[];
-    String? currentTitle;
-    final bodyBuf = StringBuffer();
-
-    void flush() {
-      final body = bodyBuf.toString().trim();
-      if (body.isEmpty && currentTitle == null) return;
-      sections.add({
-        'type': currentTitle == null ? 'intro' : 'section',
-        'title': currentTitle ?? '',
-        'body': body,
-      });
-      bodyBuf.clear();
-      currentTitle = null;
-    }
-
-    for (final line in lines) {
-      if (RegExp(r'^#{1,3}\s').hasMatch(line)) {
-        flush();
-        currentTitle = line.replaceFirst(RegExp(r'^#+\s*'), '');
-      } else {
-        bodyBuf.writeln(line);
-      }
-    }
-    flush();
-    return sections;
-  }
-
-  Widget _renderBody(String text) {
-    final lines = text.split('\n');
-    final widgets = <Widget>[];
-    for (final raw in lines) {
-      final line = raw.trim();
-      if (line.isEmpty) { widgets.add(const SizedBox(height: 4)); continue; }
-      final numMatch = RegExp(r'^(\d+)\.\s+(.+)').firstMatch(line);
-      if (numMatch != null) {
-        widgets.add(_bulletRow(
-            '${numMatch.group(1)}.',  numMatch.group(2)!, numbered: true));
-        continue;
-      }
-      if (line.startsWith('- ') || line.startsWith('* ') ||
-          line.startsWith('• ')) {
-        final t = line.replaceFirst(RegExp(r'^[-*•]\s+'), '');
-        widgets.add(_bulletRow('•', t, numbered: false));
-        continue;
-      }
-      if (line.startsWith('**') && line.endsWith('**') && line.length > 4) {
-        final inner = line.substring(2, line.length - 2);
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(inner,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: Colors.black87)),
-        ));
-        continue;
-      }
-      widgets.add(
-          Padding(padding: const EdgeInsets.only(bottom: 3), child: _inlineBold(line)));
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
-  }
-
-  Widget _bulletRow(String marker, String text, {required bool numbered}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 5, left: 4),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(
-            width: numbered ? 22 : 16,
-            child: Text(marker,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight:
-                        numbered ? FontWeight.bold : FontWeight.normal,
-                    color: numbered
-                        ? const Color(0xFF1B5E20)
-                        : Colors.black54)),
-          ),
-          Expanded(child: _inlineBold(text)),
-        ]),
-      );
-
-  Widget _inlineBold(String text) {
-    final spans = <TextSpan>[];
-    final re = RegExp(r'\*\*(.+?)\*\*');
-    int last = 0;
-    for (final m in re.allMatches(text)) {
-      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
-      spans.add(TextSpan(
-          text: m.group(1),
-          style: const TextStyle(
-              fontWeight: FontWeight.bold, color: Colors.black87)));
-      last = m.end;
-    }
-    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
-    return RichText(
-        text: TextSpan(
-            style: const TextStyle(
-                fontSize: 13, color: Colors.black87, height: 1.45),
-            children: spans));
-  }
-
-  Widget _plainText(String t) =>
-      Text(t, style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.45));
-
-  String _cleanTitle(String t) => t.replaceAll(RegExp(r'^[#*]+\s*'), '').trim();
-
-  IconData _sectionIcon(String title) {
-    final t = title.toLowerCase();
-    if (t.contains('chemical') || t.contains('pesticide') || t.contains('fungicid')) return Icons.science;
-    if (t.contains('organic') || t.contains('bio') || t.contains('natural')) return Icons.eco;
-    if (t.contains('cultural') || t.contains('prevent') || t.contains('practice')) return Icons.agriculture;
-    if (t.contains('diagnos') || t.contains('symptom') || t.contains('sign')) return Icons.search;
-    if (t.contains('soil') || t.contains('nutrient') || t.contains('fertiliz')) return Icons.grass;
-    if (t.contains('economic') || t.contains('threshold')) return Icons.trending_up;
-    if (t.contains('safety') || t.contains('warning') || t.contains('caution')) return Icons.warning_amber;
-    if (t.contains('recommend') || t.contains('action')) return Icons.recommend;
-    if (t.contains('question') || t.contains('reflect')) return Icons.psychology;
-    if (t.contains('assessment') || t.contains('evaluat') || t.contains('feedback')) return Icons.grading;
-    if (t.contains('rotation') || t.contains('next crop')) return Icons.loop;
-    if (t.contains('biology') || t.contains('life cycle')) return Icons.biotech;
-    if (t.contains('assessment') || t.contains('evaluat')) return Icons.grading;
-    return Icons.info_outline;
-  }
-}

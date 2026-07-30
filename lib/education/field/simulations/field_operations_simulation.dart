@@ -1,5 +1,4 @@
 // lib/education/field/simulations/field_operations_simulation.dart
-// ignore_for_file: prefer_final_fields, avoid_renaming_method_parameters, use_build_context_synchronously, deprecated_member_use
 //
 // FLAME ENGINE — FieldOperationsSimulation
 //
@@ -152,7 +151,7 @@ class FieldStripComponent extends PositionComponent with TapCallbacks {
     }
   }
 
-  @override void onTapDown(TapDownEvent e) => onTap(data);
+  @override void onTapDown(TapDownEvent event) => onTap(data);
   @override void update(double dt) => _t += dt * 1.8;
 
   @override
@@ -172,7 +171,7 @@ class FieldStripComponent extends PositionComponent with TapCallbacks {
         RRect.fromRectAndRadius(
             Rect.fromLTWH(2, size.y * 0.85, size.x - 4, size.y * 0.12),
             const Radius.circular(4)),
-        Paint()..color = const Color(0xFF29B6F6).withOpacity((data.soilMoisture - 60) / 80),
+        Paint()..color = const Color(0xFF29B6F6).withValues(alpha: (data.soilMoisture - 60) / 80),
       );
     }
 
@@ -323,10 +322,11 @@ class _FieldOperationsSimulationState extends State<FieldOperationsSimulation> {
   late final FieldLabGame _game;
   late List<StripData> _strips;
 
-  int _week = 1, _totalWeeks = 10;
+  int _week = 1;
+  final int _totalWeeks = 10;
   int _tilCount = 0, _fertCount = 0, _weedCount = 0, _irrigCount = 0;
   int _selIdx = 0;
-  List<String> _log = [];
+  final List<String> _log = [];
   String _msg = '';
 
   WeeklyChallenge? _challenge;

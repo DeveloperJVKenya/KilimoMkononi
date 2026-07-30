@@ -1,5 +1,4 @@
 // lib/education/primary/primary_language_toggle.dart
-// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
@@ -33,11 +32,11 @@ class PrimaryLanguageToggle extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: isSwahili
-              ? const Color(0xFF006600).withOpacity(0.12)
+              ? const Color(0xFF006600).withValues(alpha: 0.12)
               : Colors.blue.shade50,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: isSwahili ? const Color(0xFF006600).withOpacity(0.3) : Colors.blue.shade200),
+              color: isSwahili ? const Color(0xFF006600).withValues(alpha: 0.3) : Colors.blue.shade200),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(isSwahili ? '🇰🇪' : '🇬🇧', style: const TextStyle(fontSize: 14)),

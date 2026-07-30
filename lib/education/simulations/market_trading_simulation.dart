@@ -1,5 +1,4 @@
 // lib/education/simulations/market_trading_simulation.dart
-// ignore_for_file: unnecessary_brace_in_string_interps, prefer_final_fields, avoid_renaming_method_parameters, use_build_context_synchronously, deprecated_member_use
 //
 // FLAME ENGINE — MarketTradingSimulation
 //
@@ -98,7 +97,7 @@ class MarketBackgroundComponent extends PositionComponent {
       // Awning stripes (white)
       for (double sx = x + 4; sx < x + stallW - 4; sx += 8) {
         canvas.drawRect(Rect.fromLTWH(sx, size.y * 0.40, 4, 14),
-            Paint()..color = Colors.white.withOpacity(0.4));
+            Paint()..color = Colors.white.withValues(alpha: 0.4));
       }
       // Stall table
       canvas.drawRect(Rect.fromLTWH(x + 4, size.y * 0.54, stallW - 8, 10),
@@ -188,7 +187,7 @@ class CommodityStallComponent extends PositionComponent with TapCallbacks {
   }) : super(position: position, size: size);
 
   @override
-  void onTapDown(TapDownEvent e) => onTap(commodity);
+  void onTapDown(TapDownEvent event) => onTap(commodity);
 
   @override
   void update(double dt) => _t += dt * (commodity.rising ? 3.0 : 1.5);
@@ -197,9 +196,9 @@ class CommodityStallComponent extends PositionComponent with TapCallbacks {
   void render(Canvas canvas) {
     final isRising = commodity.rising;
     final glow = selected
-        ? Colors.amber.withOpacity(0.3)
+        ? Colors.amber.withValues(alpha: 0.3)
         : isRising
-            ? Colors.green.withOpacity(0.15 + 0.08 * sin(_t))
+            ? Colors.green.withValues(alpha: 0.15 + 0.08 * sin(_t))
             : Colors.transparent;
 
     // Background glow
@@ -349,11 +348,12 @@ class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
   late List<Commodity> _commodities;
 
   double _cash = 5000.0;
-  int _day = 1, _totalDays = 10, _qty = 1;
+  int _day = 1, _qty = 1;
+  final int _totalDays = 10;
   Commodity? _selected;
-  List<Map<String, dynamic>> _txLog = [];
-  List<String> _actionsLog = [];
-  List<double> _cashHistory = [5000.0];
+  final List<Map<String, dynamic>> _txLog = [];
+  final List<String> _actionsLog = [];
+  final List<double> _cashHistory = [5000.0];
   NewsEvent? _news;
   String _msg = '';
   bool _evaluating = false;
@@ -399,16 +399,16 @@ class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
       if (buying) {
         if (_cash < cost) { _msg = '❌ Not enough cash! You have KES ${_cash.toStringAsFixed(0)}.'; return; }
         _cash -= cost; c.owned += _qty;
-        _actionsLog.add('Day $_day: BUY ${_qty}× ${c.name} @ KES ${c.price.toStringAsFixed(0)}');
+        _actionsLog.add('Day $_day: BUY $_qty× ${c.name} @ KES ${c.price.toStringAsFixed(0)}');
         _txLog.add({'type': 'buy', 'crop': c.name, 'quantity': _qty, 'price': c.price, 'day': _day});
-        _msg = '✅ Bought ${_qty}× ${c.emoji} for KES ${cost.toStringAsFixed(0)}. '
+        _msg = '✅ Bought $_qty× ${c.emoji} for KES ${cost.toStringAsFixed(0)}. '
             'Total investment: KES ${(5000 - _cash).toStringAsFixed(0)}';
       } else {
         if (c.owned < _qty) { _msg = '❌ You only have ${c.owned}× ${c.name}.'; return; }
         _cash += cost; c.owned -= _qty;
-        _actionsLog.add('Day $_day: SELL ${_qty}× ${c.name} @ KES ${c.price.toStringAsFixed(0)}');
+        _actionsLog.add('Day $_day: SELL $_qty× ${c.name} @ KES ${c.price.toStringAsFixed(0)}');
         _txLog.add({'type': 'sell', 'crop': c.name, 'quantity': _qty, 'price': c.price, 'day': _day});
-        _msg = '💰 Sold ${_qty}× ${c.emoji} for KES ${cost.toStringAsFixed(0)}!';
+        _msg = '💰 Sold $_qty× ${c.emoji} for KES ${cost.toStringAsFixed(0)}!';
         _confetti.play();
       }
       _cashHistory.add(_cash);

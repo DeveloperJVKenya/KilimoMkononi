@@ -1,5 +1,4 @@
 // lib/education/primary/primary_buying_selling.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import '../ai/primary_ai_tooltip.dart';
@@ -220,8 +219,8 @@ class _CardState extends State<_Card> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: c.withOpacity(0.18)),
-          boxShadow: [BoxShadow(color: c.withOpacity(0.07), blurRadius: 6, offset: const Offset(0,3))]),
+          border: Border.all(color: c.withValues(alpha: 0.18)),
+          boxShadow: [BoxShadow(color: c.withValues(alpha: 0.07), blurRadius: 6, offset: const Offset(0,3))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         InkWell(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),

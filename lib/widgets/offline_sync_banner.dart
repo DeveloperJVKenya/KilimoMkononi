@@ -11,8 +11,6 @@
 // Usage:
 //   OfflineSyncBanner()   ← drop anywhere in a Column above the main content
 
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 
@@ -75,7 +73,7 @@ class _OfflineSyncBannerState extends State<OfflineSyncBanner> {
       decoration: BoxDecoration(
         color: const Color(0xFFFFF3CD),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE6A817).withOpacity(0.6)),
+        border: Border.all(color: const Color(0xFFE6A817).withValues(alpha: 0.6)),
       ),
       child: Row(children: [
         const Icon(Icons.cloud_off_rounded, size: 16, color: Color(0xFFB97000)),

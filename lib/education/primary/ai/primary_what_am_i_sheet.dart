@@ -1,5 +1,4 @@
 // lib/education/primary/primary_what_am_i_sheet.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 
@@ -111,7 +110,7 @@ class _PrimaryWhatAmISheetState extends State<PrimaryWhatAmISheet> {
     padding: const EdgeInsets.fromLTRB(20, 8, 16, 8),
     child: Row(children: [
       Container(padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
         child: Icon(Icons.help_outline_rounded, color: c, size: 20)),
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -180,9 +179,9 @@ class _PrimaryWhatAmISheetState extends State<PrimaryWhatAmISheet> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-              color: c.withOpacity(0.04),
+              color: c.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: c.withOpacity(0.15))),
+              border: Border.all(color: c.withValues(alpha: 0.15))),
           child: Column(children: [
             Text('I think I am…', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             const SizedBox(height: 8),
@@ -265,9 +264,9 @@ class _ClueCard extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 10),
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: isNew ? color.withOpacity(0.08) : Colors.grey.shade50,
+      color: isNew ? color.withValues(alpha: 0.08) : Colors.grey.shade50,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: isNew ? color.withOpacity(0.3) : Colors.grey.shade200,
+      border: Border.all(color: isNew ? color.withValues(alpha: 0.3) : Colors.grey.shade200,
           width: isNew ? 1.5 : 1),
     ),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

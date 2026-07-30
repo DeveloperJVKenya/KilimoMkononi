@@ -218,7 +218,7 @@ Widget build(BuildContext context) {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.science, size: 100, color: primaryGreen.withOpacity(0.8)),
+                    Icon(Icons.science, size: 100, color: primaryGreen.withValues(alpha: 0.8)),
                     const SizedBox(height: 30),
                     const Text(
                       'Practice farm decision-making',

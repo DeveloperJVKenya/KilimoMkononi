@@ -1,5 +1,4 @@
 // lib/education/primary/primary_seeds_plants.dart
-// ignore_for_file: unused_element_parameter, deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import '../ai/primary_ai_tooltip.dart';
@@ -8,11 +7,11 @@ import '../ai/primary_mini_quiz_sheet.dart';
 import '../ai/primary_spot_mistake.dart';
 
 class _Img extends StatelessWidget {
-  final String url; final double h; final BoxFit fit;
-  const _Img(this.url, {this.h = 170, this.fit = BoxFit.cover});
+  final String url; final double h;
+  const _Img(this.url, {this.h = 170});
   @override
   Widget build(BuildContext ctx) => Image.asset(url,
-    height: h, width: double.infinity, fit: fit,
+    height: h, width: double.infinity, fit: BoxFit.cover,
     errorBuilder: (_, _, _) => Container(height: h, color: const Color(0xFFF1F8E9),
       child: const Center(child: Icon(Icons.eco, size: 48, color: Color(0xFF2E7D32)))));
 }
@@ -252,8 +251,8 @@ class _CropCardState extends State<_CropCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: it.c.withOpacity(0.2)),
-          boxShadow: [BoxShadow(color: it.c.withOpacity(0.08), blurRadius: 8, offset: const Offset(0,3))]),
+          border: Border.all(color: it.c.withValues(alpha: 0.2)),
+          boxShadow: [BoxShadow(color: it.c.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0,3))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         InkWell(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -290,7 +289,7 @@ class _CropCardState extends State<_CropCard> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: sel ? it.c : it.lc, borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: it.c.withOpacity(0.35))),
+                      border: Border.all(color: it.c.withValues(alpha: 0.35))),
                     child: Text(e.value.label, style: TextStyle(fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: sel ? Colors.white : it.c))),

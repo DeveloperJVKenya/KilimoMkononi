@@ -3,7 +3,6 @@
 //  1. _ClassPickerSheet now has "Add a new class" option — teachers can
 //     self-assign to any class in their school without headteacher involvement.
 //  2. School code shown in drawer header and left-rail for headteachers.
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use, avoid_types_as_parameter_names
 
 import 'dart:async';
 import 'dart:convert';
@@ -12,6 +11,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kilimomkononi/services/connectivity_service.dart';
 import 'package:kilimomkononi/education/approval_management_screen.dart';
 import 'package:kilimomkononi/education/education_farming_tips.dart';
 import 'package:kilimomkononi/education/education_manuals.dart';
@@ -102,7 +104,6 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
   ApprovalStatus _approvalStatus = ApprovalStatus.pending;
   bool _featuresLocked = true;
 
-  String? _selectedClassId;
   int _selectedBottomIndex = 0;
   int _selectedRailIndex = -1;
   Widget? _selectedFeature;
@@ -134,7 +135,6 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
 
     classIdNotifier.addListener(() {
       if (mounted) {
-        setState(() => _selectedClassId = classIdNotifier.value);
         _refreshContent();
       }
     });
@@ -156,6 +156,26 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
     super.dispose();
   }
 
+  static const _kEduCacheKey = 'cached_edu_user_data';
+
+  /// Recursively converts Firestore Timestamp objects (and any nested
+  /// occurrences inside maps/lists) into ISO8601 strings so the result
+  /// can be safely passed to jsonEncode for SharedPreferences caching.
+  Map<String, dynamic> _sanitiseForJson(Map<String, dynamic> input) {
+    Object? convert(Object? value) {
+      if (value is Timestamp) return value.toDate().toIso8601String();
+      if (value is Map) {
+        return value.map((k, v) => MapEntry(k.toString(), convert(v)));
+      }
+      if (value is List) {
+        return value.map(convert).toList();
+      }
+      return value;
+    }
+
+    return input.map((k, v) => MapEntry(k, convert(v)));
+  }
+
   Future<void> _fetchUserData() async {
     setState(() => _isLoading = true);
     try {
@@ -166,16 +186,61 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
       }
       _userId = user.uid;
 
-      final snap = await FirebaseFirestore.instance
-          .collection('EducationUsers')
-          .doc(user.uid)
-          .get();
+      // ── Step 1: Load from SharedPreferences immediately (offline-safe) ──
+      final prefs = await SharedPreferences.getInstance();
+      final cachedJson = prefs.getString('${_kEduCacheKey}_${user.uid}');
+      if (cachedJson != null) {
+        try {
+          final cached = jsonDecode(cachedJson) as Map<String, dynamic>;
+          _applyUserData(cached, user.uid, prefs, fromCache: true);
+          // Don't return — continue to refresh from Firestore in background
+        } catch (_) {}
+      }
+
+      // ── Step 2: Try Firestore (server → cache fallback) ─────────────────
+      DocumentSnapshot<Map<String, dynamic>> snap;
+      try {
+        snap = await FirebaseFirestore.instance
+            .collection('EducationUsers')
+            .doc(user.uid)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        try {
+          snap = await FirebaseFirestore.instance
+              .collection('EducationUsers')
+              .doc(user.uid)
+              .get(const GetOptions(source: Source.cache));
+        } catch (_) {
+          // Both failed — if we loaded from cache in Step 1, we're fine
+          if (cachedJson != null) {
+            setState(() => _isLoading = false);
+          } else {
+            // Truly first load with no signal — check connectivity
+            if (!mounted) return;
+            final conn = Provider.of<ConnectivityService>(context, listen: false);
+            setState(() {
+              _errorMessage = conn.isOffline
+                  ? 'No internet connection. Connect to load your account.'
+                  : 'Failed to load user data. Tap retry.';
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+      }
 
       if (!snap.exists) {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const EducationLoginScreen()));
+        // Only sign out if we're online — offline might be a cache miss
+        if (!mounted) return;
+        final conn = Provider.of<ConnectivityService>(context, listen: false);
+        if (conn.isOnline) {
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) => const EducationLoginScreen()));
+          }
+        } else {
+          setState(() => _isLoading = false);
         }
         return;
       }
@@ -194,86 +259,85 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
         return;
       }
 
-      final imgBase64 = data['profileImage'] as String?;
-      Uint8List? imgBytes;
-      if (imgBase64 != null && imgBase64.isNotEmpty) {
-        try {
-          imgBytes = base64Decode(imgBase64);
-        } catch (e) {
-          logger.e("Image decode error: $e");
-        }
+      // Save to SharedPreferences for next offline load.
+      // Firestore docs can contain Timestamp objects which jsonEncode
+      // cannot serialise — convert them to ISO strings first.
+      try {
+        await prefs.setString(
+            '${_kEduCacheKey}_${user.uid}', jsonEncode(_sanitiseForJson(data)));
+      } catch (_) {
+        // Caching is best-effort — don't block login if it fails
       }
 
-      final roleStr = data['role'] as String?;
-      EduRole? parsedRole;
-      if (roleStr != null) {
-        parsedRole = EduRole.values.firstWhere(
-          (e) => e.name == roleStr,
-          orElse: () => EduRole.student,
-        );
-      }
-
-      final approvalStatusStr = data['approvalStatus'] as String?;
-      final approvalStatus = approvalStatusStr != null
-          ? ApprovalStatus.values.firstWhere(
-              (e) => e.name == approvalStatusStr,
-              orElse: () => ApprovalStatus.pending,
-            )
-          : ApprovalStatus.pending;
-
-      final featuresLocked =
-          (parsedRole == EduRole.headteacher && approvalStatus != ApprovalStatus.approved) ||
-          (parsedRole == EduRole.mainadmin && approvalStatus != ApprovalStatus.approved) ||
-          (parsedRole == null || approvalStatus != ApprovalStatus.approved);
-
-      // ── Primary routing check ─────────────────────────────────
-      // Do this BEFORE setState so we never render EducationHomeScreen
-      // for a primary user even for a single frame.
-      //
-      // A user is "primary" if their currentClassId contains '_primary_'
-      // Students: always routed to PrimaryHomeScreen if in a primary class
-      // Teachers: routed to PrimaryHomeScreen only if their ACTIVE class
-      //           (currentClassId) is primary. They can switch back to
-      //           other systems via the "Switch Class" button on PrimaryHomeScreen.
-      final currentClassId = data['currentClassId'] as String?;
-      final isPrimary = currentClassId != null &&
-          currentClassId.toLowerCase().contains('_primary_');
-
-      if (isPrimary &&
-          (parsedRole == EduRole.student ||
-           parsedRole == EduRole.teacher) &&
-          mounted) {
-        // Redirect to PrimaryHomeScreen — handles both pending and approved
-        // states internally (its own _buildPendingScreen).
-        // classIdNotifier must be set first so PrimaryHomeScreen
-        // knows the active class immediately.
-        classIdNotifier.value = currentClassId;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const PrimaryHomeScreen()),
-        );
-        return;
-      }
-      // ─────────────────────────────────────────────────────────
-
-      setState(() {
-        _userData = data;
-        _profileImageBytes = imgBytes;
-        _role = parsedRole;
-        _selectedClassId = currentClassId;
-        _approvalStatus = approvalStatus;
-        _featuresLocked = featuresLocked;
-        _isLoading = false;
-      });
-
-      if (classIdNotifier.value == null && _selectedClassId != null) {
-        classIdNotifier.value = _selectedClassId;
-      }
+      _applyUserData(data, user.uid, prefs, fromCache: false);
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load user data: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  void _applyUserData(
+    Map<String, dynamic> data,
+    String uid,
+    SharedPreferences prefs, {
+    required bool fromCache,
+  }) {
+    final imgBase64 = data['profileImage'] as String?;
+    Uint8List? imgBytes;
+    if (imgBase64 != null && imgBase64.isNotEmpty) {
+      try { imgBytes = base64Decode(imgBase64); } catch (e) { logger.e("Image decode error: $e"); }
+    }
+
+    final roleStr = data['role'] as String?;
+    EduRole? parsedRole;
+    if (roleStr != null) {
+      parsedRole = EduRole.values.firstWhere(
+        (e) => e.name == roleStr,
+        orElse: () => EduRole.student,
+      );
+    }
+
+    final approvalStatusStr = data['approvalStatus'] as String?;
+    final approvalStatus = approvalStatusStr != null
+        ? ApprovalStatus.values.firstWhere(
+            (e) => e.name == approvalStatusStr,
+            orElse: () => ApprovalStatus.pending,
+          )
+        : ApprovalStatus.pending;
+
+    final featuresLocked =
+        (parsedRole == EduRole.headteacher && approvalStatus != ApprovalStatus.approved) ||
+        (parsedRole == EduRole.mainadmin && approvalStatus != ApprovalStatus.approved) ||
+        (parsedRole == null || approvalStatus != ApprovalStatus.approved);
+
+    final currentClassId = data['currentClassId'] as String?;
+    final isPrimary = currentClassId != null &&
+        currentClassId.toLowerCase().contains('_primary_');
+
+    if (!mounted) return;
+    if (isPrimary &&
+        (parsedRole == EduRole.student || parsedRole == EduRole.teacher)) {
+      classIdNotifier.value = currentClassId;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PrimaryHomeScreen()),
+      );
+      return;
+    }
+
+    setState(() {
+      _userData = data;
+      _profileImageBytes = imgBytes;
+      _role = parsedRole;
+      _approvalStatus = approvalStatus;
+      _featuresLocked = featuresLocked;
+      _isLoading = false;
+    });
+
+    if (classIdNotifier.value == null && currentClassId != null) {
+      classIdNotifier.value = currentClassId;
     }
   }
 
@@ -291,8 +355,8 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
     });
 
     final isPrimary = classId.toLowerCase().contains('_primary_');
-    if (isPrimary && mounted &&
-        (_role == EduRole.teacher || _role == EduRole.student)) {
+    if (!mounted) return;
+    if (isPrimary && (_role == EduRole.teacher || _role == EduRole.student)) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const PrimaryHomeScreen()),
@@ -304,6 +368,12 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
 }
 
   Future<void> _handleLogout() async {
+    // Clear locally cached education user data
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('${_kEduCacheKey}_${user.uid}');
+    }
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.pushReplacement(context,
@@ -642,18 +712,59 @@ void _listenSimulationSubmissions(String classId) {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: const Color(0xFF003900),
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(height: 20),
+              Text('Loading your school…',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+              SizedBox(height: 8),
+              Text('Connect to the internet if this takes too long.',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+            ],
+          ),
+        ),
+      );
     }
     if (_errorMessage != null) {
+      final isOfflineError = _errorMessage!.contains('No internet') ||
+          _errorMessage!.contains('offline');
       return Scaffold(
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_errorMessage!),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _fetchUserData, child: const Text('Retry')),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isOfflineError
+                      ? Icons.cloud_off_rounded
+                      : Icons.error_outline_rounded,
+                  size: 56,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(_errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 15, color: Colors.black54)),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _fetchUserData,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF003900),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -973,7 +1084,7 @@ void _listenSimulationSubmissions(String classId) {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white30, width: 1),
           ),
@@ -1222,13 +1333,13 @@ void _listenSimulationSubmissions(String classId) {
               else if (studentCountNotifier != null)
                 ValueListenableBuilder<int>(
                   valueListenable: studentCountNotifier,
-                  builder: (_, count, _) {
+                  builder: (_, enrolled, _) {
                     return Text(
-                      '$count ${count == 1 ? 'student' : 'students'} enrolled',
+                      '$enrolled ${enrolled == 1 ? 'student' : 'students'} enrolled',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: count > 0
+                        color: enrolled > 0
                             ? Colors.green.shade700
                             : Colors.grey.shade600,
                       ),
@@ -1263,7 +1374,6 @@ void _listenSimulationSubmissions(String classId) {
           onClassSelected: (id) {
             classIdNotifier.value = id;
             _saveCurrentClassId(id);
-            setState(() => _selectedClassId = id);
           },
         ),
       ),
@@ -1281,7 +1391,7 @@ void _listenSimulationSubmissions(String classId) {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1291,7 +1401,7 @@ void _listenSimulationSubmissions(String classId) {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF003900).withOpacity(0.08),
+              color: const Color(0xFF003900).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.class_,
@@ -1420,9 +1530,9 @@ void _listenSimulationSubmissions(String classId) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -1431,7 +1541,7 @@ void _listenSimulationSubmissions(String classId) {
           Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: color))),
           Text('$count', style: TextStyle(fontWeight: FontWeight.bold, color: color)),
           const SizedBox(width: 8),
-          Icon(Icons.arrow_forward_ios, size: 14, color: color.withOpacity(0.6)),
+          Icon(Icons.arrow_forward_ios, size: 14, color: color.withValues(alpha: 0.6)),
         ],
       ),
     );
@@ -2123,14 +2233,14 @@ class _ReviewBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color:        color.withOpacity(0.1),
+          color:        color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.35)),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
         ),
         child: Text(label,
             style: TextStyle(
                 fontSize:   11,
-                color:      color.withOpacity(0.9),
+                color:      color.withValues(alpha: 0.9),
                 fontWeight: FontWeight.w600)),
       );
 }
@@ -2466,7 +2576,7 @@ class _ClassPickerSheetState extends State<_ClassPickerSheet> {
           color: isOpen ? color : Colors.grey.shade200,
           width: isOpen ? 2 : 1,
         ),
-        color: isOpen ? color.withOpacity(0.03) : Colors.white,
+        color: isOpen ? color.withValues(alpha: 0.03) : Colors.white,
       ),
       child: Column(
         children: [
@@ -2487,7 +2597,7 @@ class _ClassPickerSheetState extends State<_ClassPickerSheet> {
                 Container(
                   width: 40, height: 40,
                   decoration: BoxDecoration(
-                    color: isOpen ? color : color.withOpacity(0.1),
+                    color: isOpen ? color : color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon,
@@ -2588,11 +2698,10 @@ Widget _buildClassTile(_ClassInfo cls, Color color, {required bool isAdd}) {
         widget.onClassSelected(cls.id);
         Navigator.pop(context);
         if (_isPrimary(cls.id)) {
+          final navigator = Navigator.of(context);
           Future.microtask(() {
-            if (context.mounted) {
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/primary_home_screen', (_) => false);
-            }
+            navigator.pushNamedAndRemoveUntil(
+                '/primary_home_screen', (_) => false);
           });
         }
       }
@@ -2602,9 +2711,9 @@ Widget _buildClassTile(_ClassInfo cls, Color color, {required bool isAdd}) {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: isActive
-            ? color.withOpacity(0.08)
+            ? color.withValues(alpha: 0.08)
             : isAdd
-                ? Colors.teal.withOpacity(0.04)
+                ? Colors.teal.withValues(alpha: 0.04)
                 : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
@@ -2623,8 +2732,8 @@ Widget _buildClassTile(_ClassInfo cls, Color color, {required bool isAdd}) {
             color: isActive
                 ? color
                 : isAdd
-                    ? Colors.teal.withOpacity(0.1)
-                    : color.withOpacity(0.1),
+                    ? Colors.teal.withValues(alpha: 0.1)
+                    : color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -2693,7 +2802,7 @@ Widget _buildClassTile(_ClassInfo cls, Color color, {required bool isAdd}) {
               margin: const EdgeInsets.only(left: 8),
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.07),
+                color: Colors.red.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.red.shade200),
               ),
@@ -2719,17 +2828,18 @@ Widget _buildClassTile(_ClassInfo cls, Color color, {required bool isAdd}) {
         'lastClassSwitch': FieldValue.serverTimestamp(),
       });
       widget.onClassSelected(classId);
-      if (context.mounted) Navigator.pop(context);
-      if (_isPrimary(classId) && context.mounted) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      if (_isPrimary(classId)) {
+        if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil(
             '/primary_home_screen', (_) => false);
       }
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     }
   }
 
@@ -2763,7 +2873,7 @@ Future<void> _removeClassFromTeacher(String classId) async {
       setState(() => _dataFuture = _loadClasses());
     }
   } catch (e) {
-    if (context.mounted) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error removing class: $e')),
       );

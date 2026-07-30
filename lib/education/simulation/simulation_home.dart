@@ -1,5 +1,4 @@
 // lib/education/simulation/simulation_home.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -488,7 +487,7 @@ class _StudentSimCard extends StatelessWidget {
                   radius: 26,
                   backgroundColor: isDone
                       ? (isReviewed ? Colors.green.shade50 : Colors.orange.shade50)
-                      : sim.color.withOpacity(0.12),
+                      : sim.color.withValues(alpha: 0.12),
                   child: Icon(
                     isDone ? (isReviewed ? Icons.check_circle : Icons.pending) : sim.icon,
                     color: isDone ? (isReviewed ? Colors.green.shade600 : Colors.orange.shade600) : sim.color,
@@ -658,7 +657,7 @@ class _TeacherSimCard extends StatelessWidget {
         child: Row(children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: sim.color.withOpacity(0.12),
+            backgroundColor: sim.color.withValues(alpha: 0.12),
             child: Icon(sim.icon, color: sim.color, size: 24),
           ),
           const SizedBox(width: 14),
@@ -687,7 +686,7 @@ class _TeacherSimCard extends StatelessWidget {
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: sim.color,
-              side: BorderSide(color: sim.color.withOpacity(0.5)),
+              side: BorderSide(color: sim.color.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             ),
             child: const Text('Review'),

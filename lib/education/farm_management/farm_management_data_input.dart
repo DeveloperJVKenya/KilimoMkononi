@@ -43,7 +43,6 @@
 //
 // ════════════════════════════════════════════════════════════════════════════
 
-// ignore_for_file: unnecessary_non_null_assertion, curly_braces_in_flow_control_structures, unused_element, avoid_print, deprecated_member_use, use_build_context_synchronously
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -64,7 +63,6 @@ const Color _kGreen       = Color(0xFF2A6B2A); // mockup accent
 const Color _kGreenLight  = Color(0xFF2E7D32);
 const Color _kGreenSurf   = Color(0xFFE8F5E9);
 const Color _kAmber       = Color(0xFFE65100);
-const Color _kAmberSurf   = Color(0xFFFFF8E1);
 const Color _kRed         = Color(0xFFC62828);
 const Color _kRedSurf     = Color(0xFFFCE4EC);
 const Color _kBlue        = Color(0xFF1565C0);
@@ -426,7 +424,7 @@ class _FarmManagementDataInputState extends State<FarmManagementDataInput>
 
   void _showAddPlotSheet(BuildContext context, {DocumentSnapshot? editing}) {
     final isEdit    = editing != null;
-    final ed        = isEdit ? editing!.data() as Map<String, dynamic> : {};
+    final ed        = isEdit ? editing.data() as Map<String, dynamic> : {};
     String name     = ed['plotName']     ?? '';
     String crop     = ed['cropName']     ?? _kCrops.first;
     String variety  = ed['cropVariety']  ?? '';
@@ -538,7 +536,7 @@ class _FarmManagementDataInputState extends State<FarmManagementDataInput>
                         'updatedAt':         FieldValue.serverTimestamp(),
                       };
                       if (isEdit) {
-                        editing!.reference.update(payload);
+                        editing.reference.update(payload);
                       } else {
                         payload['createdAt'] = FieldValue.serverTimestamp();
                         _plotsColl!.add(payload);
@@ -625,7 +623,7 @@ class _SummaryStrip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(children: [
@@ -638,7 +636,7 @@ class _SummaryStrip extends StatelessWidget {
             const SizedBox(height: 2),
             Text(lbl,
                 style: TextStyle(
-                    color: Colors.white.withOpacity(0.65), fontSize: 10)),
+                    color: Colors.white.withValues(alpha: 0.65), fontSize: 10)),
           ]),
         ),
       );
@@ -663,6 +661,7 @@ class _ClassPicker extends StatelessWidget {
     color: Colors.white,
     padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
     child: DropdownButtonFormField<String>(
+      // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
       value: selected,
       decoration: InputDecoration(
         labelText: 'Select Class / Grade',
@@ -898,7 +897,9 @@ class _SeasonGlance extends StatelessWidget {
             final d = doc.data() as Map<String, dynamic>;
             if (filterPlotId != null &&
                 d['plotId'] != filterPlotId &&
-                d['plotId'] != 'all') continue;
+                d['plotId'] != 'all') {
+              continue;
+            }
             final amt = (d['amount'] as num?)?.toDouble() ?? 0;
             if (d['type'] == 'revenue') { rev  += amt; entries++; }
             if (d['type'] == 'cost')    { cost += amt; entries++; }
@@ -927,7 +928,7 @@ class _SeasonGlance extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: (isProfit ? _kGreenLight : _kRed).withOpacity(0.08),
+                color: (isProfit ? _kGreenLight : _kRed).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -956,7 +957,7 @@ class _SeasonGlance extends StatelessWidget {
   }
 
   Widget get _div => Container(
-      width: 1, height: 36, color: Colors.grey.withOpacity(0.25));
+      width: 1, height: 36, color: Colors.grey.withValues(alpha: 0.25));
 
   Widget _glanceFig(String val, String lbl, Color color) => Expanded(
     child: Column(children: [
@@ -1259,6 +1260,7 @@ class _PlotsTab extends StatelessWidget {
     );
     if (ok == true) {
       await doc.reference.delete();
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Plot deleted.')));
     }
@@ -1313,7 +1315,7 @@ class _PlotDetailCard extends StatelessWidget {
             width: isSelected ? 2 : 1,
           ),
           boxShadow: [BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Column(children: [
@@ -1340,7 +1342,7 @@ class _PlotDetailCard extends StatelessWidget {
                   Text(variety.isNotEmpty ? '$crop — $variety' : crop,
                       style: TextStyle(
                           fontSize: 12,
-                          color: _kGreen.withOpacity(0.8))),
+                          color: _kGreen.withValues(alpha: 0.8))),
                 ],
               )),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -1428,10 +1430,10 @@ class _PlotDetailCard extends StatelessWidget {
                 child: Row(children: [
                   _fi('Cost', fmtKES(cost), _kRed),
                   Container(width: 1, height: 28,
-                      color: Colors.grey.withOpacity(0.3)),
+                      color: Colors.grey.withValues(alpha: 0.3)),
                   _fi('Revenue', fmtKES(rev), _kGreenLight),
                   Container(width: 1, height: 28,
-                      color: Colors.grey.withOpacity(0.3)),
+                      color: Colors.grey.withValues(alpha: 0.3)),
                   _fi(rev >= cost ? 'Profit' : 'Loss',
                       fmtKES((rev - cost).abs()),
                       rev >= cost ? _kGreenLight : _kRed),
@@ -1475,9 +1477,9 @@ class _PlotDetailCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: c.withOpacity(0.07),
+          color: c.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: c.withOpacity(0.25)),
+          border: Border.all(color: c.withValues(alpha: 0.25)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: c, size: 14),
@@ -1921,7 +1923,7 @@ class _EntryTile extends StatelessWidget {
         leading: Container(
           width: 36, height: 36,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
@@ -2016,7 +2018,9 @@ class _PnLTab extends StatelessWidget {
           final d = doc.data() as Map<String, dynamic>;
           if (filterPlotId != null &&
               d['plotId'] != filterPlotId &&
-              d['plotId'] != 'all') continue;
+              d['plotId'] != 'all') {
+            continue;
+          }
           final amt = (d['amount'] as num?)?.toDouble() ?? 0;
           if (d['type'] == 'revenue') rev  += amt;
           if (d['type'] == 'cost') {
@@ -2050,14 +2054,14 @@ class _PnLTab extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                     color: isProfit
-                        ? _kGreenLight.withOpacity(0.35)
-                        : _kRed.withOpacity(0.35)),
+                        ? _kGreenLight.withValues(alpha: 0.35)
+                        : _kRed.withValues(alpha: 0.35)),
               ),
               child: Column(children: [
                 Row(children: [
                   _pnlFig('Total Revenue', rev, _kGreenLight),
                   Container(width: 1, height: 44,
-                      color: Colors.grey.withOpacity(0.3)),
+                      color: Colors.grey.withValues(alpha: 0.3)),
                   _pnlFig('Total Costs', cost, _kRed),
                 ]),
                 const SizedBox(height: 14),
@@ -2065,7 +2069,7 @@ class _PnLTab extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
-                    color: (isProfit ? _kGreenLight : _kRed).withOpacity(0.1),
+                    color: (isProfit ? _kGreenLight : _kRed).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -2146,7 +2150,7 @@ class _PnLTab extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _kBlueSurf,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _kBlue.withOpacity(0.2)),
+                border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2399,7 +2403,7 @@ class _LoanCardState extends State<_LoanCard> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2561,7 +2565,7 @@ class _Empty extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 32),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, color: color.withOpacity(0.35), size: 52),
+      Icon(icon, color: color.withValues(alpha: 0.35), size: 52),
       const SizedBox(height: 12),
       Text(msg,
           textAlign: TextAlign.center,
@@ -2597,6 +2601,7 @@ Widget _dropdown(String label, String? value, List<String> items, {
   required ValueChanged<String?> on,
 }) =>
     DropdownButtonFormField<String>(
+      // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
       value: value,
       decoration: InputDecoration(
         labelText: label,

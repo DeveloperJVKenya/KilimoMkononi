@@ -1,5 +1,4 @@
 // lib/education/education_farming_tips.dart
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use, unused_element
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -136,6 +135,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
     }
     final String title = data['title'] as String? ?? '$_selectedCrop ${type.capitalize()}';
     await FirestoreHelper.ensureGradeExists(widget.classId);
+    if (!mounted) return;
     final collection = FirestoreHelper.getContentFromClassId(widget.classId, _contentType);
     if (collection == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -792,7 +792,7 @@ class _SplitActivityButtons extends StatelessWidget {
             border: Border.all(
                 color: onTap == null
                     ? Colors.grey.shade300
-                    : color.withOpacity(0.35)),
+                    : color.withValues(alpha: 0.35)),
           ),
           child: Row(children: [
             Icon(icon, color: onTap == null ? Colors.grey : color, size: 20),
@@ -809,7 +809,7 @@ class _SplitActivityButtons extends StatelessWidget {
               decoration: BoxDecoration(
                 color:        onTap == null
                     ? Colors.grey.shade200
-                    : color.withOpacity(0.12),
+                    : color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -823,7 +823,7 @@ class _SplitActivityButtons extends StatelessWidget {
             const SizedBox(width: 6),
             Icon(Icons.arrow_forward_ios,
                 size:  13,
-                color: onTap == null ? Colors.grey.shade300 : color.withOpacity(0.6)),
+                color: onTap == null ? Colors.grey.shade300 : color.withValues(alpha: 0.6)),
           ]),
         ),
       );
@@ -905,13 +905,17 @@ class _FarmingSimulationScreenState extends State<FarmingSimulationScreen> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center),
           const SizedBox(height: 40),
-          ...(s['options'] as List).asMap().entries.map((e) => RadioListTile<int>(
-                value:       e.key,
-                groupValue:  _sel,
-                onChanged:   (v) => setState(() => _sel = v),
-                title:       Text(e.value['text']),
-                activeColor: primaryGreen,
-              )),
+          RadioGroup<int>(
+            groupValue: _sel,
+            onChanged: (v) => setState(() => _sel = v),
+            child: Column(
+              children: (s['options'] as List).asMap().entries.map((e) => RadioListTile<int>(
+                    value:       e.key,
+                    title:       Text(e.value['text']),
+                    activeColor: primaryGreen,
+                  )).toList(),
+            ),
+          ),
           if (_show)
             Padding(
               padding: const EdgeInsets.only(top: 16),

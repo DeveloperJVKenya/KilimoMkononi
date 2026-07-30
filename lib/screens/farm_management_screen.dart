@@ -1,12 +1,9 @@
-// ignore_for_file: unused_import, unused_field, prefer_conditional_assignment, curly_braces_in_flow_control_structures, prefer_contains, unused_element, unnecessary_non_null_assertion, library_private_types_in_public_api, deprecated_member_use, invalid_use_of_protected_member
-
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kilimomkononi/home.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/services/pest_disease_cost_bridge.dart';
 
@@ -243,7 +240,6 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
   List<PestCostEntry>    _pestCosts    = [];
   // ── Disease costs streamed from disease_costs (DiseaseCostService) ───────────
   List<DiseaseCostEntry> _diseaseCosts = [];
-  bool _disclaimerShown = false;
 
   @override
   void initState() {
@@ -260,12 +256,10 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
 
   Future<void> _init() async {
     User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      user = await FirebaseAuth.instance
-          .authStateChanges()
-          .firstWhere((u) => u != null)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-    }
+    user ??= await FirebaseAuth.instance
+        .authStateChanges()
+        .firstWhere((u) => u != null)
+        .timeout(const Duration(seconds: 5), onTimeout: () => null);
     if (!mounted) return;
     _resolvedUid =
         user?.uid ?? 'anonymous_${DateTime.now().millisecondsSinceEpoch}';
@@ -436,7 +430,6 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                       borderRadius: BorderRadius.circular(10))),
               onPressed: () {
                 _prefs.setBool(_key('v2_disclaimerShown'), true);
-                setState(() => _disclaimerShown = true);
                 Navigator.pop(context);
               },
               child: const Text('Got it, start farming!',
@@ -454,7 +447,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: border.withOpacity(0.3)),
+        border: Border.all(color: border.withValues(alpha: 0.3)),
       ),
       child: Text(text, style: const TextStyle(fontSize: 13, height: 1.5)),
     );
@@ -519,9 +512,6 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
   List<FarmTask> get _doneTasks =>
       _tasks.where((t) => t.isDone).toList()
         ..sort((a, b) => b.dueDate.compareTo(a.dueDate));
-
-  double get _totalLoanBalance =>
-      _loans.fold(0, (s, l) => s + l.balance);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -692,7 +682,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(
-                      color: _kAmber.withOpacity(0.15),
+                      color: _kAmber.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -765,8 +755,9 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
               if (selected != null && year != null) {
                 final newName = '$selected $year';
                 setState(() {
-                  if (!_pastSeasons.contains(_seasonName))
+                  if (!_pastSeasons.contains(_seasonName)) {
                     _pastSeasons.insert(0, _seasonName);
+                  }
                   _seasonName = newName;
                   _plots.clear(); _tasks.clear();
                   _expenses.clear(); _harvests.clear(); _loans.clear();
@@ -781,6 +772,10 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
       ),
     );
   }
+
+  // Extension methods below can't call the protected State.setState directly
+  // (invalid_use_of_protected_member) — route through this instead.
+  void _rebuild(VoidCallback fn) => setState(fn);
 }
 
 // ---------------------------------------------------------------------------
@@ -833,7 +828,7 @@ class _StatStrip extends StatelessWidget {
   Widget _pill(String label, IconData icon, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1002,7 +997,7 @@ class _WeatherTipCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kBlueSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBlue.withOpacity(0.2)),
+        border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -1021,7 +1016,7 @@ class _WeatherTipCard extends StatelessWidget {
                     const Spacer(),
                     Text('Today',
                         style: TextStyle(
-                            fontSize: 12, color: _kBlue.withOpacity(0.7))),
+                            fontSize: 12, color: _kBlue.withValues(alpha: 0.7))),
                   ],
                 ),
                 const SizedBox(height: 3),
@@ -1081,9 +1076,9 @@ class _QAButton extends StatelessWidget {
       onTap: action.onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: action.color.withOpacity(0.08),
+          color: action.color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: action.color.withOpacity(0.2)),
+          border: Border.all(color: action.color.withValues(alpha: 0.2)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1261,7 +1256,7 @@ class _PlotDetailCard extends StatelessWidget {
                     _plotStat('Days left',
                         '${(plot.growthDaysTotal - plot.growthDaysElapsed).clamp(0, 999)}d'),
                     _plotStat('Stage',
-                        _kGrowthStages.indexOf(plot.growthStage) >= 0
+                        _kGrowthStages.contains(plot.growthStage)
                             ? '${_kGrowthStages.indexOf(plot.growthStage) + 1}/${_kGrowthStages.length}'
                             : '-'),
                   ],
@@ -1475,7 +1470,7 @@ class _TaskCard extends StatelessWidget {
                 ? Colors.grey.shade200
                 : parent
                     ._priorityColor(task.priority)
-                    .withOpacity(0.25)),
+                    .withValues(alpha: 0.25)),
       ),
       child: ListTile(
         leading: Container(
@@ -1675,63 +1670,6 @@ class _CostsTabState extends State<_CostsTab> {
             label: '+ Add Loan',
             onTap: () => p._showAddLoanSheet()),
       ],
-    );
-  }
-}
-
-class _FieldCostTile extends StatelessWidget {
-  final FieldCostEntry entry;
-  final _FarmManagementScreenState parent;
-  const _FieldCostTile({required this.entry, required this.parent});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFA5D6A7)),
-      ),
-      child: Row(
-        children: [
-          Text(parent._expenseIcon(entry.category),
-              style: const TextStyle(fontSize: 18)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(entry.description,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500)),
-                Row(children: [
-                  Text(
-                      '${entry.category} · ${entry.date.toString().substring(0, 10)}',
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade500)),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text('🌱 Field',
-                        style: TextStyle(
-                            fontSize: 9, color: Color(0xFF1B5E20))),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-          Text(parent._fmtKSH(entry.amount),
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 14)),
-        ],
-      ),
     );
   }
 }
@@ -1942,15 +1880,15 @@ class _SummaryBand extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
             color: isPositive
-                ? _kGreenLight.withOpacity(0.3)
-                : _kRed.withOpacity(0.3)),
+                ? _kGreenLight.withValues(alpha: 0.3)
+                : _kRed.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
           Row(
             children: [
               Expanded(child: _statItem(leftLabel, leftValue)),
-              Container(width: 1, height: 40, color: Colors.grey.withOpacity(0.3)),
+              Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
               Expanded(child: _statItem(rightLabel, rightValue)),
             ],
           ),
@@ -1958,7 +1896,7 @@ class _SummaryBand extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             decoration: BoxDecoration(
-              color: (isPositive ? _kGreenLight : _kRed).withOpacity(0.12),
+              color: (isPositive ? _kGreenLight : _kRed).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -2191,7 +2129,7 @@ class _HarvestTab extends StatelessWidget {
           child: Row(
             children: [
               Expanded(child: _harvFig('Total Earned', parent._fmtKSH(parent._totalRevenue))),
-              Container(width: 1, height: 40, color: Colors.grey.withOpacity(0.3)),
+              Container(width: 1, height: 40, color: Colors.grey.withValues(alpha: 0.3)),
               Expanded(child: _harvFig('Expected', parent._fmtKSH(parent._expectedRevenue))),
             ],
           ),
@@ -2202,7 +2140,7 @@ class _HarvestTab extends StatelessWidget {
           decoration: BoxDecoration(
             color: _kAmberSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _kAmber.withOpacity(0.2)),
+            border: Border.all(color: _kAmber.withValues(alpha: 0.2)),
           ),
           child: const Row(
             children: [
@@ -2273,7 +2211,7 @@ class _HarvestCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
             color: harvest.isSold
-                ? _kGreenLight.withOpacity(0.3)
+                ? _kGreenLight.withValues(alpha: 0.3)
                 : Colors.grey.shade200),
       ),
       child: Column(
@@ -2330,7 +2268,7 @@ class _HarvestCard extends StatelessWidget {
                   icon: Icons.check,
                   color: _kGreenLight,
                   onTap: () {
-                    parent.setState(() => harvest.isSold = true);
+                    parent._rebuild(() => harvest.isSold = true);
                     parent._saveAll();
                   },
                 ),
@@ -2617,7 +2555,7 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
         children: [
-          Icon(icon, color: color.withOpacity(0.4), size: 40),
+          Icon(icon, color: color.withValues(alpha: 0.4), size: 40),
           const SizedBox(height: 8),
           Text(message,
               textAlign: TextAlign.center,
@@ -2643,7 +2581,7 @@ class _AddButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: _kGreenSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kGreenLight.withOpacity(0.4)),
+          border: Border.all(color: _kGreenLight.withValues(alpha: 0.4)),
         ),
         child: Center(
           child: Text(label,
@@ -2675,9 +2613,9 @@ class _SmallButton extends StatelessWidget {
         padding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: c.withOpacity(0.08),
+          color: c.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: c.withOpacity(0.25)),
+          border: Border.all(color: c.withValues(alpha: 0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2696,7 +2634,7 @@ class _SmallButton extends StatelessWidget {
 // BOTTOM SHEETS
 // ===========================================================================
 
-extension FarmManagementSheets on _FarmManagementScreenState {
+extension _FarmManagementSheets on _FarmManagementScreenState {
 
   void _showAddPlotSheet({FarmPlot? editing}) {
     final isEdit = editing != null;
@@ -2768,9 +2706,9 @@ extension FarmManagementSheets on _FarmManagementScreenState {
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                     onPressed: () {
                       if (name.isEmpty) return;
-                      setState(() {
+                      _rebuild(() {
                         if (isEdit) {
-                          editing!
+                          editing
                             ..name = name
                             ..cropName = crop
                             ..cropVariety = variety
@@ -2817,7 +2755,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
               child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              setState(() => _plots.removeWhere((p) => p.id == plot.id));
+              _rebuild(() => _plots.removeWhere((p) => p.id == plot.id));
               _saveAll();
               Navigator.pop(context);
             },
@@ -2886,7 +2824,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                     onPressed: () {
                       if (title.trim().isEmpty) return;
-                      setState(() {
+                      _rebuild(() {
                         _tasks.add(FarmTask(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           title: title.trim(), description: desc.trim(),
@@ -2919,7 +2857,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
               child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              setState(() => _tasks.removeWhere((t) => t.id == task.id));
+              _rebuild(() => _tasks.removeWhere((t) => t.id == task.id));
               _saveAll();
               Navigator.pop(context);
             },
@@ -2985,7 +2923,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                     onPressed: () {
                       if (desc.isEmpty || amount <= 0) return;
-                      setState(() {
+                      _rebuild(() {
                         _expenses.add(FarmExpense(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           category: category, description: desc,
@@ -3017,7 +2955,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
               child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              setState(() => _expenses.removeWhere((x) => x.id == e.id));
+              _rebuild(() => _expenses.removeWhere((x) => x.id == e.id));
               _saveAll();
               Navigator.pop(context);
             },
@@ -3097,7 +3035,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                     onPressed: () {
                       if (cropName.isEmpty || qty <= 0) return;
-                      setState(() {
+                      _rebuild(() {
                         _harvests.add(HarvestRecord(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           plotId: plotId, cropName: cropName,
@@ -3130,7 +3068,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
               child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              setState(() => _harvests.removeWhere((x) => x.id == h.id));
+              _rebuild(() => _harvests.removeWhere((x) => x.id == h.id));
               _saveAll();
               Navigator.pop(context);
             },
@@ -3197,7 +3135,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                     onPressed: () {
                       if (lender.isEmpty || principal <= 0) return;
-                      setState(() {
+                      _rebuild(() {
                         _loans.add(LoanRecord(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           lenderName: lender, principal: principal,
@@ -3258,7 +3196,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
                         content: Text('Invalid payment amount')));
                     return;
                   }
-                  setState(() => loan.amountRepaid += payment);
+                  _rebuild(() => loan.amountRepaid += payment);
                   _saveAll();
                   Navigator.pop(context);
                 },
@@ -3299,6 +3237,7 @@ extension FarmManagementSheets on _FarmManagementScreenState {
     required ValueChanged<String?> onChanged,
   }) =>
       DropdownButtonFormField<String>(
+        // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
         value: value,
         decoration: InputDecoration(
           labelText: label,

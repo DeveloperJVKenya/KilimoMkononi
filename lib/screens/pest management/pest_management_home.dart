@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_is_empty
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -76,7 +74,7 @@ class _PestManagementHomePageState extends State<PestManagementHomePage> {
       if (mounted) {
         setState(() {
           _activeCrops = uniqueCrops.length;
-          _flaggedPests = interventionSnap.docs.length > 0 ? 2 : 0; // Simplified flag count
+          _flaggedPests = interventionSnap.docs.isNotEmpty ? 2 : 0; // Simplified flag count
           _recentInterventions = interventionSnap.docs
               .map((doc) =>
                   PestIntervention.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>, null))

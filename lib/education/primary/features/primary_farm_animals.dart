@@ -1,5 +1,4 @@
 // lib/education/primary/primary_farm_animals.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 // ── AI widgets ──────────────────────────────────────────────────────
@@ -205,8 +204,8 @@ class _AnimalCardState extends State<_AnimalCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: a.c.withOpacity(0.2)),
-          boxShadow: [BoxShadow(color: a.c.withOpacity(0.08), blurRadius: 6, offset: const Offset(0,3))]),
+          border: Border.all(color: a.c.withValues(alpha: 0.2)),
+          boxShadow: [BoxShadow(color: a.c.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0,3))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         InkWell(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),

@@ -1,5 +1,4 @@
 // lib/education/simulations/crop_crisis_simulation.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously, avoid_print
 //
 // FLAME ENGINE — CropCrisisSimulation (Play Screen)
 //
@@ -119,7 +118,7 @@ Return ONLY JSON (no markdown):
     final start = raw.indexOf('{'), end = raw.lastIndexOf('}');
     if (start == -1 || end == -1) return null;
     return CrisisScenario.fromJson(jsonDecode(raw.substring(start, end + 1)) as Map<String, dynamic>);
-  } catch (e) { print('[CropCrisis] Error: $e'); return null; }
+  } catch (e) { debugPrint('[CropCrisis] Error: $e'); return null; }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -147,7 +146,7 @@ class CrisisLandscapeComponent extends PositionComponent {
     // Sky gradient
     canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y),
         Paint()..shader = LinearGradient(
-            colors: [skyColor, skyColor.withOpacity(0.5)],
+            colors: [skyColor, skyColor.withValues(alpha: 0.5)],
             begin: Alignment.topCenter, end: Alignment.bottomCenter)
             .createShader(Rect.fromLTWH(0, 0, size.x, size.y)));
 
@@ -221,7 +220,7 @@ class CrisisLandscapeComponent extends PositionComponent {
     for (double y = size.y * 0.30; y < size.y * 0.65; y += 10) {
       canvas.drawLine(Offset(0, y + sin(_t * 2 + y) * 1.5),
           Offset(size.x, y + cos(_t + y) * 1.5),
-          Paint()..color = Colors.white.withOpacity(0.04)..strokeWidth = 3);
+          Paint()..color = Colors.white.withValues(alpha: 0.04)..strokeWidth = 3);
     }
   }
 
@@ -229,7 +228,7 @@ class CrisisLandscapeComponent extends PositionComponent {
     // Water surface (rises with stage)
     final waterY = size.y * (0.62 - stageIdx * 0.04);
     canvas.drawRect(Rect.fromLTWH(0, waterY, size.x, size.y - waterY),
-        Paint()..color = const Color(0xFF1565C0).withOpacity(0.65));
+        Paint()..color = const Color(0xFF1565C0).withValues(alpha: 0.65));
     // Ripples
     for (double x = 0; x < size.x; x += 22) {
       canvas.drawArc(
@@ -277,9 +276,9 @@ class CrisisLandscapeComponent extends PositionComponent {
       final r = 6.0 + _rng.nextDouble() * 14;
       canvas.drawCircle(Offset(x, y), r,
           Paint()..color = Color.lerp(Colors.yellow.shade700,
-              Colors.brown.shade900, severity)!.withOpacity(0.65));
+              Colors.brown.shade900, severity)!.withValues(alpha: 0.65));
       canvas.drawCircle(Offset(x, y), r * 0.4,
-          Paint()..color = Colors.brown.shade900.withOpacity(0.5));
+          Paint()..color = Colors.brown.shade900.withValues(alpha: 0.5));
     }
   }
 
@@ -313,7 +312,7 @@ class CrisisLandscapeComponent extends PositionComponent {
       ..lineTo(size.x * 0.35, size.y * 0.52)
       ..lineTo(size.x * 0.65, size.y * 0.52)
       ..close();
-    canvas.drawPath(path, Paint()..color = Colors.orange.withOpacity(0.45));
+    canvas.drawPath(path, Paint()..color = Colors.orange.withValues(alpha: 0.45));
     canvas.drawPath(path, Paint()
         ..color = Colors.orange..style = PaintingStyle.stroke..strokeWidth = 2);
     TextPaint(style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold,
@@ -546,11 +545,11 @@ class _CropCrisisSetupScreenState extends State<CropCrisisSetupScreen>
         duration: const Duration(milliseconds: 150),
         padding: EdgeInsets.symmetric(horizontal: big ? 14 : 12, vertical: big ? 10 : 7),
         decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.08),
+          color: selected ? color : color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? color : color.withOpacity(0.3),
+          border: Border.all(color: selected ? color : color.withValues(alpha: 0.3),
               width: selected ? 2 : 1),
-          boxShadow: selected ? [BoxShadow(color: color.withOpacity(0.35), blurRadius: 7)] : null),
+          boxShadow: selected ? [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 7)] : null),
         child: Text(label, style: TextStyle(color: selected ? Colors.white : color,
             fontSize: big ? 13 : 12, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
       ));
@@ -690,7 +689,7 @@ class _CropCrisisPlayScreenState extends State<CropCrisisPlayScreen>
                   style: const TextStyle(color: Colors.white, fontSize: 13,
                       fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.deepOrange.withOpacity(0.3),
+                decoration: BoxDecoration(color: Colors.deepOrange.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.deepOrange.shade300)),
                 child: Text(widget.scenario.challenge,
@@ -908,5 +907,5 @@ Return ONLY JSON: {"score":<0-100>,"maxScore":100,"grade":"Excellent|Good|Satisf
     final start = raw.indexOf('{'), end = raw.lastIndexOf('}');
     if (start == -1 || end == -1) return null;
     return SimulationFeedback.fromJson(jsonDecode(raw.substring(start, end + 1)) as Map<String, dynamic>);
-  } catch (e) { print('[CropCrisis] Eval error: $e'); return null; }
+  } catch (e) { debugPrint('[CropCrisis] Eval error: $e'); return null; }
 }

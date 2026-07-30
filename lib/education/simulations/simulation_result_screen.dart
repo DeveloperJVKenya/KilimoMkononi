@@ -1,5 +1,4 @@
 // lib/education/simulations/simulation_result_screen.dart
-// ignore_for_file: unused_field, use_build_context_synchronously
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -405,8 +404,6 @@ class _DecisionLogCard extends StatefulWidget {
 }
 
 class _DecisionLogCardState extends State<_DecisionLogCard> {
-  bool _expanded = false;
-
   @override
   Widget build(BuildContext context) => Card(
     elevation: 2,
@@ -418,7 +415,6 @@ class _DecisionLogCardState extends State<_DecisionLogCard> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
       subtitle: Text('${widget.log.length} entries',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-      onExpansionChanged: (v) => setState(() => _expanded = v),
       children: widget.log.map((entry) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

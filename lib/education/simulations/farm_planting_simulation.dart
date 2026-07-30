@@ -1,5 +1,4 @@
 // lib/education/simulations/farm_planting_simulation.dart
-// ignore_for_file: unnecessary_brace_in_string_interps, prefer_final_fields, avoid_renaming_method_parameters, use_build_context_synchronously, deprecated_member_use
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
@@ -35,7 +34,7 @@ class PlotCellComponent extends PositionComponent with TapCallbacks {
   }) : super(position: position, size: size);
 
   @override
-  void onTapDown(TapDownEvent e) => onTap(row, col);
+  void onTapDown(TapDownEvent event) => onTap(row, col);
 
   @override
   void update(double dt) { _t += dt * 2; }
@@ -49,7 +48,7 @@ class PlotCellComponent extends PositionComponent with TapCallbacks {
     );
     // Furrow lines
     if (stage == CellStage.plowed) {
-      final p = Paint()..color = const Color(0xFF2D1B00).withOpacity(0.4)..strokeWidth = 1.5;
+      final p = Paint()..color = const Color(0xFF2D1B00).withValues(alpha: 0.4)..strokeWidth = 1.5;
       for (double y = 8; y < size.y; y += 10) {
         canvas.drawLine(Offset(4, y), Offset(size.x - 4, y), p);
       }
@@ -57,7 +56,7 @@ class PlotCellComponent extends PositionComponent with TapCallbacks {
     // Water strip
     canvas.drawRect(
       Rect.fromLTWH(2, size.y - 4, (size.x - 4) * (water / 100).clamp(0, 1), 3),
-      Paint()..color = _waterBlue.withOpacity(0.7),
+      Paint()..color = _waterBlue.withValues(alpha: 0.7),
     );
     // Stage label
     _paintLabel(canvas);
@@ -65,13 +64,13 @@ class PlotCellComponent extends PositionComponent with TapCallbacks {
     if (hasPest) {
       final blink = (sin(_t) * 0.4 + 0.6).clamp(0.0, 1.0);
       canvas.drawCircle(Offset(size.x - 8, 8), 5,
-          Paint()..color = _bugRed.withOpacity(blink));
+          Paint()..color = _bugRed.withValues(alpha: blink));
     }
     // Flood tint
     if (water >= 95) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(r.deflate(1), const Radius.circular(6)),
-        Paint()..color = _waterBlue.withOpacity(0.35),
+        Paint()..color = _waterBlue.withValues(alpha: 0.35),
       );
     }
     // Health bar
@@ -137,7 +136,7 @@ class RainOverlayComponent extends PositionComponent {
   @override
   void render(Canvas canvas) {
     if (!active) return;
-    final paint = Paint()..color = _waterBlue.withOpacity(0.5)..strokeWidth = 1.5;
+    final paint = Paint()..color = _waterBlue.withValues(alpha: 0.5)..strokeWidth = 1.5;
     for (final d in _drops) {
       canvas.drawLine(
         Offset(d.dx * size.x, d.dy * size.y),
@@ -161,7 +160,7 @@ class SkyComponent extends PositionComponent {
   void render(Canvas canvas) {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y),
         Paint()..shader = LinearGradient(
-          colors: [skyColor, skyColor.withOpacity(0.4)],
+          colors: [skyColor, skyColor.withValues(alpha: 0.4)],
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
         ).createShader(Rect.fromLTWH(0, 0, size.x, size.y)));
     // Sun
@@ -254,7 +253,7 @@ class _FarmPlantingSimulationState extends State<FarmPlantingSimulation> {
   String _msg = '', _event = '';
   Color  _eventColor = Colors.green;
   bool   _evaluating = false;
-  List<String> _log = [];
+  final List<String> _log = [];
   final Random _rng = Random();
   final _svc = const GeminiSimulationService();
   late ConfettiController _confetti;
@@ -330,7 +329,7 @@ class _FarmPlantingSimulationState extends State<FarmPlantingSimulation> {
             cell.water = 40; cell.fertility = 50; cell.health = 100;
             _harvested++; _confetti.play();
             _log.add('Day $_day: Harvested ($r,$c) — total: $_harvested');
-            _msg = '🌽 Excellent! ${_harvested} plots harvested. Replant this cell.';
+            _msg = '🌽 Excellent! $_harvested plots harvested. Replant this cell.';
           } else { _msg = 'This cell is not at harvest stage yet.'; }
           break;
         default:
@@ -491,7 +490,7 @@ class _FarmPlantingSimulationState extends State<FarmPlantingSimulation> {
         ),
         // Event banner
         if (_event.isNotEmpty)
-          Container(width: double.infinity, color: _eventColor.withOpacity(0.9),
+          Container(width: double.infinity, color: _eventColor.withValues(alpha: 0.9),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(_event, style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold))),

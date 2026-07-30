@@ -8,7 +8,6 @@
 // Replaces: UserPestHistoryPage + UserDiseaseHistoryPage + DiagnosisHistoryPage
 // Route from: PestDiseaseHomePage, after photo diagnosis, after manual entry
 //
-// ignore_for_file: unused_element, unnecessary_underscores, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
@@ -83,8 +82,6 @@ class _UnifiedIssueHistoryPageState
   // Unique values for filter chips
   List<String> get _crops  =>
       _records?.map((r) => r.cropName).toSet().toList() ?? [];
-  List<String> get _cycles =>
-      _records?.map((r) => r.cycle).toSet().toList() ?? [];
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +108,7 @@ class _UnifiedIssueHistoryPageState
 
   Widget _buildFilterBar() {
     return Container(
-      color: _kGreen.withOpacity(0.04),
+      color: _kGreen.withValues(alpha: 0.04),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -194,7 +191,7 @@ class _UnifiedIssueHistoryPageState
     return ListView.separated(
       padding: const EdgeInsets.all(14),
       itemCount: list.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _IssueCard(
         record:   list[i],
         onDelete: () async {
@@ -233,7 +230,7 @@ class _IssueCardState extends State<_IssueCard> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: _typeColor.withOpacity(0.3), width: 1),
+        side: BorderSide(color: _typeColor.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(children: [
         // ── Header ────────────────────────────────────────────────────────────
@@ -247,7 +244,7 @@ class _IssueCardState extends State<_IssueCard> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _typeColor.withOpacity(0.1),
+                  color: _typeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -275,10 +272,10 @@ class _IssueCardState extends State<_IssueCard> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: _sourceColor.withOpacity(0.1),
+                        color: _sourceColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(99),
                         border: Border.all(
-                            color: _sourceColor.withOpacity(0.3)),
+                            color: _sourceColor.withValues(alpha: 0.3)),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(
@@ -302,11 +299,11 @@ class _IssueCardState extends State<_IssueCard> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: _confColor(r.aiConfidence!).withOpacity(0.1),
+                          color: _confColor(r.aiConfidence!).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(99),
                           border: Border.all(
                               color: _confColor(r.aiConfidence!)
-                                  .withOpacity(0.4)),
+                                  .withValues(alpha: 0.4)),
                         ),
                         child: Text(r.aiConfidence!.toUpperCase(),
                             style: TextStyle(
@@ -436,7 +433,7 @@ class _IssueCardState extends State<_IssueCard> {
                       height: 160,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox()),
+                      errorBuilder: (_, _, _) => const SizedBox()),
                 ),
                 const SizedBox(height: 12),
               ],

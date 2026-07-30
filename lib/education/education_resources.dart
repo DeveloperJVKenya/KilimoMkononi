@@ -1,5 +1,4 @@
 // lib/education/education_resources.dart
-// ignore_for_file: unused_field, use_super_parameters, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,11 +10,11 @@ class EducationResources extends StatefulWidget {
   final String classId;
 
   const EducationResources({
-    Key? key,
+    super.key,
     required this.role,
     required this.schoolName,
     required this.classId,
-  }) : super(key: key);
+  });
 
   @override
   State<EducationResources> createState() => _EducationResourcesState();
@@ -23,7 +22,6 @@ class EducationResources extends StatefulWidget {
 
 class _EducationResourcesState extends State<EducationResources> {
   String _selectedCategory = 'all';
-  String _searchQuery = '';
   String _sortBy = 'newest';
 
   final List<String> _categories = [
@@ -124,7 +122,7 @@ class _EducationResourcesState extends State<EducationResources> {
                     ),
                   ),
                   selected: isSelected,
-                  selectedTileColor: const Color(0xFF003900).withOpacity(0.1),
+                  selectedTileColor: const Color(0xFF003900).withValues(alpha: 0.1),
                   onTap: () => setState(() => _selectedCategory = category),
                 );
               }).toList(),
@@ -142,7 +140,7 @@ class _EducationResourcesState extends State<EducationResources> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -155,6 +153,7 @@ class _EducationResourcesState extends State<EducationResources> {
             Expanded(
               flex: 2,
               child: DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use  — value: (not initialValue:) needed: _selectedCategory is also set from the desktop chip selector outside this widget's own onChanged.
                 value: _selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Category',
@@ -179,6 +178,7 @@ class _EducationResourcesState extends State<EducationResources> {
               ? Expanded(
                   flex: 1,
                   child: DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use  — kept consistent with the other sort dropdown instance below.
                     value: _sortBy,
                     decoration: const InputDecoration(
                       labelText: 'Sort',
@@ -199,6 +199,7 @@ class _EducationResourcesState extends State<EducationResources> {
               : SizedBox(
                   width: 220,
                   child: DropdownButtonFormField<String>(
+                    // ignore: deprecated_member_use  — value: (not initialValue:) needed so this stays in sync if the mobile/desktop sort dropdown swaps on resize.
                     value: _sortBy,
                     decoration: const InputDecoration(
                       labelText: 'Sort by',
@@ -429,7 +430,6 @@ class _EducationResourcesState extends State<EducationResources> {
             hintText: 'Enter search term...',
             prefixIcon: Icon(Icons.search),
           ),
-          onChanged: (val) => setState(() => _searchQuery = val),
         ),
         actions: [
           TextButton(

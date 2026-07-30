@@ -2,8 +2,6 @@
 //
 // Reusable quiz builder + quiz screen + teacher essay review
 
-// ignore_for_file: deprecated_member_use
-
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:confetti/confetti.dart';
@@ -224,15 +222,21 @@ class _EduQuizBuilderState extends State<EduQuizBuilder> {
 
                 if (selType == QuestionType.mcq) ...[
                   const Text('Options (select correct one)', style: TextStyle(fontWeight: FontWeight.w600)),
-                  ...optionCtrls.asMap().entries.map((e) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Radio<int>(value: e.key, groupValue: correctIndex, onChanged: (v) => setInner(() => correctIndex = v ?? 0), activeColor: _green),
-                            Expanded(child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Option ${e.key + 1}'))),
-                          ],
-                        ),
-                      )),
+                  RadioGroup<int>(
+                    groupValue: correctIndex,
+                    onChanged: (v) => setInner(() => correctIndex = v ?? 0),
+                    child: Column(
+                      children: optionCtrls.asMap().entries.map((e) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Radio<int>(value: e.key, activeColor: _green),
+                                Expanded(child: TextField(controller: e.value, decoration: InputDecoration(labelText: 'Option ${e.key + 1}'))),
+                              ],
+                            ),
+                          )).toList(),
+                    ),
+                  ),
                 ],
 
                 if (selType == QuestionType.essay) ...[
@@ -1740,7 +1744,7 @@ class _SimulationReviewPanelState extends State<_SimulationReviewPanel> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: gradeColor.withOpacity(0.12),
+                  color: gradeColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(widget.aiGrade ?? '',
@@ -1895,7 +1899,7 @@ class _SimulationReviewPanelState extends State<_SimulationReviewPanel> {
                 height: 42,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: _green.withOpacity(0.1),
+                  color: _green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text('$_finalScore',

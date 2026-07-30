@@ -6,7 +6,6 @@
 // AI logic lives entirely in gemini_vision_helper.dart — do not duplicate
 // prompts or API calls here.
 //
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'dart:typed_data';
 
@@ -190,6 +189,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
 
               // Crop selector
               DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
                 value: _selectedCrop,
                 decoration: const InputDecoration(
                   labelText: 'Crop in the photo',
@@ -321,16 +321,16 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
 
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
           ),
           child: Row(children: [
@@ -346,9 +346,9 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: r.confColor.withOpacity(0.12),
+                color: r.confColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: r.confColor.withOpacity(0.4)),
+                border: Border.all(color: r.confColor.withValues(alpha: 0.4)),
               ),
               child: Text(r.confLabel,
                   style: TextStyle(fontSize: 11, color: r.confColor,

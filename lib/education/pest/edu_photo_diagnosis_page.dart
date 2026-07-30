@@ -2,7 +2,6 @@
 // Full-page AI Photo Diagnosis (standalone).
 // AI logic lives in gemini_vision_helper.dart — do not duplicate prompts here.
 //
-// ignore_for_file: unnecessary_underscores, deprecated_member_use, use_build_context_synchronously
 
 import 'dart:typed_data';
 
@@ -202,7 +201,7 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
                   controller: controller,
                   padding: const EdgeInsets.all(12),
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final d = docs[i].data() as Map<String, dynamic>;
                     final ts = d['createdAt'] as Timestamp?;
@@ -230,9 +229,9 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: confColor.withOpacity(0.1),
+                                color: confColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: confColor.withOpacity(0.4)),
+                                border: Border.all(color: confColor.withValues(alpha: 0.4)),
                               ),
                               child: Text(confidence,
                                   style: TextStyle(fontSize: 11, color: confColor,
@@ -359,6 +358,7 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
 
             // Crop selector
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
               value: _selectedCrop,
               decoration: const InputDecoration(
                 labelText: 'Crop in the Photo',
@@ -531,9 +531,9 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: r.confColor.withOpacity(0.1),
+                  color: r.confColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: r.confColor.withOpacity(0.4)),
+                  border: Border.all(color: r.confColor.withValues(alpha: 0.4)),
                 ),
                 child: Text(r.confidence.toUpperCase(),
                     style: TextStyle(color: r.confColor,

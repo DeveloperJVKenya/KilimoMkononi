@@ -1,5 +1,4 @@
 // lib/education/primary/primary_ai_tooltip.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 import 'primary_language_toggle.dart';
@@ -61,7 +60,7 @@ class _PrimaryAiTooltipState extends State<PrimaryAiTooltip> {
         decoration: BoxDecoration(
           color: const Color(0xFFE8F5E9),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFF2E7D32).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.2)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(

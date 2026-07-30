@@ -30,7 +30,6 @@
 // EduSchoolConditionsService — education-only, no shared state with
 // enterprise NasaPowerService or IotSensorService.
 
-// ignore_for_file: unused_element, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
@@ -42,9 +41,7 @@ const _kDark   = Color(0xFF032704);
 const _kGreen  = Color(0xFF1B5E20);
 const _kMid    = Color(0xFF2A6B2A);
 const _kLight  = Color(0xFFE8F5E9);
-const _kAmber  = Color(0xFFE65100);
 const _kBlue   = Color(0xFF0D47A1);
-const _kRed    = Color(0xFFB71C1C);
 const _kBorder = Color(0xFFDDE5DD);
 const _kPageBg = Color(0xFFF4F6F3);
 
@@ -642,7 +639,7 @@ class _EduFarmConditionsScreenState
     decoration: BoxDecoration(
       color: const Color(0xFFF0F7FF),
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: _kBlue.withOpacity(0.2)),
+      border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
     ),
     child: Text(text,
         style: const TextStyle(fontSize: 12, color: Colors.black54,

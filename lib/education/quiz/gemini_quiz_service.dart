@@ -1,7 +1,6 @@
-// ignore_for_file: avoid_print
-
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 // ─── Firebase Function URL ───────────────────────────────────────────────
@@ -146,7 +145,7 @@ Rules:
       final list = jsonDecode(cleaned) as List;
       return list.map((e) => QuizQuestion.fromJson(e)).toList();
     } catch (e) {
-      print('Parse error: $e');
+      debugPrint('Parse error: $e');
       return [];
     }
   }
@@ -248,7 +247,7 @@ Explain briefly (1 sentence).
       ).timeout(const Duration(seconds: 60));
 
       if (res.statusCode != 200) {
-        print('Backend error: ${res.body}');
+        debugPrint('Backend error: ${res.body}');
         return null;
       }
 
@@ -259,7 +258,7 @@ Explain briefly (1 sentence).
 
       return candidates[0]['content']['parts'][0]['text'];
     } catch (e) {
-      print('Network error: $e');
+      debugPrint('Network error: $e');
       return null;
     }
   }

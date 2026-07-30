@@ -47,7 +47,12 @@ dependencies:
   flame: ^1.18.0
   flame_audio: ^2.1.1
   flutter_timezone: ^5.0.2
-  connectivity_plus: ^6.0.0
+  cloud_functions: ^6.0.7
+  flutter_map: ^7.0.1
+  latlong2: ^0.9.1
+  geolocator: ^13.0.1
+  google_sign_in: ^7.2.0
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,4 @@
 // lib/education/pest/simulations/pest_management_interactive_simulation.dart
-// ignore_for_file: unnecessary_brace_in_string_interps, curly_braces_in_flow_control_structures, non_constant_identifier_names, prefer_final_fields, avoid_renaming_method_parameters, use_build_context_synchronously, deprecated_member_use
 //
 // FLAME ENGINE — PestManagementInteractiveSimulation
 //
@@ -57,7 +56,7 @@ class LeafCellComponent extends PositionComponent with TapCallbacks {
     required Vector2 position, required Vector2 size,
   }) : super(position: position, size: size);
 
-  @override void onTapDown(TapDownEvent e) => onTap(row, col);
+  @override void onTapDown(TapDownEvent event) => onTap(row, col);
 
   @override void update(double dt) => _t += dt * 3;
 
@@ -74,7 +73,7 @@ class LeafCellComponent extends PositionComponent with TapCallbacks {
     );
 
     // Leaf vein
-    final vp = Paint()..color = Colors.green.shade900.withOpacity(0.15 * h)..strokeWidth = 1;
+    final vp = Paint()..color = Colors.green.shade900.withValues(alpha: 0.15 * h)..strokeWidth = 1;
     canvas.drawLine(Offset(size.x / 2, 0), Offset(size.x / 2, size.y), vp);
     for (double y = 8; y < size.y; y += 10) {
       canvas.drawLine(
@@ -108,7 +107,7 @@ class LeafCellComponent extends PositionComponent with TapCallbacks {
       canvas.translate(-size.x / 2, -size.y / 2);
       TextPaint(style: TextStyle(
         fontSize: size.x * 0.42,
-        color: Colors.red.shade700.withOpacity(blink),
+        color: Colors.red.shade700.withValues(alpha: blink),
         fontWeight: FontWeight.bold,
       )).render(canvas, pest!.symbol,
           Vector2(size.x / 2, size.y / 2), anchor: Anchor.center);
@@ -125,7 +124,7 @@ class LeafCellComponent extends PositionComponent with TapCallbacks {
 class BeneficialBugComponent extends PositionComponent {
   final FarmFieldGame game;
   double _angle  = 0;
-  double _speed  = 60;
+  final double _speed  = 60;
   double _timer  = 0;
   double _t      = 0;
 
@@ -153,9 +152,9 @@ class BeneficialBugComponent extends PositionComponent {
   void _tryEat() {
     final cellW = game.size.x / FarmFieldGame.cols;
     final cellH = (game.size.y - game.gridTop) / FarmFieldGame.rows;
-    final myCell_r = ((position.y - game.gridTop) / cellH).floor().clamp(0, FarmFieldGame.rows - 1);
-    final myCell_c = (position.x / cellW).floor().clamp(0, FarmFieldGame.cols - 1);
-    final cell = game.cellAt(myCell_r, myCell_c);
+    final myCellR = ((position.y - game.gridTop) / cellH).floor().clamp(0, FarmFieldGame.rows - 1);
+    final myCellC = (position.x / cellW).floor().clamp(0, FarmFieldGame.cols - 1);
+    final cell = game.cellAt(myCellR, myCellC);
     if (cell.pest != null && cell.pest!.bestTreatment == 'biocontrol') {
       cell.pest = null;
       cell.health = (cell.health + 5).clamp(0, 100);
@@ -299,7 +298,7 @@ class _PestManagementInteractiveSimulationState
   String _msg = '';
   bool _showTreatPanel = false;
   bool _evaluating = false;
-  List<String> _log = [];
+  final List<String> _log = [];
 
   @override
   void initState() {
@@ -316,10 +315,12 @@ class _PestManagementInteractiveSimulationState
   void dispose() { _confetti.dispose(); super.dispose(); }
 
   void _onBugKill() {
-    if (mounted) setState(() {
-      _beneficialCount = (_beneficialCount + 1).clamp(0, 20);
-      _msg = '🐞 A ladybird naturally killed an aphid! Ecosystem doing its job.';
-    });
+    if (mounted) {
+      setState(() {
+        _beneficialCount = (_beneficialCount + 1).clamp(0, 20);
+        _msg = '🐞 A ladybird naturally killed an aphid! Ecosystem doing its job.';
+      });
+    }
   }
 
   void _onCellTap(int r, int c) {
@@ -530,7 +531,7 @@ class _PestManagementInteractiveSimulationState
                     builder: (_) => TutorChatScreen(
                       topic: 'Pest Management', grade: '',
                       classId: widget.classId, isPrimary: false,
-                      contextQuestion: 'Round $_round: ${_msg}',
+                      contextQuestion: 'Round $_round: $_msg',
                       contextModule: 'pest_content', wrongAnswer: false,
                     )))),
           ]),

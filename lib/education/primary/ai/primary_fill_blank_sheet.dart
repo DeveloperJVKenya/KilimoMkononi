@@ -1,5 +1,4 @@
 // lib/education/primary/primary_fill_blank_sheet.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 
@@ -105,7 +104,7 @@ class _PrimaryFillBlankSheetState extends State<PrimaryFillBlankSheet> {
     padding: const EdgeInsets.fromLTRB(20, 8, 16, 8),
     child: Row(children: [
       Container(padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
         child: Icon(Icons.text_fields_rounded, color: c, size: 20)),
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -115,7 +114,7 @@ class _PrimaryFillBlankSheetState extends State<PrimaryFillBlankSheet> {
       if (_total > 0)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.local_fire_department_rounded, color: c, size: 14),
             const SizedBox(width: 4),
@@ -169,12 +168,12 @@ class _PrimaryFillBlankSheetState extends State<PrimaryFillBlankSheet> {
         decoration: BoxDecoration(
             color: _answered
                 ? (isCorrect ? Colors.green.shade50 : Colors.red.shade50)
-                : c.withOpacity(0.05),
+                : c.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
                 color: _answered
                     ? (isCorrect ? Colors.green.shade300 : Colors.red.shade200)
-                    : c.withOpacity(0.15),
+                    : c.withValues(alpha: 0.15),
                 width: 1.5)),
         child: Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text(before, style: const TextStyle(fontSize: 17, height: 1.5)),
@@ -217,7 +216,7 @@ class _PrimaryFillBlankSheetState extends State<PrimaryFillBlankSheet> {
         final word = e.value;
         Color bg, border, textC;
         if (!_answered) {
-          bg = c.withOpacity(0.08); border = c.withOpacity(0.25); textC = c;
+          bg = c.withValues(alpha: 0.08); border = c.withValues(alpha: 0.25); textC = c;
         } else if (idx == item.correctIndex) {
           bg = Colors.green.shade50; border = Colors.green.shade400; textC = Colors.green.shade800;
         } else if (idx == _selectedIndex) {

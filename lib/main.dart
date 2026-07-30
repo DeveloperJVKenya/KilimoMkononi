@@ -1,7 +1,4 @@
 // main.dart
-
-// ignore_for_file: unused_import
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -12,7 +9,7 @@ import 'package:provider/provider.dart';
 // is listening to connectivity changes directly.  Instead, screens should
 // call  context.read<ConnectivityService>()  or wrap with
 // Consumer<ConnectivityService>.
-import 'package:connectivity_plus/connectivity_plus.dart';
+//import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'package:kilimomkononi/authentication/splashscreen.dart';
 import 'package:kilimomkononi/authentication/login.dart';

@@ -1,5 +1,4 @@
 // lib/education/education_registration.dart
-// ignore_for_file: deprecated_member_use, avoid_print, use_build_context_synchronously
 
 import 'dart:math';
 
@@ -77,7 +76,21 @@ const _roleCards = [
 //  Screen
 // ─────────────────────────────────────────────────────────────────
 class EducationRegistrationScreen extends StatefulWidget {
-  const EducationRegistrationScreen({super.key});
+  // Set when arriving here right after a Google sign-in that had no
+  // existing EducationUsers doc (see EducationLoginScreen). When
+  // present, the password field is skipped and name/email are
+  // pre-filled from the Google account, since the user is already
+  // authenticated with Firebase.
+  final String? googleUid;
+  final String? googleEmail;
+  final String? googleDisplayName;
+
+  const EducationRegistrationScreen({
+    super.key,
+    this.googleUid,
+    this.googleEmail,
+    this.googleDisplayName,
+  });
 
   @override
   State<EducationRegistrationScreen> createState() =>
@@ -115,6 +128,19 @@ class _EducationRegistrationScreenState
   bool _obscure = true;
   bool _hasAcceptedTerms = false;
 
+  bool get _isGoogleFlow => widget.googleUid != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.googleDisplayName != null) {
+      _fullNameCtrl.text = widget.googleDisplayName!;
+    }
+    if (widget.googleEmail != null) {
+      _emailCtrl.text = widget.googleEmail!;
+    }
+  }
+
   @override
   void dispose() {
     _fullNameCtrl.dispose();
@@ -144,6 +170,7 @@ class _EducationRegistrationScreenState
 
     try {
       final doc = await _firestore.collection('Schools').doc(code).get();
+      if (!mounted) return;
       if (!doc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -155,6 +182,7 @@ class _EducationRegistrationScreenState
         setState(() => _resolvedSchool = doc.data());
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -178,12 +206,26 @@ class _EducationRegistrationScreenState
     setState(() => _loading = true);
 
     try {
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passwordCtrl.text.trim(),
-      );
+      final String uid;
+      if (_isGoogleFlow) {
+        // Already authenticated on the login screen — just confirm the
+        // session is still live before writing the Firestore doc.
+        final currentUser = _auth.currentUser;
+        if (currentUser == null || currentUser.uid != widget.googleUid) {
+          throw FirebaseAuthException(
+            code: 'session-expired',
+            message: 'Your Google session expired. Please sign in again.',
+          );
+        }
+        uid = currentUser.uid;
+      } else {
+        final cred = await _auth.createUserWithEmailAndPassword(
+          email: _emailCtrl.text.trim(),
+          password: _passwordCtrl.text.trim(),
+        );
+        uid = cred.user!.uid;
+      }
 
-      final uid = cred.user!.uid;
       final now = FieldValue.serverTimestamp();
 
       if (_selectedRole == EduRole.headteacher) {
@@ -206,6 +248,7 @@ class _EducationRegistrationScreenState
           'educationTier': null, // set by headteacher on first login post-approval
           'approvalStatus': 'pending',
           'isDisabled': false,
+          'signUpMethod': _isGoogleFlow ? 'google' : 'email',
           'createdAt': now,
           'termsAcceptedAt': now,
         });
@@ -250,6 +293,7 @@ class _EducationRegistrationScreenState
           'classIds': initialClassId != null ? [initialClassId] : [],
           'approvalStatus': 'pending',
           'isDisabled': false,
+          'signUpMethod': _isGoogleFlow ? 'google' : 'email',
           'createdAt': now,
           'termsAcceptedAt': now,
         });
@@ -270,6 +314,7 @@ class _EducationRegistrationScreenState
       String msg = 'Registration failed';
       if (e.code == 'email-already-in-use') msg = 'Email already registered.';
       if (e.code == 'weak-password') msg = 'Password must be at least 6 characters.';
+      if (e.code == 'session-expired') msg = e.message ?? msg;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
@@ -298,6 +343,14 @@ class _EducationRegistrationScreenState
   }
 
   // ── Build ────────────────────────────────────────────────────────
+  Future<void> _cancelGoogleFlow() async {
+    // Don't leave a half-signed-in Firebase Auth session with no
+    // Firestore profile hanging around if they abandon setup.
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/edu_login', (_) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -315,7 +368,12 @@ class _EducationRegistrationScreenState
                   _resolvedSchool = null;
                 }),
               )
-            : null,
+            : (_isGoogleFlow
+                ? IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _loading ? null : _cancelGoogleFlow,
+                  )
+                : null),
         elevation: 0,
       ),
       body: _step == 0 ? _buildRoleStep() : _buildFormStep(),
@@ -359,7 +417,7 @@ class _EducationRegistrationScreenState
                   border: Border.all(color: Colors.grey.shade200),
                   boxShadow: [
                     BoxShadow(
-                      color: card.color.withOpacity(0.08),
+                      color: card.color.withValues(alpha: 0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     )
@@ -371,7 +429,7 @@ class _EducationRegistrationScreenState
                       width: 60,
                       height: 60,
                       decoration: BoxDecoration(
-                        color: card.color.withOpacity(0.1),
+                        color: card.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(card.icon, size: 30, color: card.color),
@@ -399,7 +457,7 @@ class _EducationRegistrationScreenState
                       ),
                     ),
                     Icon(Icons.chevron_right,
-                        color: card.color.withOpacity(0.5)),
+                        color: card.color.withValues(alpha: 0.5)),
                   ],
                 ),
               ),
@@ -435,7 +493,7 @@ class _EducationRegistrationScreenState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: _roleColor.withOpacity(0.1),
+                color: _roleColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -469,11 +527,22 @@ class _EducationRegistrationScreenState
                   v != null && v.trim().length >= 3 ? null : 'Enter your full name',
             ),
             const SizedBox(height: 16),
-            _field(
+            TextFormField(
               controller: _emailCtrl,
-              label: 'Email',
-              icon: Icons.email_outlined,
-              keyboard: TextInputType.emailAddress,
+              enabled: !_isGoogleFlow,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                prefixIcon: const Icon(Icons.email_outlined),
+                suffixIcon: _isGoogleFlow
+                    ? const Icon(Icons.verified, color: Colors.green, size: 20)
+                    : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: _roleColor, width: 2),
+                ),
+              ),
               validator: (v) =>
                   v != null && v.contains('@') ? null : 'Enter a valid email',
             ),
@@ -610,28 +679,36 @@ class _EducationRegistrationScreenState
 
             const SizedBox(height: 16),
 
-            // Password
-            TextFormField(
-              controller: _passwordCtrl,
-              obscureText: _obscure,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock_outline),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                      _obscure ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _obscure = !_obscure),
+            // Password — skipped entirely when signed up via Google,
+            // since Firebase Auth already has a credential for this user.
+            if (!_isGoogleFlow) ...[
+              TextFormField(
+                controller: _passwordCtrl,
+                obscureText: _obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: _roleColor, width: 2),
+                  ),
                 ),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: _roleColor, width: 2),
-                ),
+                validator: (v) =>
+                    v != null && v.length >= 6 ? null : 'Min 6 characters',
               ),
-              validator: (v) =>
-                  v != null && v.length >= 6 ? null : 'Min 6 characters',
-            ),
+            ] else
+              _infoCard(
+                color: Colors.green,
+                icon: Icons.verified_user,
+                text: 'Signed in with Google — no password needed.',
+              ),
 
             const SizedBox(height: 24),
 
@@ -821,7 +898,7 @@ class _EducationRegistrationScreenState
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? info.color.withOpacity(0.12)
+                      ? info.color.withValues(alpha: 0.12)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
@@ -846,7 +923,7 @@ class _EducationRegistrationScreenState
         if (_selectedSystem != null && availableGrades.isNotEmpty) ...[
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: _selectedGrade,
+            initialValue: _selectedGrade,
             decoration: InputDecoration(
               labelText: 'Select Grade',
               prefixIcon: const Icon(Icons.class_),
@@ -908,9 +985,9 @@ class _EducationRegistrationScreenState
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.07),
+        color: color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -922,7 +999,7 @@ class _EducationRegistrationScreenState
               text,
               style: TextStyle(
                   fontSize: 13,
-                  color: color.withOpacity(0.85),
+                  color: color.withValues(alpha: 0.85),
                   height: 1.5),
             ),
           ),

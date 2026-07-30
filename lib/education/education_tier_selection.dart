@@ -1,5 +1,4 @@
 // lib/education/education_tier_selection.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'dart:math';
 
@@ -269,7 +268,7 @@ class _EducationTierSelectionScreenState
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(Icons.account_balance,
@@ -302,7 +301,7 @@ class _EducationTierSelectionScreenState
                       'Tick every level your school offers.\n'
                       'A school can have more than one.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.82),
+                        color: Colors.white.withValues(alpha: 0.82),
                         fontSize: 13,
                         height: 1.5,
                       ),
@@ -317,7 +316,7 @@ class _EducationTierSelectionScreenState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
+                          color: Colors.white.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -332,7 +331,7 @@ class _EducationTierSelectionScreenState
                                   Text(
                                     'Your school code',
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.65),
+                                      color: Colors.white.withValues(alpha: 0.65),
                                       fontSize: 10,
                                     ),
                                   ),
@@ -433,8 +432,8 @@ class _EducationTierSelectionScreenState
                             boxShadow: [
                               BoxShadow(
                                 color: isSelected
-                                    ? tier.color.withOpacity(0.12)
-                                    : Colors.black.withOpacity(0.03),
+                                    ? tier.color.withValues(alpha: 0.12)
+                                    : Colors.black.withValues(alpha: 0.03),
                                 blurRadius: isSelected ? 10 : 4,
                                 offset: const Offset(0, 3),
                               ),
@@ -451,7 +450,7 @@ class _EducationTierSelectionScreenState
                                   decoration: BoxDecoration(
                                     color: isSelected
                                         ? tier.color
-                                        : tier.color.withOpacity(0.1),
+                                        : tier.color.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Icon(
@@ -482,7 +481,7 @@ class _EducationTierSelectionScreenState
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: tier.color.withOpacity(0.1),
+                                          color: tier.color.withValues(alpha: 0.1),
                                           borderRadius:
                                               BorderRadius.circular(4),
                                         ),
@@ -562,10 +561,10 @@ class _EducationTierSelectionScreenState
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF003900).withOpacity(0.06),
+                            color: const Color(0xFF003900).withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: const Color(0xFF003900).withOpacity(0.2),
+                              color: const Color(0xFF003900).withValues(alpha: 0.2),
                             ),
                           ),
                           child: Row(
@@ -693,7 +692,7 @@ class _EducationTierSelectionScreenState
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF003900).withOpacity(0.1),
+                      color: const Color(0xFF003900).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: const Icon(Icons.vpn_key_rounded,
@@ -731,7 +730,7 @@ class _EducationTierSelectionScreenState
                       borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF003900).withOpacity(0.3),
+                          color: const Color(0xFF003900).withValues(alpha: 0.3),
                           blurRadius: 18,
                           offset: const Offset(0, 7),
                         ),
@@ -752,7 +751,7 @@ class _EducationTierSelectionScreenState
                         Text(
                           'Kilimo Mkononi Education',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.55),
+                            color: Colors.white.withValues(alpha: 0.55),
                             fontSize: 11,
                           ),
                         ),

@@ -41,8 +41,6 @@
 //     - Risk cards for active conditions
 //     - Live conditions chip row
 
-// ignore_for_file: unused_local_variable, deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
@@ -193,7 +191,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
       decoration: BoxDecoration(
         color: const Color(0xFFEDF7ED),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _accentGreen.withOpacity(0.2)),
+        border: Border.all(color: _accentGreen.withValues(alpha: 0.2)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       child: Row(children: [
@@ -230,7 +228,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
     decoration: BoxDecoration(
       color: const Color(0xFFEDF4FB),
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: const Color(0xFF1565C0).withOpacity(0.2)),
+      border: Border.all(color: const Color(0xFF1565C0).withValues(alpha: 0.2)),
     ),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -284,8 +282,8 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: hasRisk
-                  ? const Color(0xFFE65100).withOpacity(0.3)
-                  : _green.withOpacity(0.25),
+                  ? const Color(0xFFE65100).withValues(alpha: 0.3)
+                  : _green.withValues(alpha: 0.25),
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -335,7 +333,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
       decoration: BoxDecoration(
         color: const Color(0xFFFFF3E0),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE65100).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFFE65100).withValues(alpha: 0.3)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -377,7 +375,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: bg, borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border.withOpacity(0.3)),
+        border: Border.all(color: border.withValues(alpha: 0.3)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -437,7 +435,6 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
 
   Widget _nutrientTile(String label, double value, double low, double high, String unit) {
     final bool isLow  = value > 0 && value < low;
-    final bool isHigh = value > high;
     final bool isGood = value >= low && value <= high;
     final Color bg    = isGood ? const Color(0xFFE8F5E9)
         : isLow ? const Color(0xFFFFEBEE) : const Color(0xFFFFF3E0);
@@ -449,7 +446,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
       child: Container(
         decoration: BoxDecoration(
           color: bg, borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: text.withOpacity(0.25)),
+          border: Border.all(color: text.withValues(alpha: 0.25)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Column(children: [
@@ -481,7 +478,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
       child: Container(
         decoration: BoxDecoration(
           color: bg, borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: text.withOpacity(0.25)),
+          border: Border.all(color: text.withValues(alpha: 0.25)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Column(children: [
@@ -511,8 +508,8 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
 
   Widget _chip(String text, Color color) => Container(
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.3)),
+      color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
     ),
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     child: Text(text,

@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -156,7 +154,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: SingleChildScrollView(
                 child: Container(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(
+                  child: RadioGroup<String>(
+                    groupValue: _appTheme,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setModalState(() {
+                        _appTheme = value;
+                      });
+                      setState(() {
+                        _appTheme = value;
+                      });
+                    },
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                 children: [
@@ -173,46 +182,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     secondary: _buildIcon(Icons.brightness_auto),
                     title: Text('System', style: TextStyle(color: customGreen)),
                     value: 'System',
-                    groupValue: _appTheme,
                     activeColor: customGreen,
-                    onChanged: (value) {
-                      setModalState(() {
-                        _appTheme = value!;
-                      });
-                      setState(() {
-                        _appTheme = value!;
-                      });
-                    },
                   ),
                   RadioListTile<String>(
                     secondary: _buildIcon(Icons.wb_sunny),
                     title: Text('Light', style: TextStyle(color: customGreen)),
                     value: 'Light',
-                    groupValue: _appTheme,
                     activeColor: customGreen,
-                    onChanged: (value) {
-                      setModalState(() {
-                        _appTheme = value!;
-                      });
-                      setState(() {
-                        _appTheme = value!;
-                      });
-                    },
                   ),
                   RadioListTile<String>(
                     secondary: _buildIcon(Icons.nightlight_round),
                     title: Text('Dark', style: TextStyle(color: customGreen)),
                     value: 'Dark',
-                    groupValue: _appTheme,
                     activeColor: customGreen,
-                    onChanged: (value) {
-                      setModalState(() {
-                        _appTheme = value!;
-                      });
-                      setState(() {
-                        _appTheme = value!;
-                      });
-                    },
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
@@ -240,6 +222,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
+                  ),
                   ),
                 ),
               ),
@@ -263,7 +246,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: SingleChildScrollView(
                 child: Container(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(
+                  child: RadioGroup<String>(
+                    groupValue: _unitSystem,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setModalState(() {
+                        _unitSystem = value;
+                      });
+                      setState(() {
+                        _unitSystem = value;
+                      });
+                    },
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                 children: [
@@ -280,31 +274,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     secondary: _buildIcon(Icons.straighten),
                     title: Text('Imperial (acres)', style: TextStyle(color: customGreen)),
                     value: 'Imperial (acres)',
-                    groupValue: _unitSystem,
                     activeColor: customGreen,
-                    onChanged: (value) {
-                      setModalState(() {
-                        _unitSystem = value!;
-                      });
-                      setState(() {
-                        _unitSystem = value!;
-                      });
-                    },
                   ),
                   RadioListTile<String>(
                     secondary: _buildIcon(Icons.square_foot),
                     title: Text('Metric (sqm)', style: TextStyle(color: customGreen)),
                     value: 'Metric (sqm)',
-                    groupValue: _unitSystem,
                     activeColor: customGreen,
-                    onChanged: (value) {
-                      setModalState(() {
-                        _unitSystem = value!;
-                      });
-                      setState(() {
-                        _unitSystem = value!;
-                      });
-                    },
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
@@ -332,6 +308,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
+                  ),
                   ),
                 ),
               ),

@@ -1,6 +1,4 @@
 // lib/education/quiz/quiz_home.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
-
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -314,7 +312,7 @@ class _QuizHomeState extends State<QuizHome>
             initiallyExpanded: entries.length == 1,
             leading: CircleAvatar(
               radius:          18,
-              backgroundColor: modColor.withOpacity(0.12),
+              backgroundColor: modColor.withValues(alpha: 0.12),
               child: Icon(modIcon, color: modColor, size: 18),
             ),
             title: Text(modName,
@@ -418,7 +416,7 @@ class _QuizHomeState extends State<QuizHome>
             initiallyExpanded: entries.length == 1,
             leading: CircleAvatar(
               radius:          18,
-              backgroundColor: modColor.withOpacity(0.12),
+              backgroundColor: modColor.withValues(alpha: 0.12),
               child: Icon(modIcon, color: modColor, size: 18),
             ),
             title: Text(modName,
@@ -469,7 +467,7 @@ class _QuizHomeState extends State<QuizHome>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 72, color: color.withOpacity(0.35)),
+              Icon(icon, size: 72, color: color.withValues(alpha: 0.35)),
               const SizedBox(height: 20),
               Text(title,
                   style: const TextStyle(

@@ -6,8 +6,6 @@
 //   • field_costs                     (if cost amount > 0 and saveToCosts = true)
 //   • field_reminders                 (if follow-up reminder is enabled)
 
-// ignore_for_file: library_prefixes, deprecated_member_use, curly_braces_in_flow_control_structures
-
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
-import 'package:timezone/data/latest.dart' as tzData;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:kilimomkononi/models/pest_disease_model.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
@@ -133,7 +131,7 @@ class _InterventionPageState extends State<InterventionPage> {
   Future<void> _initTz() async {
     if (_tzReady) return;
     try {
-      tzData.initializeTimeZones();
+      tz_data.initializeTimeZones();
       tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()) as String));
       _tzReady = true;
     } catch (_) {}
@@ -143,10 +141,12 @@ class _InterventionPageState extends State<InterventionPage> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     final plots = await FieldCostService.loadFarmPlots(uid);
-    if (mounted) setState(() {
-      _farmPlots = plots;
-      if (plots.isNotEmpty) _selectedPlotId = plots.first['id'];
-    });
+    if (mounted) {
+      setState(() {
+        _farmPlots = plots;
+        if (plots.isNotEmpty) _selectedPlotId = plots.first['id'];
+      });
+    }
   }
 
   // ── AI advisor ────────────────────────────────────────────────────────────
@@ -197,10 +197,12 @@ If none: INTERVENTIONS_JSON: []
         if (mounted) setState(() { _aiAdvice = 'AI error (${resp.statusCode}). Try again.'; _aiLoading = false; });
       }
     } catch (e) {
-      if (mounted) setState(() {
-        _aiAdvice = e.toString().contains('Timeout') ? 'Request timed out. Check connection.' : 'AI unavailable offline. Use manual hints above.';
-        _aiLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _aiAdvice = e.toString().contains('Timeout') ? 'Request timed out. Check connection.' : 'AI unavailable offline. Use manual hints above.';
+          _aiLoading = false;
+        });
+      }
     }
   }
 
@@ -346,7 +348,9 @@ Future<void> _scheduleReminder({
   void _reset() {
     setState(() {
       _cycleCtrl.text = 'A';
-      for (final c in [_interventionCtrl, _amountCtrl, _areaCtrl, _costCtrl]) c.clear();
+      for (final c in [_interventionCtrl, _amountCtrl, _areaCtrl, _costCtrl]) {
+        c.clear();
+      }
       _areaUnit = 'Acres'; _saveToCosts = true; _costCategory = 'Pesticide / Herbicide';
       _followUp = true; _reminderDate = DateTime.now().add(const Duration(days: 7));
       _aiAdvice = null; _aiSuggestions = [];
@@ -464,7 +468,7 @@ Future<void> _scheduleReminder({
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
               child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 18)),
           const SizedBox(width: 10),
           const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -479,8 +483,8 @@ Future<void> _scheduleReminder({
         else if (_aiAdvice != null) ...[
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.10), borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withOpacity(0.25))),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.25))),
             child: Text(_aiAdvice!, style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.6)),
           ),
           if (_aiSuggestions.isNotEmpty) ...[
@@ -490,8 +494,8 @@ Future<void> _scheduleReminder({
             ..._aiSuggestions.map((s) => Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.10), borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.2))),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2))),
               child: Row(children: [
                 Expanded(child: Text(
                   '${s['type']}${s['quantity'] != null ? '  ·  ${(s['quantity'] as num).toStringAsFixed(1)} ${s['unit']}' : ''}',
@@ -598,7 +602,7 @@ Future<void> _scheduleReminder({
         const SizedBox(height: 10),
         Row(children: [
           Switch(value: _saveToCosts, onChanged: (v) => setState(() => _saveToCosts = v),
-              activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
           const SizedBox(width: 8),
           const Expanded(child: Text('Save to Farm Management costs',
               style: TextStyle(fontSize: 13, color: _T.textPrimary))),
@@ -621,7 +625,7 @@ Future<void> _scheduleReminder({
                 style: const TextStyle(fontSize: 12, color: _T.textHint)),
           ])),
           Switch(value: _followUp, onChanged: (v) => setState(() => _followUp = v),
-              activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
         ]),
         if (_followUp) ...[
           const SizedBox(height: 8),

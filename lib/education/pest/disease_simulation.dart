@@ -214,7 +214,7 @@ class _DiseaseSimulationScreenState extends State<DiseaseSimulationScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.local_hospital, size: 100, color: primaryGreen.withOpacity(0.8)),
+                      Icon(Icons.local_hospital, size: 100, color: primaryGreen.withValues(alpha: 0.8)),
                       const SizedBox(height: 30),
                       const Text(
                         'Practice disease decision-making',

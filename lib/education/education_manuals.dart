@@ -1,5 +1,4 @@
 // education_manuals.dart
-// ignore_for_file: deprecated_member_use
 
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -83,8 +82,18 @@ class _EducationManualsState extends State<EducationManuals> {
     super.dispose();
   }
 
+  bool _isOffline = false;
+
   Future<void> _loadManualsOnce() async {
     if (_hasLoaded) return;
+
+    // If a previous session already cached manuals globally, show them
+    // immediately without waiting on a network call.
+    if (_cachedManuals.isNotEmpty) {
+      _hasLoaded = true;
+      if (mounted) setState(() {});
+      return;
+    }
 
     try {
       final ref = FirebaseStorage.instance.ref('manuals');
@@ -118,11 +127,12 @@ class _EducationManualsState extends State<EducationManuals> {
       _cachedManuals = manuals;
       _hasLoaded = true;
 
-      if (mounted && _selectedCrop != null) {
-        setState(() {});
-      }
+      if (mounted) setState(() => _isOffline = false);
     } catch (e) {
       debugPrint('Failed to load manuals: $e');
+      // Mark as loaded so the UI doesn't spin forever.
+      _hasLoaded = true;
+      if (mounted) setState(() => _isOffline = _cachedManuals.isEmpty);
     }
   }
 
@@ -302,7 +312,7 @@ class _EducationManualsState extends State<EducationManuals> {
               Center(
                 child: Column(
                   children: [
-                    Icon(Icons.menu_book, size: 90, color: primaryGreen.withOpacity(0.7)),
+                    Icon(Icons.menu_book, size: 90, color: primaryGreen.withValues(alpha: 0.7)),
                     const SizedBox(height: 24),
                     const Text('Select a crop to view its manual', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey)),
                     const SizedBox(height: 12),
@@ -312,6 +322,39 @@ class _EducationManualsState extends State<EducationManuals> {
               )
             else if (_isLoading || !_hasLoaded)
               const Center(child: CircularProgressIndicator(color: primaryGreen))
+            else if (_isOffline && _cachedManuals.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.cloud_off_rounded, size: 64, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      const Text('No internet connection',
+                          style: TextStyle(fontSize: 16,
+                              fontWeight: FontWeight.w600, color: Colors.black54)),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Manuals load from the internet. Connect to Wi-Fi or '
+                        'mobile data to view them.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                      const SizedBox(height: 20),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          _hasLoaded = false;
+                          setState(() => _isOffline = false);
+                          _loadManualsOnce();
+                        },
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
             else if (filtered.isEmpty)
               Center(
                 child: Column(

@@ -1,9 +1,9 @@
 // lib/education/utils/database_migration.dart
-// ignore_for_file: avoid_print
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firestore_helper.dart';
 
+import 'package:flutter/foundation.dart';
 class DatabaseMigration {
   static final _firestore = FirebaseFirestore.instance;
 
@@ -27,7 +27,7 @@ class DatabaseMigration {
 
   /// Main migration function - call this once to migrate all data
   static Future<void> migrateToNewStructure() async {
-    print('Starting database migration...');
+    debugPrint('Starting database migration...');
     
     try {
       // Step 1: Get all old-format school documents
@@ -38,16 +38,16 @@ class DatabaseMigration {
         
         // Skip if this is already in the new format
         if (!_isOldFormat(oldSchoolId)) {
-          print('Skipping $oldSchoolId - already migrated or new format');
+          debugPrint('Skipping $oldSchoolId - already migrated or new format');
           continue;
         }
         
-        print('Migrating: $oldSchoolId');
+        debugPrint('Migrating: $oldSchoolId');
         
         // Parse the old school ID
         final parsed = _parseOldSchoolId(oldSchoolId);
         if (parsed == null) {
-          print('Could not parse: $oldSchoolId');
+          debugPrint('Could not parse: $oldSchoolId');
           continue;
         }
         
@@ -59,14 +59,14 @@ class DatabaseMigration {
             .get();
         
         if (gradesSnapshot.docs.isEmpty) {
-          print('No grades found for $oldSchoolId');
+          debugPrint('No grades found for $oldSchoolId');
           continue;
         }
         
         for (final gradeDoc in gradesSnapshot.docs) {
           final grade = gradeDoc.id;
           
-          print('  Migrating grade: $grade');
+          debugPrint('  Migrating grade: $grade');
           
           // Build the new classId
           final newClassId = '${schoolName}_${system}_$grade';
@@ -100,13 +100,13 @@ class DatabaseMigration {
                 continue; // Skip empty collections
               }
               
-              print('    Migrating collection: $collectionName (${docs.docs.length} docs)');
+              debugPrint('    Migrating collection: $collectionName (${docs.docs.length} docs)');
               
               final newCollection = FirestoreHelper.getContentFromClassId(
                   newClassId, collectionName);
               
               if (newCollection == null) {
-                print('    Error: Could not get new collection for $collectionName');
+                debugPrint('    Error: Could not get new collection for $collectionName');
                 continue;
               }
               
@@ -115,9 +115,9 @@ class DatabaseMigration {
                 await newCollection.doc(doc.id).set(doc.data());
               }
               
-              print('    ✓ Migrated ${docs.docs.length} documents from $collectionName');
+              debugPrint('    ✓ Migrated ${docs.docs.length} documents from $collectionName');
             } catch (e) {
-              print('    Error migrating $collectionName: $e');
+              debugPrint('    Error migrating $collectionName: $e');
             }
           }
         }
@@ -126,12 +126,12 @@ class DatabaseMigration {
         await _updateEducationUsers(oldSchoolId, schoolName, system);
       }
       
-      print('');
-      print('Migration completed successfully!');
-      print('Please verify the data using verifyMigration() before deleting old structure.');
+      debugPrint('');
+      debugPrint('Migration completed successfully!');
+      debugPrint('Please verify the data using verifyMigration() before deleting old structure.');
       
     } catch (e) {
-      print('Migration error: $e');
+      debugPrint('Migration error: $e');
       rethrow;
     }
   }
@@ -140,7 +140,7 @@ class DatabaseMigration {
   static Future<void> _updateEducationUsers(
       String oldSchoolId, String schoolName, String system) async {
     
-    print('  Updating EducationUsers...');
+    debugPrint('  Updating EducationUsers...');
     
     // Query users by school name (with spaces)
     final schoolNameWithSpaces = schoolName.replaceAll('_', ' ');
@@ -150,7 +150,7 @@ class DatabaseMigration {
         .get();
     
     if (usersSnapshot.docs.isEmpty) {
-      print('  No users found for school: $schoolNameWithSpaces');
+      debugPrint('  No users found for school: $schoolNameWithSpaces');
       return;
     }
     
@@ -173,7 +173,7 @@ class DatabaseMigration {
             final newClassId = '${schoolName}_${system}_$grade';
             updatedClassIds.add(newClassId);
             needsUpdate = true;
-            print('    Updated classId: $classId -> $newClassId');
+            debugPrint('    Updated classId: $classId -> $newClassId');
           } else {
             updatedClassIds.add(classId);
           }
@@ -190,7 +190,7 @@ class DatabaseMigration {
           final grade = gradeMatch.group(1)!;
           updatedCurrentClassId = '${schoolName}_${system}_$grade';
           needsUpdate = true;
-          print('    Updated currentClassId: $currentClassId -> $updatedCurrentClassId');
+          debugPrint('    Updated currentClassId: $currentClassId -> $updatedCurrentClassId');
         }
       }
       
@@ -204,16 +204,16 @@ class DatabaseMigration {
         }
         
         await userDoc.reference.update(updateData);
-        print('    ✓ Updated user: ${data['email']}');
+        debugPrint('    ✓ Updated user: ${data['email']}');
       }
     }
   }
 
   /// Verify migration - compares document counts
   static Future<void> verifyMigration() async {
-    print('');
-    print('Verifying migration...');
-    print('');
+    debugPrint('');
+    debugPrint('Verifying migration...');
+    debugPrint('');
     
     final oldSchools = await _firestore.collection('schools').get();
     var allMatch = true;
@@ -269,35 +269,35 @@ class DatabaseMigration {
             final newDocs = await newCollection.get();
             
             if (oldDocs.docs.length == newDocs.docs.length) {
-              print('✓ $oldSchoolId/grades/$grade/$collectionName: ${oldDocs.docs.length} docs');
+              debugPrint('✓ $oldSchoolId/grades/$grade/$collectionName: ${oldDocs.docs.length} docs');
             } else {
-              print('✗ MISMATCH $oldSchoolId/grades/$grade/$collectionName: '
+              debugPrint('✗ MISMATCH $oldSchoolId/grades/$grade/$collectionName: '
                   'old=${oldDocs.docs.length}, new=${newDocs.docs.length}');
               allMatch = false;
             }
           } catch (e) {
-            print('Error checking $collectionName: $e');
+            debugPrint('Error checking $collectionName: $e');
           }
         }
       }
     }
     
-    print('');
+    debugPrint('');
     if (allMatch) {
-      print('✓ Verification complete - all document counts match!');
-      print('You can now safely run deleteOldStructure() if desired.');
+      debugPrint('✓ Verification complete - all document counts match!');
+      debugPrint('You can now safely run deleteOldStructure() if desired.');
     } else {
-      print('✗ Verification found mismatches - please review before deleting old data.');
+      debugPrint('✗ Verification found mismatches - please review before deleting old data.');
     }
   }
 
   /// Clean up old data after verifying the migration
   /// WARNING: Only run this after confirming the new structure works!
   static Future<void> deleteOldStructure() async {
-    print('');
-    print('WARNING: This will delete the old data structure!');
-    print('Make sure you have run verifyMigration() first.');
-    print('');
+    debugPrint('');
+    debugPrint('WARNING: This will delete the old data structure!');
+    debugPrint('Make sure you have run verifyMigration() first.');
+    debugPrint('');
     
     final oldSchools = await _firestore.collection('schools').get();
     var deleteCount = 0;
@@ -307,14 +307,14 @@ class DatabaseMigration {
       
       // Only delete if this has the old format
       if (_isOldFormat(oldSchoolId)) {
-        print('Deleting old structure: $oldSchoolId');
+        debugPrint('Deleting old structure: $oldSchoolId');
         await _deleteDocumentAndSubcollections(schoolDoc.reference);
         deleteCount++;
       }
     }
     
-    print('');
-    print('Deleted $deleteCount old school documents.');
+    debugPrint('');
+    debugPrint('Deleted $deleteCount old school documents.');
   }
 
   /// Delete a document and all its subcollections (recursive)

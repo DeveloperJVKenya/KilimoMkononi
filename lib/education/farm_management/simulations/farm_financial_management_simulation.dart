@@ -1,5 +1,4 @@
 // lib/education/farm_management/simulations/farm_financial_management_simulation.dart
-// ignore_for_file: curly_braces_in_flow_control_structures, prefer_final_fields, non_constant_identifier_names, unused_field, unused_element, use_build_context_synchronously, deprecated_member_use
 //
 // FLAME ENGINE — FarmFinancialManagementSimulation
 //
@@ -27,7 +26,6 @@ import 'package:kilimomkononi/education/tutor/tutor_chat_screen.dart';
 const Color _appGreen  = Color(0xFF003900);
 const Color _cashGreen = Color(0xFF1B5E20);
 const Color _debtRed   = Color(0xFFC62828);
-const Color _goldAmber = Color(0xFFFF8F00);
 
 // ── Decision data ─────────────────────────────────────────────────────────────
 class MonthlyDecision {
@@ -83,7 +81,6 @@ const _decisions = [
 class CashFlowRiverComponent extends PositionComponent {
   double cashVelocity; // positive = earning, negative = losing
   final List<_Coin> _coins = [];
-  double _t = 0;
   final Random _rng = Random();
 
   CashFlowRiverComponent({required this.cashVelocity, required Vector2 position})
@@ -95,7 +92,6 @@ class CashFlowRiverComponent extends PositionComponent {
 
   @override
   void update(double dt) {
-    _t += dt;
     final speed = (cashVelocity.abs() / 10000 * 80).clamp(20.0, 120.0);
     final dir   = cashVelocity >= 0 ? 1 : -1;
     for (final coin in _coins) {
@@ -178,7 +174,7 @@ class SparklineComponent extends PositionComponent {
     fillPath.lineTo(4, size.y - 4);
     fillPath.close();
     canvas.drawPath(fillPath, Paint()
-        ..color = (data.last >= baseline ? Colors.green : Colors.red).withOpacity(0.12));
+        ..color = (data.last >= baseline ? Colors.green : Colors.red).withValues(alpha: 0.12));
 
     // Label
     TextPaint(style: TextStyle(
@@ -244,7 +240,7 @@ class FarmSceneComponent extends PositionComponent {
 
     // Rain if losing money
     if (cashRatio < 0.4) {
-      final rp = Paint()..color = Colors.lightBlue.shade200.withOpacity(0.5)..strokeWidth = 1.5;
+      final rp = Paint()..color = Colors.lightBlue.shade200.withValues(alpha: 0.5)..strokeWidth = 1.5;
       final rng = Random(42);
       for (int i = 0; i < 15; i++) {
         final rx = rng.nextDouble() * size.x;
@@ -305,7 +301,7 @@ class FinanceDashboardGame extends FlameGame {
     add(sparkline);
   }
 
-  void update_state(double cash, double health, List<double> history) {
+  void updateState(double cash, double health, List<double> history) {
     cashBalance = cash;
     farmHealth  = health;
     cashHistory = history;
@@ -340,8 +336,8 @@ class _FarmFinancialManagementSimulationState
 
   int _month = 0;
   double _cash = 50000, _revenue = 0, _expenses = 0, _farmHealth = 60;
-  List<double> _cashHistory = [50000];
-  List<String> _log = [];
+  final List<double> _cashHistory = [50000];
+  final List<String> _log = [];
 
   DecisionOption? _chosen;
   String? _result;
@@ -377,7 +373,7 @@ class _FarmFinancialManagementSimulationState
       _log.add('${_current.month}: ${opt.label} — cost: ${cost.toStringAsFixed(0)}, '
           'revenue: ${revenue.toStringAsFixed(0)}');
       _result = opt.consequence;
-      _game.update_state(_cash, _farmHealth, _cashHistory);
+      _game.updateState(_cash, _farmHealth, _cashHistory);
       if (revenue > 0) _confetti.play();
     });
   }
@@ -420,11 +416,17 @@ class _FarmFinancialManagementSimulationState
   int _calcScore() {
     final profit = _cash - 50000;
     int s = 50;
-    if (profit > 30000) s = 95;
-    else if (profit > 15000) s = 80;
-    else if (profit > 0) s = 65;
-    else if (profit > -10000) s = 45;
-    else s = 25;
+    if (profit > 30000) {
+      s = 95;
+    } else if (profit > 15000) {
+      s = 80;
+    } else if (profit > 0) {
+      s = 65;
+    } else if (profit > -10000) {
+      s = 45;
+    } else {
+      s = 25;
+    }
     return (s + (_farmHealth * 0.2)).clamp(0, 100).toInt();
   }
 

@@ -5,9 +5,6 @@
 //   • diseaseinterventiondata          (legacy write kept for backward compat)
 //   • field_costs                      (if cost amount > 0 and saveToCosts = true)
 //   • field_reminders                  (if follow-up reminder is enabled)
-
-// ignore_for_file: library_prefixes, curly_braces_in_flow_control_structures, deprecated_member_use
-
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
-import 'package:timezone/data/latest.dart' as tzData;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:kilimomkononi/screens/disease%20management/disease_model.dart';
 import 'package:kilimomkononi/screens/disease%20management/user_disease_history_page.dart';
@@ -23,6 +20,9 @@ import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
+import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
+import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -42,8 +42,6 @@ class _T {
   static const costBorder  = Color(0xFFE6A817);
   static const costIcon    = Color(0xFFB97000);
   static const costText    = Color(0xFF7A4F00);
-  static const aiGradA     = Color(0xFF0D2B0E);
-  static const aiGradB     = Color(0xFF1B5E20);
   static const infoBg      = Color(0xFFDCEEFB);
   static const infoBorder  = Color(0xFF1565C0);
   static const infoText    = Color(0xFF0D3C7A);
@@ -190,9 +188,8 @@ class _InterventionPageState extends State<InterventionPage> {
   bool                      _plotsLoading = false;
   String?                   _selectedPlotId; // null = user must pick explicitly
 
-  bool   _aiLoading  = false;
-  Map<String, dynamic>? _aiAdviceJson;
-  List<Map<String, dynamic>> _aiSuggestions = [];
+  bool          _aiLoading  = false;
+  AiAdviceData? _aiAdvice;
 
   // ── Reminders — system suggested + custom (mirrors PestInterventionPage) ──
   bool     _followUp          = true;
@@ -229,7 +226,7 @@ class _InterventionPageState extends State<InterventionPage> {
   Future<void> _initTz() async {
     if (_tzReady) return;
     try {
-      tzData.initializeTimeZones();
+      tz_data.initializeTimeZones();
       tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()) as String));
       _tzReady = true;
     } catch (_) {}
@@ -242,10 +239,12 @@ class _InterventionPageState extends State<InterventionPage> {
     try {
       // Uses SharedPrefs first, then Firestore fallback — always finds real plots
       final plots = await _loadFarmPlotsWithFallback(uid);
-      if (mounted) setState(() {
-        _farmPlots      = plots;
-        _selectedPlotId = null; // user must explicitly pick their plot
-      });
+      if (mounted) {
+        setState(() {
+          _farmPlots      = plots;
+          _selectedPlotId = null; // user must explicitly pick their plot
+        });
+      }
     } finally {
       if (mounted) setState(() => _plotsLoading = false);
     }
@@ -254,34 +253,24 @@ class _InterventionPageState extends State<InterventionPage> {
   // ── AI Advisor ────────────────────────────────────────────────────────────
 
   Future<void> _fetchAiAdvice() async {
-    setState(() { _aiLoading = true; _aiAdviceJson = null; _aiSuggestions = []; });
+    setState(() { _aiLoading = true; _aiAdvice = null; });
 
-    final prompt = '''
-You are an agronomist advising smallholder farmers in Kenya and East Africa.
-Respond ONLY with valid JSON — no markdown, no backticks, no extra text.
-
+    final prompt = buildAiAdvicePrompt(
+      roleContext: 'an agronomist',
+      situation: '''
 Disease: ${widget.diseaseData.name}
 Crop: ${widget.cropType}  |  Stage: ${widget.cropStage}
 Active agent: ${widget.diseaseData.activeAgent}
 Known fungicides: ${widget.diseaseData.fungicides.join(', ')}
-Known organic interventions: ${widget.diseaseData.organicInterventions.join(', ')}
-
-Return exactly this JSON structure:
-{
-  "diagnosis": "2-sentence description of how this disease spreads and damages the crop at this stage.",
-  "urgentAction": "The single most important thing to do today.",
-  "chemicals": [
-    {"product":"Ridomil Gold","activeIngredient":"Metalaxyl + Mancozeb","dosage":"2.5 g per litre","timing":"At first sign of infection","method":"Foliar spray"}
-  ],
-  "organics": [
-    {"name":"Copper oxychloride","dosage":"3 g per litre","notes":"Apply every 7-10 days as preventive"}
-  ],
-  "warnings": ["Pre-harvest interval: 14 days","Do not spray in direct sun or rain","Rotate fungicide classes to prevent resistance"],
-  "interventions": [
-    {"type":"Spray Ridomil Gold","quantity":2.5,"unit":"g/L","category":"Pesticide / Herbicide"}
-  ]
-}
-''';
+Known organic options: ${widget.diseaseData.organicInterventions.join(', ')}
+''',
+      extraInstructions: '''
+Include 1-2 chemical fungicide/bactericide options and 1 organic alternative.
+"category" must be exactly "chemical" or "organic".
+For chemical options include the product name sold in Kenya as the title,
+active ingredient in "why", dosage per litre and timing in "how".
+''',
+    );
 
     try {
       final resp = await http.post(Uri.parse(_kAskGeminiUrl),
@@ -291,38 +280,42 @@ Return exactly this JSON structure:
 
       if (resp.statusCode == 200) {
         final raw = (jsonDecode(resp.body)['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?) ?? '';
-        final cleaned = raw.replaceAll(RegExp(r'```json|```'), '').trim();
-        try {
-          final j = jsonDecode(cleaned) as Map<String, dynamic>;
-          final interventions = (j['interventions'] as List<dynamic>?)
-              ?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-          if (mounted) setState(() {
-            _aiAdviceJson = j;
-            _aiSuggestions = interventions;
+        final parsed = AiAdviceData.fromRaw(raw);
+        // Mirror intervention suggestions from recommendations for form auto-fill
+        if (mounted) setState(() { _aiAdvice = parsed; _aiLoading = false; });
+      } else {
+        if (mounted) {
+          setState(() {
+            _aiAdvice = AiAdviceData.error('AI error (${resp.statusCode}). Try again.');
             _aiLoading = false;
           });
-        } catch (_) {
-          if (mounted) setState(() { _aiAdviceJson = {'_raw': cleaned}; _aiLoading = false; });
         }
-      } else {
-        if (mounted) setState(() { _aiAdviceJson = {'_error': 'AI error (${resp.statusCode}). Try again.'}; _aiLoading = false; });
       }
     } catch (e) {
-      if (mounted) setState(() {
-        _aiAdviceJson = {'_error': e.toString().contains('Timeout') ? 'Request timed out.' : 'AI unavailable offline.'};
-        _aiLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _aiAdvice = AiAdviceData.error(
+              e.toString().contains('Timeout') ? 'Request timed out.' : 'AI unavailable offline.');
+          _aiLoading = false;
+        });
+      }
     }
   }
 
-  void _acceptSuggestion(Map<String, dynamic> s) {
+  void _acceptSuggestion(AiRecommendation r) {
     setState(() {
-      _interventionCtrl.text = s['type'] as String? ?? '';
-      if (s['quantity'] != null) {
-        _dosageCtrl.text = (s['quantity'] as num).toStringAsFixed(1);
-        _unitCtrl.text   = s['unit'] as String? ?? '';
+      _interventionCtrl.text = r.title;
+      if (r.dosage.isNotEmpty) {
+        // Parse "45 kg" → dosage field + unit field
+        final parts = r.dosage.split(RegExp(r'\s+'));
+        if (parts.length >= 2) {
+          _dosageCtrl.text = parts[0];
+          _unitCtrl.text   = parts.sublist(1).join(' ');
+        } else {
+          _dosageCtrl.text = r.dosage;
+        }
       }
-      _costCategory = s['category'] as String? ?? 'Pesticide / Herbicide';
+      _costCategory = r.category.contains('organic') ? 'Organic / Biological' : 'Pesticide / Herbicide';
     });
   }
 
@@ -357,7 +350,7 @@ Return exactly this JSON structure:
         area:             _areaCtrl.text.isNotEmpty ? double.tryParse(_areaCtrl.text) : null,
         areaUnit:         _areaUnit,
         timestamp:        now,
-        aiAdvice:         _aiAdviceJson != null ? jsonEncode(_aiAdviceJson) : null,
+        aiAdvice:         _aiAdvice != null ? jsonEncode({'problem': _aiAdvice!.problem, 'summary': _aiAdvice!.summary}) : null,
       );
 
       bool savedOnline = false;
@@ -535,14 +528,16 @@ Return exactly this JSON structure:
 
   void _reset() {
     setState(() {
-      for (final c in [_interventionCtrl, _dosageCtrl, _unitCtrl, _areaCtrl, _costCtrl, _customReminderCtrl]) c.clear();
+      for (final c in [_interventionCtrl, _dosageCtrl, _unitCtrl, _areaCtrl, _costCtrl, _customReminderCtrl]) {
+        c.clear();
+      }
       _areaUnit = 'Acres'; _saveToCosts = true; _costCategory = 'Pesticide / Herbicide';
       _followUp = true; _reminderDate = DateTime.now().add(const Duration(days: 7));
       _addSprayReminder = false; _sprayDate = DateTime.now().add(const Duration(days: 14));
       _addWeedReminder  = false; _weedDate  = DateTime.now().add(const Duration(days: 7));
       _addScoutReminder = true;  _scoutDate = DateTime.now().add(const Duration(days: 7));
       _addCustomReminder = false; _customDate = DateTime.now().add(const Duration(days: 3));
-      _aiAdviceJson = null; _aiSuggestions = [];
+      _aiAdvice = null;
     });
   }
 
@@ -569,6 +564,20 @@ Return exactly this JSON structure:
               Text('${widget.cropType}  ·  ${widget.cropStage}',
                   style: const TextStyle(fontSize: 13, color: _T.textSec)),
             ]),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Spray window + conditions (before you choose intervention) ──────
+          // Farmer needs to know: is it safe to spray right now?
+          WeatherStationInlinePanel(
+            showDegreeDays: false,
+            showFertiliser: false,
+            cropNames: [widget.cropType],
+            onOpenFullScreen: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const WeatherStationScreen()),
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -645,116 +654,21 @@ Return exactly this JSON structure:
   // ── Sub-widgets ───────────────────────────────────────────────────────────
 
   Widget _aiAdvisorCard() {
-    final hasResults = _aiAdviceJson != null && !_aiLoading;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ── Dark green header row ────────────────────────────────────────────
-      Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_T.aiGradA, _T.aiGradB],
-              begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.vertical(
-            top: const Radius.circular(14),
-            bottom: hasResults ? Radius.zero : const Radius.circular(14),
-          ),
-          border: Border.all(color: _T.brandLight, width: 1.5),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('AI Disease Advisor', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
-              Text('Powered by Gemini · Triple-check on product labels',
-                  style: TextStyle(color: Colors.white70, fontSize: 11)),
-            ]),
-          ]),
-          if (!hasResults && !_aiLoading) ...[
-            const SizedBox(height: 12),
-            const Text('Get fungicide names, dosages and timing for this exact disease, crop and stage.',
-                style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _fetchAiAdvice,
-                icon: const Icon(Icons.auto_awesome, size: 16),
-                label: const Text('Get AI Disease Advice', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white, foregroundColor: _T.brandDark,
-                  elevation: 0, padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              )),
-          ],
-          if (_aiLoading) ...[
-            const SizedBox(height: 12),
-            const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)),
-            const SizedBox(height: 8),
-          ],
-        ]),
-      ),
-
-      // ── Results on light background so coloured cards pop ────────────────
-      if (hasResults)
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF4F6F3),
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
-            border: Border.all(color: _T.brandLight, width: 1.5),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _buildAiJsonCards(_aiAdviceJson!),
-
-            // Tap-to-fill suggestions
-            if (_aiSuggestions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text('TAP TO FILL FORM',
-                  style: TextStyle(fontSize: 10, color: _T.textHint,
-                      fontWeight: FontWeight.w700, letterSpacing: 0.8)),
-              const SizedBox(height: 6),
-              ..._aiSuggestions.map((s) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white, borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _T.borderDef, width: 1.5),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.science_outlined, size: 16, color: _T.brandMid),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(
-                    '${s['type']}${s['quantity'] != null ? '  ·  ${(s['quantity'] as num).toStringAsFixed(1)} ${s['unit']}' : ''}',
-                    style: const TextStyle(color: _T.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-                  )),
-                  GestureDetector(
-                    onTap: () => _acceptSuggestion(s),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(color: _T.brandDark, borderRadius: BorderRadius.circular(8)),
-                      child: const Text('Use', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700)),
-                    )),
-                ]),
-              )),
-            ],
-
-            const SizedBox(height: 4),
-            GestureDetector(
-              onTap: _fetchAiAdvice,
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.refresh_rounded, size: 13, color: _T.textHint),
-                SizedBox(width: 4),
-                Text('Refresh advice', style: TextStyle(color: _T.textHint, fontSize: 12,
-                    decoration: TextDecoration.underline, decorationColor: _T.borderDef)),
-              ]),
-            ),
-          ]),
-        ),
-    ]);
+    return AiAdviceCard(
+      headerTitle: 'AI Disease Advisor',
+      headerSubtitle: 'Powered by Gemini · Always check product labels',
+      loading: _aiLoading,
+      loadingText: 'Analysing disease...',
+      data: _aiAdvice,
+      emptyStateText:
+          'Get fungicide names, dosages and timing for this exact disease, crop and growth stage.',
+      ctaLabel: 'Get AI disease advice',
+      onFetch: _fetchAiAdvice,
+      problemLabel: 'What this disease does',
+      problemIcon: Icons.biotech_outlined,
+      recommendationsLabel: 'Treatment options',
+      onUseRecommendation: _acceptSuggestion,
+    );
   }
 
   Widget _costCard() {
@@ -852,7 +766,7 @@ Return exactly this JSON structure:
         const SizedBox(height: 10),
         Row(children: [
           Switch(value: _saveToCosts, onChanged: (v) => setState(() => _saveToCosts = v),
-              activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
           const SizedBox(width: 8),
           const Expanded(child: Text('Save to Farm Management costs',
               style: TextStyle(fontSize: 13, color: _T.textPrimary))),
@@ -906,7 +820,7 @@ Return exactly this JSON structure:
         const SizedBox(height: 8),
         Row(children: [
           Switch(value: _addCustomReminder, onChanged: (v) => setState(() => _addCustomReminder = v),
-              activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
           const SizedBox(width: 8),
           const Expanded(child: Text('Add custom reminder',
               style: TextStyle(fontSize: 13, color: _T.textPrimary))),
@@ -964,7 +878,7 @@ Return exactly this JSON structure:
         ]),
       )),
       Switch(value: val, onChanged: onToggle,
-          activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
     ]);
   }
 
@@ -987,217 +901,4 @@ Return exactly this JSON structure:
     );
   }
 
-  // ── AI advice card renderer — structured JSON → beautiful coloured cards ──
-  // No **, no numbered lists, no raw markdown. Each section in its own card.
-
-  Widget _buildAiJsonCards(Map<String, dynamic> j) {
-    if (j.containsKey('_error')) {
-      return _aiCardBlock(Colors.red.shade800, Colors.red.shade100,
-          Icons.error_outline, 'Error', j['_error'] as String);
-    }
-    if (j.containsKey('_raw')) {
-      final clean = (j['_raw'] as String)
-          .replaceAll(RegExp(r'\*+'), '').replaceAll(RegExp(r'#+\s*'), '').trim();
-      return _aiCardBlock(const Color(0xFF1B5E20), const Color(0xFFE8F5E9),
-          Icons.info_outline, 'AI Advice', clean);
-    }
-    final cards = <Widget>[];
-
-    final diagnosis = j['diagnosis'] as String? ?? '';
-    if (diagnosis.isNotEmpty) {
-      cards.add(_aiCardBlock(const Color(0xFF0D47A1), const Color(0xFFE3F2FD),
-          Icons.biotech_outlined, 'What This Disease Does', diagnosis));
-    }
-
-    final urgent = j['urgentAction'] as String? ?? '';
-    if (urgent.isNotEmpty) {
-      cards.add(_aiCardBlock(const Color(0xFFBF360C), const Color(0xFFFBE9E7),
-          Icons.bolt, 'Most Urgent Action', urgent));
-    }
-
-    final chemicals = (j['chemicals'] as List<dynamic>?) ?? [];
-    if (chemicals.isNotEmpty) cards.add(_aiChemicalBlock(chemicals));
-
-    final organics = (j['organics'] as List<dynamic>?) ?? [];
-    if (organics.isNotEmpty) cards.add(_aiOrganicBlock(organics));
-
-    final warnings = (j['warnings'] as List<dynamic>?) ?? [];
-    if (warnings.isNotEmpty) cards.add(_aiWarningsBlock(warnings));
-
-    if (cards.isEmpty) {
-      cards.add(_aiCardBlock(const Color(0xFF1B5E20), const Color(0xFFE8F5E9),
-          Icons.info_outline, 'AI Advice', 'No structured advice returned. Try again.'));
-    }
-    return Column(children: cards);
-  }
-
-  Widget _aiCardBlock(Color hdr, Color bg, IconData icon, String title, String body) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: bg, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: hdr.withOpacity(0.35), width: 1.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: hdr, borderRadius: const BorderRadius.vertical(top: Radius.circular(11))),
-          child: Row(children: [
-            Icon(icon, color: Colors.white, size: 15),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Text(body, style: TextStyle(fontSize: 13, color: hdr.withOpacity(0.85), height: 1.6)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _aiChemicalBlock(List<dynamic> chemicals) {
-    const hdr = Color(0xFF4A148C);
-    const bg  = Color(0xFFF3E5F5);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: bg, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: hdr.withOpacity(0.35), width: 1.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: const BoxDecoration(
-            color: hdr, borderRadius: BorderRadius.vertical(top: Radius.circular(11))),
-          child: const Row(children: [
-            Icon(Icons.science_outlined, color: Colors.white, size: 15),
-            SizedBox(width: 8),
-            Text('Fungicide / Chemical Interventions',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        ...chemicals.asMap().entries.map((e) {
-          final c = e.value as Map<String, dynamic>;
-          return Container(
-            margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: hdr.withOpacity(0.2)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Option ${e.key + 1}: ${c['product'] ?? ''}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: hdr)),
-              const SizedBox(height: 4),
-              _fieldLine('Active Ingredient', c['activeIngredient']),
-              _fieldLine('Dosage',    c['dosage']),
-              _fieldLine('Timing',    c['timing']),
-              _fieldLine('Method',    c['method']),
-            ]),
-          );
-        }),
-        const SizedBox(height: 10),
-      ]),
-    );
-  }
-
-  Widget _aiOrganicBlock(List<dynamic> organics) {
-    const hdr = Color(0xFF1B5E20);
-    const bg  = Color(0xFFE8F5E9);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: bg, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: hdr.withOpacity(0.35), width: 1.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: const BoxDecoration(
-            color: hdr, borderRadius: BorderRadius.vertical(top: Radius.circular(11))),
-          child: const Row(children: [
-            Icon(Icons.eco_outlined, color: Colors.white, size: 15),
-            SizedBox(width: 8),
-            Text('Organic Alternatives',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        ...organics.asMap().entries.map((e) {
-          final o = e.value as Map<String, dynamic>;
-          return Container(
-            margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: hdr.withOpacity(0.2)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Option ${e.key + 1}: ${o['name'] ?? ''}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: hdr)),
-              const SizedBox(height: 4),
-              _fieldLine('Dosage', o['dosage']),
-              _fieldLine('Notes',  o['notes']),
-            ]),
-          );
-        }),
-        const SizedBox(height: 10),
-      ]),
-    );
-  }
-
-  Widget _aiWarningsBlock(List<dynamic> warnings) {
-    const hdr = Color(0xFFE65100);
-    const bg  = Color(0xFFFFF3E0);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: bg, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: hdr.withOpacity(0.35), width: 1.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: const BoxDecoration(
-            color: hdr, borderRadius: BorderRadius.vertical(top: Radius.circular(11))),
-          child: const Row(children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.white, size: 15),
-            SizedBox(width: 8),
-            Text('Safety Warnings',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-            children: warnings.map((w) => Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Icon(Icons.circle, size: 6, color: hdr),
-                const SizedBox(width: 8),
-                Expanded(child: Text(w as String,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF7A4F00), height: 1.5))),
-              ]),
-            )).toList()),
-        ),
-      ]),
-    );
-  }
-
-  Widget _fieldLine(String label, String? value) {
-    if (value == null || value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: RichText(text: TextSpan(
-        style: const TextStyle(fontSize: 12, height: 1.5),
-        children: [
-          TextSpan(text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
-          TextSpan(text: value,
-              style: const TextStyle(color: Colors.black54)),
-        ],
-      )),
-    );
-  }
 }

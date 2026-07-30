@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -125,6 +123,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       _messageController.clear();
       _logger.i('Message sent by $_userName in ${widget.channelId}');
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to send message: $e')),
       );
@@ -164,6 +163,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
       });
       _logger.i('Image uploaded by $_userName in ${widget.channelId}');
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to upload image: $e')),
       );
@@ -239,7 +239,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
                           borderRadius: BorderRadius.circular(12.0),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.2),
+                              color: Colors.grey.withValues(alpha: 0.2),
                               spreadRadius: 1,
                               blurRadius: 3,
                               offset: const Offset(0, 2),

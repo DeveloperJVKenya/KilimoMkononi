@@ -8,8 +8,6 @@
 //  • Plot + cost in one amber card matching intervention_page.dart exactly
 //  • Stepper layout — sections don't pile up on one long page
 
-// ignore_for_file: curly_braces_in_flow_control_structures, deprecated_member_use
-
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,6 +15,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kilimomkononi/education/pest/gemini_vision_helper.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
+import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 
 class PhotoDiagnosisPage extends StatefulWidget {
   final String? issueType; // 'pest' or 'disease' (optional hint)
@@ -104,10 +104,12 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
         final plots = await FieldCostService.loadFarmPlots(uid);
-        if (mounted) setState(() {
-          _farmPlots      = plots;
-          _selectedPlotId = plots.isNotEmpty ? plots.first['id'] : null;
-        });
+        if (mounted) {
+          setState(() {
+            _farmPlots      = plots;
+            _selectedPlotId = plots.isNotEmpty ? plots.first['id'] : null;
+          });
+        }
       }
     } finally {
       if (mounted) setState(() => _loadingPlots = false);
@@ -441,7 +443,7 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
           Expanded(child: Text(r.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: r.confColor.withOpacity(0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: r.confColor.withOpacity(0.4))),
+            decoration: BoxDecoration(color: r.confColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20), border: Border.all(color: r.confColor.withValues(alpha: 0.4))),
             child: Text(r.confidence.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: r.confColor)),
           ),
         ]),
@@ -454,7 +456,22 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
         if (r.description.isNotEmpty) ...[const SizedBox(height: 12), _hint('Why this happened', r.description, Icons.info_outline)],
         if (r.recommendation.isNotEmpty) ...[const SizedBox(height: 8), _hint('What to do now', r.recommendation, Icons.healing_rounded)],
         if (r.alternatives.isNotEmpty) ...[const SizedBox(height: 8), _hint('Alternative diagnosis', r.alternatives.join('\n• '), Icons.help_outline)],
+        const SizedBox(height: 12),
+
+        // ── Spray / application conditions ─────────────────────────────────
+        // Before the farmer acts on the diagnosis, show if it's safe to spray.
+        WeatherStationInlinePanel(
+          showDegreeDays: false,
+          showFertiliser: false,
+          cropNames: _selectedCrop != null ? [_selectedCrop!] : [],
+          onOpenFullScreen: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const WeatherStationScreen()),
+          ),
+        ),
         const SizedBox(height: 10),
+
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade300)),
@@ -485,6 +502,18 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
   // ── Step 2: Intervention + Plot + Cost ────────────────────────────────────
 
   Widget _s2() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // ── Spray conditions reminder at top of intervention step ──────────────
+    WeatherStationInlinePanel(
+      showDegreeDays: false,
+      showFertiliser: false,
+      cropNames: _selectedCrop != null ? [_selectedCrop!] : [],
+      onOpenFullScreen: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const WeatherStationScreen()),
+      ),
+    ),
+    const SizedBox(height: 16),
+
     _lbl('Intervention Applied'),
     const SizedBox(height: 8),
     TextField(
@@ -509,6 +538,7 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
       Expanded(child: TextField(controller: _areaCtrl, keyboardType: TextInputType.number, onChanged: (v) => setState(() => _area = double.tryParse(v)), decoration: InputDecoration(hintText: 'Area', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)))),
       const SizedBox(width: 8),
       Expanded(child: DropdownButtonFormField<String>(
+        // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
         value: _areaUnit,
         items: const [DropdownMenuItem(value: 'Acres', child: Text('Acres')), DropdownMenuItem(value: 'SQM', child: Text('SQM'))],
         onChanged: (v) => setState(() => _areaUnit = v ?? 'Acres'),
@@ -587,7 +617,7 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
         ),
         const SizedBox(height: 10),
         Row(children: [
-          Switch(value: _saveToCosts, onChanged: (v) => setState(() => _saveToCosts = v), activeColor: _accent, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          Switch(value: _saveToCosts, onChanged: (v) => setState(() => _saveToCosts = v), activeThumbColor: _accent, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
           const SizedBox(width: 8),
           const Expanded(child: Text('Save to Farm Management costs', style: TextStyle(fontSize: 13, color: Color(0xFF111A10)))),
         ]),

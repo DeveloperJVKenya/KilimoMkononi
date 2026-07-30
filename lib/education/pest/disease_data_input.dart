@@ -1,5 +1,6 @@
 // lib/education/pest/disease_data_input.dart (AI-enhanced)
-// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_local_variable, use_build_context_synchronously, body_might_complete_normally_catch_error, deprecated_member_use, unused_element, override_on_non_overriding_member, unnecessary_underscores
+
+import 'package:kilimomkononi/education/widgets/edu_ai_advice_card.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -485,19 +486,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
     }
   }
   
-  IconData _getGradeIcon(String? grade) {
-    switch (grade) {
-      case 'correct':
-        return Icons.check_circle;
-      case 'needsWork':
-        return Icons.warning;
-      case 'incorrect':
-        return Icons.cancel;
-      default:
-        return Icons.help;
-    }
-  }
-  
   String _getGradeLabel(String? grade) {
     switch (grade) {
       case 'correct':
@@ -511,7 +499,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
     }
   }
 
-  @override
   // Normalise crop name to match diseaseTreatments map keys.
   // The UI uses 'Cabbages/Kales' but the data file uses 'Cabbage'.
   String _cropKey(String? crop) {
@@ -609,43 +596,8 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
           SnackBar(content: Text('Error submitting: $e'), backgroundColor: Colors.red),
         );
       }
+      throw e;
     });
-  }
-
-  void _editEntry(String id, Map<String, dynamic> data) {
-    if (!_canEdit) return;
-    setState(() {
-      _editingId = id;
-      _selectedCrop = data['cropType'];
-      _selectedStage = data['cropStage'];
-      _selectedDisease = data['diseaseName'];
-      _interventionCtrl.text = data['intervention'] ?? '';
-    });
-  }
-
-  Future<void> _deleteEntry(String id) async {
-    if (!_canEdit) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Delete Entry?'),
-        content: const Text('This cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await _collection!.doc(id).delete();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted'), backgroundColor: Colors.red));
-      }
-    }
   }
 
   void _resetForm() {
@@ -657,33 +609,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
       _interventionCtrl.clear();
     });
     _formKey.currentState?.reset();
-  }
-
-  void _showSubmissionsDialog() {
-    if (_submissionsCollection == null) return;
-    
-    final String? crop = _selectedCrop;
-    final String? stage = _selectedStage;
-    final String? disease = _selectedDisease;
-    
-    if (crop == null || stage == null || disease == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select crop, stage, and disease first')),
-      );
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DiseaseSubmissionsViewerPage(
-          collection: _submissionsCollection!,
-          crop: crop,
-          stage: stage,
-          disease: disease,
-          title: 'Disease Submissions',
-        ),
-      ),
-    );
   }
 
   Widget _buildTeacherHints() {
@@ -810,22 +735,10 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
 
           // ── AI Analysis button (teacher) ────────────────────────────────
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _aiLoading ? null : () => _runAiDiseaseAnalysis(null),
-              icon: _aiLoading
-                  ? const SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.auto_awesome, size: 16, color: Colors.deepPurple),
-              label: Text(
-                _aiLoading ? 'Analysing…' : '🤖 AI Analysis for this Disease',
-                style: const TextStyle(fontSize: 12, color: Colors.deepPurple),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.deepPurple),
-              ),
-            ),
+          EduAiLoadingButton(
+            loading: _aiLoading,
+            label: 'AI Analysis for this Disease',
+            onPressed: () => _runAiDiseaseAnalysis(null),
           ),
         ],
       ),
@@ -834,8 +747,6 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
 
   // ── AI disease analysis (general or student-specific) ──────────────────
   Future<void> _runAiDiseaseAnalysis(Map<String, dynamic>? studentData) async {
-    final crop    = studentData?['crop']    ?? _selectedCrop    ?? '';
-    final stage   = studentData?['stage']   ?? _selectedStage   ?? '';
     final disease = studentData?['disease'] ?? _selectedDisease ?? '';
 
     final String userMsg;
@@ -871,7 +782,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
 ''';
     }
 
-    final _savedPos = _scrollCtrl.hasClients ? _scrollCtrl.offset : 0.0;
+    final savedPos = _scrollCtrl.hasClients ? _scrollCtrl.offset : 0.0;
     setState(() => _aiLoading = true);
     final result = await _callGemini(
       'You are an expert Kenyan plant pathologist and secondary school agriculture teacher. '
@@ -880,89 +791,17 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
     );
     setState(() => _aiLoading = false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(_savedPos);
+      if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(savedPos);
     });
 
     if (!mounted) return;
-    _showAiResultDialog(
-      title: studentData != null
-          ? '🤖 AI Feedback: ${studentData['studentName'] ?? 'Student'}'
-          : '🤖 AI Disease Analysis: $disease',
-      result: result,
-    );
-  }
-
-  void _showAiResultDialog({required String title, required String result}) {
-    showDialog(
+    await showEduAiResultDialog(
       context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)]),
-                borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20)),
-              ),
-              child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.auto_awesome,
-                      color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Text(title,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold))),
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: const Icon(Icons.close,
-                      color: Colors.white70, size: 20),
-                ),
-              ]),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: _AiMarkdownCard(content: result),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(ctx),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Got it!'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      title: studentData != null
+          ? 'AI Feedback: ${studentData['studentName'] ?? 'Student'}'
+          : 'AI Disease Analysis: $disease',
+      markdownResult: result,
+      mode: studentData != null ? EduAiMode.student : EduAiMode.teacher,
     );
   }
 
@@ -991,33 +830,6 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
       ],
     );
   }
-
-  Widget _buildInterventionCategory(String title, List<String> items, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 15)),
-        const SizedBox(height: 8),
-        ...items.map((item) => Padding(
-              padding: const EdgeInsets.only(left: 8, bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 6),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(item, style: const TextStyle(height: 1.5, fontSize: 14))),
-                ],
-              ),
-            )),
-      ],
-    );
-  }
-
 
   // ═══════════════════════════════════════════════════════════════════
   // STUDENT VIEW — All submissions by name, no dropdowns required
@@ -1328,29 +1140,19 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                             // ── AI Tutor button (available after review) ──
                             if (isReviewed) ...[
                               const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _aiLoading
-                                      ? null
-                                      : () => _runAiDiseaseAnalysis({
-                                            'crop':           data['crop'],
-                                            'stage':          data['stage'],
-                                            'disease':        data['disease'],
-                                            'studentName':    data['studentName'],
-                                            'studentAnswer':  data['studentAnswer'],
-                                            'teacherGrade':   data['teacherGrade'],
-                                            'teacherComment': data['teacherComment'],
-                                          }),
-                                  icon: const Icon(Icons.auto_awesome, size: 15),
-                                  label: const Text('🤖 Get AI Feedback on My Answer',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.deepPurple,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                ),
+                              EduAiLoadingButton(
+                                loading: _aiLoading,
+                                label: 'Get AI Feedback on My Answer',
+                                filled: true,
+                                onPressed: () => _runAiDiseaseAnalysis({
+                                  'crop':           data['crop'],
+                                  'stage':          data['stage'],
+                                  'disease':        data['disease'],
+                                  'studentName':    data['studentName'],
+                                  'studentAnswer':  data['studentAnswer'],
+                                  'teacherGrade':   data['teacherGrade'],
+                                  'teacherComment': data['teacherComment'],
+                                }),
                               ),
                             ],
                           ],
@@ -1745,12 +1547,16 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                     update['teacherFollowUpAt2'] = FieldValue.serverTimestamp();
                   }
                   await _submissionsCollection!.doc(docId).update(update);
-                  Navigator.pop(c);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('✅ Review saved!'), backgroundColor: Colors.green));
+                  if (context.mounted) {
+                    Navigator.pop(c);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('✅ Review saved!'), backgroundColor: Colors.green));
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
@@ -1859,6 +1665,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
 
             // ── Dropdowns ──
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
               value: _selectedCrop,
               decoration: const InputDecoration(labelText: 'Crop', border: OutlineInputBorder()),
               items: crops.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -1868,6 +1675,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
               value: _selectedStage,
               decoration: const InputDecoration(labelText: 'Stage', border: OutlineInputBorder()),
               items: _selectedCrop == null ? [] :
@@ -1878,6 +1686,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
+              // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
               value: _selectedDisease,
               decoration: const InputDecoration(labelText: 'Disease', border: OutlineInputBorder()),
               items: _selectedCrop == null || _selectedStage == null ? [] :
@@ -1891,7 +1700,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
               const SizedBox(height: 24),
               Center(
                 child: Image.asset(imagePath, height: 220, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
+                    errorBuilder: (_, _, _) =>
                         const Icon(Icons.image_not_supported, size: 120, color: Colors.grey)),
               ),
             ],
@@ -2077,14 +1886,14 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: borderColor.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: borderColor.withOpacity(0.12),
+            color: borderColor.withValues(alpha: 0.12),
             borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(11), topRight: Radius.circular(11)),
           ),
@@ -2649,178 +2458,3 @@ class DiseaseSubmissionsViewerPage extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  _AiMarkdownCard — renders Gemini markdown responses beautifully
-// ═══════════════════════════════════════════════════════════════════════════
-class _AiMarkdownCard extends StatelessWidget {
-  final String content;
-  const _AiMarkdownCard({required this.content});
-
-  static const List<Color> _sectionBg = [
-    Color(0xFFE8F5E9), Color(0xFFE3F2FD), Color(0xFFFFF8E1),
-    Color(0xFFFCE4EC), Color(0xFFEDE7F6), Color(0xFFE0F7FA),
-  ];
-  static const List<Color> _sectionBorder = [
-    Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFF9A825),
-    Color(0xFFC62828), Color(0xFF6A1B9A), Color(0xFF00695C),
-  ];
-  static const List<Color> _sectionTitle = [
-    Color(0xFF1B5E20), Color(0xFF0D47A1), Color(0xFFE65100),
-    Color(0xFFB71C1C), Color(0xFF4A148C), Color(0xFF004D40),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final sections = _parseSections(content);
-    if (sections.isEmpty) return _plainText(content);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: sections.asMap().entries.map((entry) {
-        final i = entry.key % _sectionBg.length;
-        final s = entry.value;
-        if (s['type'] == 'intro') {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F8E9),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF81C784)),
-              ),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Icon(Icons.info_outline, color: Color(0xFF2E7D32), size: 18),
-                const SizedBox(width: 10),
-                Expanded(child: _renderBody(s['body'] ?? '')),
-              ]),
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: _sectionBg[i],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _sectionBorder[i].withOpacity(0.5), width: 1.5),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _sectionBorder[i].withOpacity(0.12),
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(11), topRight: Radius.circular(11)),
-                ),
-                child: Row(children: [
-                  Icon(_sectionIcon(s['title'] ?? ''), color: _sectionTitle[i], size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_cleanTitle(s['title'] ?? ''),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _sectionTitle[i]))),
-                ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-                child: _renderBody(s['body'] ?? ''),
-              ),
-            ]),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  List<Map<String, String>> _parseSections(String raw) {
-    final lines = raw.split('\n');
-    final sections = <Map<String, String>>[];
-    String? currentTitle;
-    final bodyBuf = StringBuffer();
-    void flush() {
-      final body = bodyBuf.toString().trim();
-      if (body.isEmpty && currentTitle == null) return;
-      sections.add({'type': currentTitle == null ? 'intro' : 'section',
-          'title': currentTitle ?? '', 'body': body});
-      bodyBuf.clear(); currentTitle = null;
-    }
-    for (final line in lines) {
-      if (RegExp(r'^#{1,3}\s').hasMatch(line)) {
-        flush(); currentTitle = line.replaceFirst(RegExp(r'^#+\s*'), '');
-      } else { bodyBuf.writeln(line); }
-    }
-    flush();
-    return sections;
-  }
-
-  Widget _renderBody(String text) {
-    final lines = text.split('\n');
-    final widgets = <Widget>[];
-    for (final raw in lines) {
-      final line = raw.trim();
-      if (line.isEmpty) { widgets.add(const SizedBox(height: 4)); continue; }
-      final numMatch = RegExp(r'^(\d+)\.\s+(.+)').firstMatch(line);
-      if (numMatch != null) {
-        widgets.add(_bulletRow('${numMatch.group(1)}.', numMatch.group(2)!, numbered: true));
-        continue;
-      }
-      if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('• ')) {
-        widgets.add(_bulletRow('•', line.replaceFirst(RegExp(r'^[-*•]\s+'), ''), numbered: false));
-        continue;
-      }
-      if (line.startsWith('**') && line.endsWith('**') && line.length > 4) {
-        widgets.add(Padding(padding: const EdgeInsets.only(bottom: 4),
-            child: Text(line.substring(2, line.length - 2),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87))));
-        continue;
-      }
-      widgets.add(Padding(padding: const EdgeInsets.only(bottom: 3), child: _inlineBold(line)));
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
-  }
-
-  Widget _bulletRow(String marker, String text, {required bool numbered}) =>
-      Padding(padding: const EdgeInsets.only(bottom: 5, left: 4),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: numbered ? 22 : 16,
-              child: Text(marker, style: TextStyle(fontSize: 13,
-                  fontWeight: numbered ? FontWeight.bold : FontWeight.normal,
-                  color: numbered ? const Color(0xFF1B5E20) : Colors.black54))),
-          Expanded(child: _inlineBold(text)),
-        ]));
-
-  Widget _inlineBold(String text) {
-    final spans = <TextSpan>[];
-    final re = RegExp(r'\*\*(.+?)\*\*');
-    int last = 0;
-    for (final m in re.allMatches(text)) {
-      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
-      spans.add(TextSpan(text: m.group(1),
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)));
-      last = m.end;
-    }
-    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
-    return RichText(text: TextSpan(
-        style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.45),
-        children: spans));
-  }
-
-  Widget _plainText(String t) =>
-      Text(t, style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.45));
-  String _cleanTitle(String t) => t.replaceAll(RegExp(r'^[#*]+\s*'), '').trim();
-
-  IconData _sectionIcon(String title) {
-    final t = title.toLowerCase();
-    if (t.contains('chemical') || t.contains('pesticide') || t.contains('fungicid')) return Icons.science;
-    if (t.contains('organic') || t.contains('bio') || t.contains('natural')) return Icons.eco;
-    if (t.contains('cultural') || t.contains('prevent') || t.contains('practice')) return Icons.agriculture;
-    if (t.contains('diagnos') || t.contains('symptom') || t.contains('sign')) return Icons.search;
-    if (t.contains('soil') || t.contains('nutrient') || t.contains('fertiliz')) return Icons.grass;
-    if (t.contains('economic') || t.contains('threshold')) return Icons.trending_up;
-    if (t.contains('safety') || t.contains('warning') || t.contains('caution')) return Icons.warning_amber;
-    if (t.contains('recommend') || t.contains('action')) return Icons.recommend;
-    if (t.contains('question') || t.contains('reflect')) return Icons.psychology;
-    if (t.contains('assessment') || t.contains('evaluat') || t.contains('feedback')) return Icons.grading;
-    if (t.contains('rotation') || t.contains('next crop')) return Icons.loop;
-    if (t.contains('biology') || t.contains('life cycle')) return Icons.biotech;
-    return Icons.info_outline;
-  }
-}

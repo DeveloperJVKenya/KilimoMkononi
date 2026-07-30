@@ -1,21 +1,15 @@
 // lib/screens/pest_management/pest_management.dart
 //
 // Architecture mirrors disease_management_page.dart + intervention_page.dart exactly...
-
-// ignore_for_file: library_prefixes, unused_import, unused_field, invalid_return_type_for_catch_error, unnecessary_underscores, curly_braces_in_flow_control_structures, deprecated_member_use
-
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
-import 'package:timezone/data/latest.dart' as tzData;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
-import 'dart:developer'; // for debugPrint
 
 import 'package:kilimomkononi/models/pest_disease_model.dart';
 import 'package:kilimomkononi/services/pest_disease_cost_bridge.dart';
@@ -24,7 +18,10 @@ import 'package:kilimomkononi/screens/pest%20management/photo_diagnosis_page.dar
 import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/screens/Field Data Input/satellite_data_screen.dart';
+import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
+import 'package:kilimomkononi/screens/Field Data Input/weather_station_screen.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
+import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 
 // ── Auto-category inference (used by PestInterventionPage) ─────────────────
 String inferCostCategory(String desc) {
@@ -68,9 +65,6 @@ class _T {
   static const infoBg      = Color(0xFFDCEEFB);
   static const infoBorder  = Color(0xFF1565C0);
   static const infoText    = Color(0xFF0D3C7A);
-  static const warnBg      = Color(0xFFFFF8E1);
-  static const warnBorder  = Color(0xFFFFCC02);
-  static const warnText    = Color(0xFF7A4F00);
 
   static BoxDecoration card({Color? border}) => BoxDecoration(
         color: cardBg, borderRadius: BorderRadius.circular(12),
@@ -128,90 +122,6 @@ PreferredSizeWidget _stepHeader(String title, int current, int total) {
         ),
       ),
     ),
-  );
-}
-
-// ── AI response renderer — parses Gemini markdown into clean cards ────────────
-// No raw *** or ** ever shown to the user.
-List<Map<String, dynamic>> _parseAiSections(String raw) {
-  final cleaned = raw
-      .replaceAll(RegExp(r'\*{3,}'), '')
-      .replaceAll(RegExp(r'\*\*(.+?)\*\*'), r'\1')
-      .replaceAll(RegExp(r'\*(.+?)\*'), r'\1')
-      .trim();
-
-  final sections = <Map<String, dynamic>>[];
-  final lines = cleaned
-      .split('\n')
-      .map((l) => l.trim())
-      .where((l) => l.isNotEmpty)
-      .toList();
-
-  String curTitle = '';
-  final curItems  = <String>[];
-
-  void flush() {
-    if (curTitle.isNotEmpty || curItems.isNotEmpty) {
-      sections.add({'title': curTitle, 'items': List<String>.from(curItems)});
-      curTitle = '';
-      curItems.clear();
-    }
-  }
-
-  for (final line in lines) {
-    final heading = RegExp(r'^(\d+)\.\s+(.+)$').firstMatch(line);
-    if (heading != null) {
-      flush();
-      curTitle = heading.group(2)!;
-      continue;
-    }
-    final bullet = RegExp(r'^[-•*]\s+(.+)$').firstMatch(line);
-    curItems.add(bullet != null ? bullet.group(1)! : line);
-  }
-  flush();
-
-  if (sections.isEmpty) sections.add({'title': '', 'items': [cleaned]});
-  return sections;
-}
-
-Widget _buildAiSections(String raw) {
-  const icons = [
-    Icons.info_outline, Icons.science_outlined,
-    Icons.eco_outlined, Icons.warning_amber_rounded, Icons.bolt,
-  ];
-  return Column(crossAxisAlignment: CrossAxisAlignment.start,
-    children: _parseAiSections(raw).asMap().entries.map((e) {
-      final title = e.value['title'] as String;
-      final items = e.value['items'] as List<String>;
-      return Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.25)),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (title.isNotEmpty) ...[
-            Row(children: [
-              Icon(icons[e.key % icons.length], color: Colors.white70, size: 15),
-              const SizedBox(width: 6),
-              Expanded(child: Text(title,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700))),
-            ]),
-            if (items.isNotEmpty) const SizedBox(height: 8),
-          ],
-          ...items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('• ', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              Expanded(child: Text(item,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.55))),
-            ]),
-          )),
-        ]),
-      );
-    }).toList(),
   );
 }
 
@@ -317,7 +227,7 @@ class _PestManagementPageState extends State<PestManagementPage> {
      Future<void> _initNotif() async {
     try {
       // Initialize timezone data
-      tzData.initializeTimeZones();
+      tz_data.initializeTimeZones();
 
       // FIXED: flutter_timezone may return a TimezoneInfo object or a String.
       final timezoneInfo = await FlutterTimezone.getLocalTimezone();
@@ -646,7 +556,7 @@ class _PestStep0PageState extends State<_PestStep0Page> {
           const SizedBox(height: 18),
           Row(children: [
             Switch(value: _organic, onChanged: (v) => setState(() => _organic = v),
-                activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
             const SizedBox(width: 8),
             const Expanded(child: Text('Show organic interventions only', style: TextStyle(fontSize: 13, color: _T.textPrimary))),
           ]),
@@ -725,7 +635,9 @@ class _PestStep1PageState extends State<_PestStep1Page> {
       final results = await Future.wait([
         NasaPowerService.getToday(),
         NasaPowerService.getHistory(days: 7),
-        IotSensorService.getReadingForFarm().catchError((_) => null),
+        IotSensorService.getReadingForFarm()
+            .then<IotSensorReading?>((v) => v)
+            .catchError((_) => null),
       ]);
       if (!mounted) return;
       final sat     = results[0] as SatelliteReading?;
@@ -793,7 +705,18 @@ class _PestStep1PageState extends State<_PestStep1Page> {
               relevantRisks:  _relevantRisks(name ?? d?.name),
             ),
 
-          // ── Pest image ─────────────────────────────────────────────────────
+          // ── Weather station inline panel ───────────────────────────────────
+            WeatherStationInlinePanel(
+            showDegreeDays: true,
+            showFertiliser: false,
+            cropNames: [widget.selectedCrop ?? ''],
+            onOpenFullScreen: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const WeatherStationScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
           if (d != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -803,7 +726,7 @@ class _PestStep1PageState extends State<_PestStep1Page> {
                 width: double.infinity,
                 height: 200,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   height: 150,
                   decoration: BoxDecoration(
                     color: _T.lightGreen,
@@ -869,7 +792,7 @@ class _PestStep1PageState extends State<_PestStep1Page> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 20),
@@ -1043,8 +966,8 @@ class _PestStep1PageState extends State<_PestStep1Page> {
       return const SizedBox.shrink();
     }
 
-    final bgColor     = cardColor.withOpacity(0.07);
-    final borderColor = cardColor.withOpacity(0.22);
+    final bgColor     = cardColor.withValues(alpha: 0.07);
+    final borderColor = cardColor.withValues(alpha: 0.22);
 
     return Container(
       width: double.infinity,
@@ -1074,11 +997,11 @@ class _PestStep1PageState extends State<_PestStep1Page> {
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('• ',
                     style: TextStyle(fontSize: 12.5,
-                        color: cardColor.withOpacity(0.6), height: 1.45)),
+                        color: cardColor.withValues(alpha: 0.6), height: 1.45)),
                 Expanded(
                   child: Text(b,
                       style: TextStyle(fontSize: 12.5,
-                          color: cardColor.withOpacity(0.85), height: 1.45)),
+                          color: cardColor.withValues(alpha: 0.85), height: 1.45)),
                 ),
               ]),
             ),
@@ -1145,9 +1068,8 @@ class _PestInterventionPageState extends State<PestInterventionPage> {
   bool                      _plotsLoading = false;
 
   // AI Advisor (same as disease InterventionPage)
-  bool   _aiLoading  = false;
-  String? _aiAdvice;
-  List<Map<String, dynamic>> _aiSuggestions = [];
+  bool          _aiLoading  = false;
+  AiAdviceData? _aiAdvice;
 
   // Reminders — system-suggested + custom
   bool     _followUp            = true;
@@ -1173,14 +1095,16 @@ class _PestInterventionPageState extends State<PestInterventionPage> {
 
   @override
   void dispose() {
-    for (final c in [_interventionCtrl, _dosageCtrl, _unitCtrl, _areaCtrl, _costCtrl, _customReminderCtrl]) c.dispose();
+    for (final c in [_interventionCtrl, _dosageCtrl, _unitCtrl, _areaCtrl, _costCtrl, _customReminderCtrl]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _initTz() async {
     if (_tzReady) return;
     try {
-      tzData.initializeTimeZones();
+      tz_data.initializeTimeZones();
       tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()) as String));
       _tzReady = true;
     } catch (_) {}
@@ -1192,10 +1116,12 @@ class _PestInterventionPageState extends State<PestInterventionPage> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
         final plots = await PestCostService.loadFarmPlots(uid);
-        if (mounted) setState(() {
-          _farmPlots = plots;
-          _selectedPlotId = null; // ← FIX: default null, user must choose
-        });
+        if (mounted) {
+          setState(() {
+            _farmPlots = plots;
+            _selectedPlotId = null; // ← FIX: default null, user must choose
+          });
+        }
       }
     } finally {
       if (mounted) setState(() => _plotsLoading = false);
@@ -1204,30 +1130,24 @@ class _PestInterventionPageState extends State<PestInterventionPage> {
 
   // AI advisor — same as disease InterventionPage
   Future<void> _fetchAiAdvice() async {
-    setState(() { _aiLoading = true; _aiAdvice = null; _aiSuggestions = []; });
+    setState(() { _aiLoading = true; _aiAdvice = null; });
 
-    final prompt = '''
-You are an agronomist advising smallholder farmers in Kenya and East Africa.
-
+    final prompt = buildAiAdvicePrompt(
+      roleContext: 'an agronomist',
+      situation: '''
 Pest: ${widget.pestData.name}
 Crop: ${widget.cropType}  |  Stage: ${widget.cropStage}
 Known pesticides: ${widget.pestData.herbicides.join(', ')}
 Known organic options: ${widget.pestData.organicInterventions.join(', ')}
-
-Provide:
-1. Brief description of how this pest damages the crop at this stage (2 sentences).
-2. Up to 3 specific pesticide interventions sold in Kenya — product name, active ingredient, dosage per litre/per acre, timing and method.
-3. One organic alternative per chemical.
-4. Critical warnings (pre-harvest intervals, resistance rotation, no spray in rain).
-5. Single most urgent action today.
-
-Plain English, under 220 words, numbered lists only.
-
-Then on a new line:
-INTERVENTIONS_JSON:
-[{"type":"Spray Karate 2.5 EC","quantity":2.0,"unit":"ml/L","category":"Pesticide / Herbicide"}]
-If none: INTERVENTIONS_JSON: []
-''';
+''',
+      extraInstructions: '''
+Include 1-2 pesticide/chemical options and 1 organic alternative.
+"category" must be exactly "chemical" or "organic".
+For chemical options use the product name sold in Kenya as the title,
+active ingredient in "why", dosage per litre and timing in "how".
+Include pre-harvest interval in warnings.
+''',
+    );
 
     try {
       final resp = await http.post(Uri.parse(_kAskGeminiUrl),
@@ -1237,26 +1157,40 @@ If none: INTERVENTIONS_JSON: []
 
       if (resp.statusCode == 200) {
         final raw = (jsonDecode(resp.body)['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?) ?? '';
-        final idx = raw.indexOf('INTERVENTIONS_JSON:');
-        final advice = idx >= 0 ? raw.substring(0, idx).trim() : raw.trim();
-        List<Map<String, dynamic>> parsed = [];
-        if (idx >= 0) {
-          try { parsed = (jsonDecode(raw.substring(idx + 18).trim()) as List).map((e) => Map<String, dynamic>.from(e)).toList(); } catch (_) {}
-        }
-        if (mounted) setState(() { _aiAdvice = advice.isNotEmpty ? advice : 'No advice returned. Try again.'; _aiSuggestions = parsed; _aiLoading = false; });
+        final parsed = AiAdviceData.fromRaw(raw);
+        if (mounted) setState(() { _aiAdvice = parsed; _aiLoading = false; });
       } else {
-        if (mounted) setState(() { _aiAdvice = 'AI error (${resp.statusCode}). Try again.'; _aiLoading = false; });
+        if (mounted) {
+          setState(() {
+            _aiAdvice = AiAdviceData.error('AI error (${resp.statusCode}). Try again.');
+            _aiLoading = false;
+          });
+        }
       }
     } catch (e) {
-      if (mounted) setState(() { _aiAdvice = e.toString().contains('Timeout') ? 'Request timed out. Check connection.' : 'AI unavailable offline.'; _aiLoading = false; });
+      if (mounted) {
+        setState(() {
+          _aiAdvice = AiAdviceData.error(
+              e.toString().contains('Timeout') ? 'Request timed out. Check connection.' : 'AI unavailable offline.');
+          _aiLoading = false;
+        });
+      }
     }
   }
 
-  void _acceptSuggestion(Map<String, dynamic> s) {
+  void _acceptSuggestion(AiRecommendation r) {
     setState(() {
-      _interventionCtrl.text = s['type'] as String? ?? '';
-      if (s['quantity'] != null) { _dosageCtrl.text = (s['quantity'] as num).toStringAsFixed(1); _unitCtrl.text = s['unit'] as String? ?? ''; }
-      _costCategory = s['category'] as String? ?? 'Pesticide / Herbicide';
+      _interventionCtrl.text = r.title;
+      if (r.dosage.isNotEmpty) {
+        final parts = r.dosage.split(RegExp(r'\s+'));
+        if (parts.length >= 2) {
+          _dosageCtrl.text = parts[0];
+          _unitCtrl.text   = parts.sublist(1).join(' ');
+        } else {
+          _dosageCtrl.text = r.dosage;
+        }
+      }
+      _costCategory = inferCostCategory(r.title);
     });
   }
 
@@ -1339,8 +1273,9 @@ If none: INTERVENTIONS_JSON: []
       if (_addSprayReminder)   await _scheduleReminder('spray_${now.millisecondsSinceEpoch}', 'Re-spray — ${widget.cropType}', 'Time to re-apply ${_interventionCtrl.text} for ${widget.pestData.name}.', _sprayDate, user.uid);
       if (_addWeedReminder)    await _scheduleReminder('weed_${now.millisecondsSinceEpoch}', 'Weeding — ${widget.cropType}', 'Weeds harbour pests — time to weed your plot.', _weedDate, user.uid);
       if (_addScoutReminder)   await _scheduleReminder('scout_${now.millisecondsSinceEpoch}', 'Scouting — ${widget.cropType}', 'Check for ${widget.pestData.name} re-infestation. Early detection saves crops.', _scoutDate, user.uid);
-      if (_addCustomReminder && _customReminderCtrl.text.isNotEmpty)
+      if (_addCustomReminder && _customReminderCtrl.text.isNotEmpty) {
         await _scheduleReminder('custom_${now.millisecondsSinceEpoch}', 'Custom reminder — ${widget.cropType}', _customReminderCtrl.text, _customDate, user.uid);
+      }
 
       if (mounted) {
         _reset();
@@ -1393,11 +1328,13 @@ If none: INTERVENTIONS_JSON: []
   }
 
   void _reset() {
-    for (final c in [_interventionCtrl, _dosageCtrl, _unitCtrl, _areaCtrl, _costCtrl, _customReminderCtrl]) c.clear();
+    for (final c in [_interventionCtrl, _dosageCtrl, _unitCtrl, _areaCtrl, _costCtrl, _customReminderCtrl]) {
+      c.clear();
+    }
     setState(() {
       _areaUnit = 'Acres'; _saveToCosts = true; _costCategory = 'Pesticide / Herbicide';
       _followUp = true; _reminderDate = DateTime.now().add(const Duration(days: 7));
-      _aiAdvice = null; _aiSuggestions = [];
+      _aiAdvice = null;
     });
   }
 
@@ -1422,6 +1359,19 @@ If none: INTERVENTIONS_JSON: []
               const SizedBox(height: 4),
               Text('${widget.cropType}  ·  ${widget.cropStage}', style: const TextStyle(fontSize: 13, color: _T.textSec)),
             ]),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Spray conditions (before farmer acts on AI advice) ────────────
+          WeatherStationInlinePanel(
+            showDegreeDays: false,
+            showFertiliser: false,
+            cropNames: [widget.cropType],
+            onOpenFullScreen: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const WeatherStationScreen()),
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -1483,61 +1433,20 @@ If none: INTERVENTIONS_JSON: []
   }
 
   Widget _aiAdvisorCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [_T.aiGradA, _T.aiGradB], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(14), border: Border.all(color: _T.brandLight, width: 1.5)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 18)),
-          const SizedBox(width: 10),
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('AI Pest Advisor', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
-            Text('Powered by Gemini · No setup required', style: TextStyle(color: Colors.white70, fontSize: 11)),
-          ]),
-        ]),
-        const SizedBox(height: 12),
-        if (_aiLoading)
-          const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 8), child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)))
-        else if (_aiAdvice != null) ...[
-          _buildAiSections(_aiAdvice!),
-          if (_aiSuggestions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Text('SUGGESTED INTERVENTIONS', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
-            const SizedBox(height: 6),
-            ..._aiSuggestions.map((s) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.10), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white.withOpacity(0.2))),
-              child: Row(children: [
-                Expanded(child: Text('${s['type']}${s['quantity'] != null ? '  ·  ${(s['quantity'] as num).toStringAsFixed(1)} ${s['unit']}' : ''}', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500))),
-                GestureDetector(onTap: () => _acceptSuggestion(s),
-                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                    child: const Text('Use', style: TextStyle(fontSize: 12, color: _T.brandDark, fontWeight: FontWeight.w700)))),
-              ]),
-            )),
-          ],
-          const SizedBox(height: 8),
-          GestureDetector(onTap: _fetchAiAdvice,
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.refresh_rounded, size: 13, color: Colors.white60), SizedBox(width: 4),
-              Text('Refresh advice', style: TextStyle(color: Colors.white60, fontSize: 12, decoration: TextDecoration.underline, decorationColor: Colors.white38)),
-            ])),
-        ] else ...[
-          const Text('Get pesticide names, dosages and timing for this exact pest, crop and stage.', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _fetchAiAdvice,
-              icon: const Icon(Icons.auto_awesome, size: 16),
-              label: const Text('Get AI pest advice', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: _T.brandDark, elevation: 0, padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            )),
-        ],
-      ]),
+    return AiAdviceCard(
+      headerTitle: 'AI Pest Advisor',
+      headerSubtitle: 'Powered by Gemini · No setup required',
+      loading: _aiLoading,
+      loadingText: 'Analysing pest...',
+      data: _aiAdvice,
+      emptyStateText:
+          'Get pesticide names, dosages and timing for this exact pest, crop and growth stage.',
+      ctaLabel: 'Get AI pest advice',
+      onFetch: _fetchAiAdvice,
+      problemLabel: 'What this pest does',
+      problemIcon: Icons.pest_control_outlined,
+      recommendationsLabel: 'Treatment options',
+      onUseRecommendation: _acceptSuggestion,
     );
   }
 
@@ -1622,7 +1531,7 @@ If none: INTERVENTIONS_JSON: []
           ),
         const SizedBox(height: 10),
         Row(children: [
-          Switch(value: _saveToCosts, onChanged: (v) => setState(() => _saveToCosts = v), activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          Switch(value: _saveToCosts, onChanged: (v) => setState(() => _saveToCosts = v), activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
           const SizedBox(width: 8),
           const Expanded(child: Text('Save to Farm Management costs', style: TextStyle(fontSize: 13, color: _T.textPrimary))),
         ]),
@@ -1666,7 +1575,7 @@ If none: INTERVENTIONS_JSON: []
         const Text('CUSTOM REMINDER', style: TextStyle(fontSize: 10, color: _T.textHint, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
         const SizedBox(height: 8),
         Row(children: [
-          Switch(value: _addCustomReminder, onChanged: (v) => setState(() => _addCustomReminder = v), activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          Switch(value: _addCustomReminder, onChanged: (v) => setState(() => _addCustomReminder = v), activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
           const SizedBox(width: 8),
           const Expanded(child: Text('Add custom reminder', style: TextStyle(fontSize: 13, color: _T.textPrimary))),
         ]),
@@ -1705,7 +1614,7 @@ If none: INTERVENTIONS_JSON: []
           Text(sub, style: TextStyle(fontSize: 11, color: val ? _T.textHint : Colors.grey.shade400)),
         ]),
       )),
-      Switch(value: val, onChanged: onToggle, activeColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+      Switch(value: val, onChanged: onToggle, activeThumbColor: _T.brandLight, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
     ]);
   }
 

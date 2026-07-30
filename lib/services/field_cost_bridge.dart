@@ -1,10 +1,9 @@
-// ignore_for_file: avoid_print
-
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter/foundation.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // FieldCostEntry — written by field data input, displayed in farm management
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,19 +139,19 @@ class FieldCostService {
       final key = '${userId}_v2_plots';
       final raw = prefs.getString(key);
 
-      print('🔍 Trying SharedPreferences key: $key');
+      debugPrint('🔍 Trying SharedPreferences key: $key');
 
       if (raw != null && raw.isNotEmpty) {
         final list = jsonDecode(raw) as List<dynamic>;
         final plots = _parsePlots(list);
         if (plots.isNotEmpty) {
-          print('✅ Loaded ${plots.length} plots from SharedPreferences');
+          debugPrint('✅ Loaded ${plots.length} plots from SharedPreferences');
           return plots;
         }
       }
 
       // Fallback: Load from Firestore season document
-      print('⚠️ No plots in SharedPreferences → Trying Firestore fallback');
+      debugPrint('⚠️ No plots in SharedPreferences → Trying Firestore fallback');
       
       final seasonDoc = await FirebaseFirestore.instance
           .collection('farmer_farm_management')
@@ -166,14 +165,14 @@ class FieldCostService {
         final list = data?['plots'] as List<dynamic>? ?? [];
         final plots = _parsePlots(list);
         
-        print('✅ Loaded ${plots.length} plots from Firestore fallback');
+        debugPrint('✅ Loaded ${plots.length} plots from Firestore fallback');
         return plots;
       }
 
-      print('⚠️ No plots found in Firestore either');
+      debugPrint('⚠️ No plots found in Firestore either');
       return [];
     } catch (e) {
-      print('❌ Error loading farm plots: $e');
+      debugPrint('❌ Error loading farm plots: $e');
       return [];
     }
   }

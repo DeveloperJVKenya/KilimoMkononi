@@ -1,7 +1,4 @@
 // lib/education/pest/pest_disease_all_school_data.dart
-
-// ignore_for_file: deprecated_member_use
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
@@ -75,7 +72,7 @@ class _PestDiseaseAllSchoolDataState extends State<PestDiseaseAllSchoolData> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Card(
-            color: primaryGreen.withOpacity(0.1),
+            color: primaryGreen.withValues(alpha: 0.1),
             elevation: 4,
             child: Padding(
               padding: const EdgeInsets.all(16.0),

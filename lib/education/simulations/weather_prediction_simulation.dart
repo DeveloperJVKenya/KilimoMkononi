@@ -1,5 +1,4 @@
 // lib/education/simulations/weather_prediction_simulation.dart
-// ignore_for_file: prefer_final_fields, annotate_overrides, use_build_context_synchronously, deprecated_member_use
 //
 // FLAME ENGINE — WeatherPredictionSimulation
 //
@@ -79,7 +78,7 @@ class SkyBgComponent extends PositionComponent {
     final c = condition.skyColor;
     canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y),
         Paint()..shader = LinearGradient(
-            colors: [c, c.withOpacity(0.5)],
+            colors: [c, c.withValues(alpha: 0.5)],
             begin: Alignment.topCenter, end: Alignment.bottomCenter)
             .createShader(Rect.fromLTWH(0, 0, size.x, size.y)));
     // Ground strip
@@ -98,6 +97,7 @@ class SkyBgComponent extends PositionComponent {
 }
 
 class SunComponent extends PositionComponent {
+  @override
   double angle = 0;
   SunComponent() : super(position: Vector2(0, 0), size: Vector2(60, 60));
   @override
@@ -127,7 +127,7 @@ class CloudComponent extends PositionComponent {
   }
   @override
   void render(Canvas canvas) {
-    final p = Paint()..color = Colors.white.withOpacity(0.85);
+    final p = Paint()..color = Colors.white.withValues(alpha: 0.85);
     canvas.drawCircle(Offset(size.x * 0.4, size.y * 0.5), size.x * 0.28, p);
     canvas.drawCircle(Offset(size.x * 0.6, size.y * 0.4), size.x * 0.32, p);
     canvas.drawCircle(Offset(size.x * 0.75, size.y * 0.55), size.x * 0.24, p);
@@ -154,7 +154,7 @@ class RainComponent extends PositionComponent {
   @override
   void render(Canvas canvas) {
     if (!active) return;
-    final p = Paint()..color = Colors.lightBlue.shade200.withOpacity(0.6)..strokeWidth = 1.5;
+    final p = Paint()..color = Colors.lightBlue.shade200.withValues(alpha: 0.6)..strokeWidth = 1.5;
     for (final d in _drops) {
       canvas.drawLine(Offset(d.dx * size.x, d.dy * size.y),
           Offset(d.dx * size.x - 2, d.dy * size.y + 12), p);
@@ -172,7 +172,7 @@ class FogComponent extends PositionComponent {
     if (!active) return;
     for (double y = 0; y < size.y * 0.75; y += 20) {
       canvas.drawLine(Offset(0, y + sin(_t) * 5), Offset(size.x, y + 8 + cos(_t) * 5),
-          Paint()..color = Colors.white.withOpacity(0.4)..strokeWidth = 14);
+          Paint()..color = Colors.white.withValues(alpha: 0.4)..strokeWidth = 14);
     }
   }
 }
@@ -271,8 +271,8 @@ class _WeatherPredictionSimulationState
   WxCondition? _prediction;
   bool _locked = false, _showResult = false, _isCorrect = false, _evaluating = false;
   int _correct = 0;
-  List<Map<String, dynamic>> _history = [];
-  List<String> _log = [];
+  final List<Map<String, dynamic>> _history = [];
+  final List<String> _log = [];
 
   @override
   void initState() {
@@ -389,7 +389,7 @@ class _WeatherPredictionSimulationState
                     fontWeight: FontWeight.bold))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.amber.withOpacity(0.3),
+              decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8)),
               child: Text('$_correct/$_totalDays ✅',
                   style: const TextStyle(color: Colors.amber,

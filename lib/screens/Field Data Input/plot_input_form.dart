@@ -1,20 +1,24 @@
-// ignore_for_file: prefer_final_fields, unnecessary_brace_in_string_interps, unnecessary_underscores, avoid_print, unused_element, library_prefixes, unused_import, deprecated_member_use
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tzData;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/models/field_data_model.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
+import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/widgets/farm_location_picker.dart';
 import 'package:kilimomkononi/widgets/farm_environment_card.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
+import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public widget classes — unchanged API, drop-in replacement
@@ -367,6 +371,9 @@ class _PlotInputFormState<T extends PlotInputForm> extends State<T> {
   DateTime? _plantingDate;
   String _farmingMethod = 'Conventional';
 
+  // Farm GPS — set via FarmLocationPicker
+  LatLng? _plotLatLng;
+
   // Area — numeric input + unit toggle
   String _areaUnit = 'acres'; // 'acres' | 'ha' | 'sqm'
   final _areaCtrl  = TextEditingController();
@@ -379,15 +386,14 @@ class _PlotInputFormState<T extends PlotInputForm> extends State<T> {
   final _nCtrl = TextEditingController();
   final _pCtrl = TextEditingController();
   final _kCtrl = TextEditingController();
-  List<Map<String, dynamic>> _microNutrients = [];
+  final List<Map<String, dynamic>> _microNutrients = [];
   final List<Map<String, dynamic>> _interventions = [];
   final Map<String, String> _nutrientStatus = {'N': '', 'P': '', 'K': ''};
   Map<String, double> _optimalAvg = {'N': 0.0, 'P': 0.0, 'K': 0.0};
 
   // AI advice
-  bool _aiLoading = false;
-  String? _aiAdvice;
-  List<Map<String, dynamic>> _aiSuggestedInterventions = [];
+  bool          _aiLoading = false;
+  AiAdviceData? _aiAdvice;
 
   // Cached environmental readings — populated by FarmEnvironmentCard callback,
   // then reused to enrich the Gemini AI prompt without extra network calls.
@@ -425,139 +431,7 @@ class _PlotInputFormState<T extends PlotInputForm> extends State<T> {
     super.dispose();
   }
 
-  Widget _aiCard({
-  required String title,
-  required Color color,
-  Color? titleColor,
-  required Widget child,
-}) {
-  return Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: FT.subheading.copyWith(
-            color: titleColor ?? FT.brandDark,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 10),
-        child,
-      ],
-    ),
-  );
-}
-
-String _cleanAiText(String text) {
-  String cleaned = text
-      .replaceAll(RegExp(r'^\d+\.\s*', multiLine: true), '')  // Remove "1. ", "2. "
-      .replaceAll(RegExp(r'\*\*'), '')                        // Remove **
-      .replaceAll(RegExp(r'^-\s*', multiLine: true), '• ')    // Convert dashes to bullets
-      .trim();
-
-  // Highlight key action phrases
-  cleaned = cleaned.replaceAllMapped(
-    RegExp(r'(Apply .*?|Use .*?|Add .*?|Spread .*?)\.', caseSensitive: false),
-    (match) => '**${match.group(0)}**',
-  );
-
-  return cleaned;
-}
-
-String _cleanSoilStatus(String fullText) {
-  String soilPart = fullText.split(RegExp(r'2\.|Recommended|INTERVENTIONS_JSON', caseSensitive: false))[0];
-  return soilPart
-      .replaceAll(RegExp(r'^\d+\.\s*', multiLine: true), '')
-      .replaceAll(RegExp(r'\*\*'), '')
-      .trim();
-}
-
-Widget _buildRichInterventionCards() {
-  if (_aiSuggestedInterventions.isEmpty) {
-    return Column(
-      children: [
-        const Text('No specific interventions generated.', style: TextStyle(fontSize: 14, color: Colors.black54)),
-        const SizedBox(height: 8),
-        ElevatedButton(
-          onPressed: _fetchAiAdvice,
-          child: const Text('Try Again'),
-        ),
-      ],
-    );
-  }
-
-  return Column(
-    children: _aiSuggestedInterventions.map((item) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: FT.brandLight.withOpacity(0.4)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item['type'] as String? ?? 'Recommendation',
-              style: FT.subheading.copyWith(color: FT.brandDark, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            if (item['quantity'] != null)
-              Text(
-                '${(item['quantity'] as num).toStringAsFixed(1)} ${item['unit'] ?? 'kg'}',
-                style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600),
-              ),
-            const SizedBox(height: 12),
-            if (item['why'] != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Why use this?', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(item['why'] as String, style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                ],
-              ),
-            const SizedBox(height: 12),
-            if (item['how'] != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('How to apply:', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(item['how'] as String, style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                ],
-              ),
-          ],
-        ),
-      );
-    }).toList(),
-  );
-}
-
-String _extractWarnings(String text) {
-  final lower = text.toLowerCase();
-  if (lower.contains('warning') || lower.contains('urgent') || lower.contains('do not')) {
-    return text.substring(
-      lower.indexOf('warning') > 0 
-          ? lower.indexOf('warning') 
-          : lower.indexOf('urgent') > 0 
-              ? lower.indexOf('urgent') 
-              : 0
-    ).trim();
-  }
-  return 'Always consult your local extension officer. Test on a small area first before full application.';
-}
-
-  // ── Timezone ──────────────────────────────────────────────────────────────
+    // ── Timezone ──────────────────────────────────────────────────────────────
 
     // ── Timezone ──────────────────────────────────────────────────────────────
 
@@ -566,7 +440,7 @@ String _extractWarnings(String text) {
   Future<void> _initTimezone() async {
     if (_tzInitialised) return;
     try {
-      tzData.initializeTimeZones();
+      tz_data.initializeTimeZones();
       
       final timezoneInfo = await FlutterTimezone.getLocalTimezone();
       final String timezoneName = timezoneInfo.identifier;
@@ -599,7 +473,7 @@ String _extractWarnings(String text) {
       _nutrientStatus['P'] = _calcStatus(_pCtrl.text, _optimalAvg['P']!);
       _nutrientStatus['K'] = _calcStatus(_kCtrl.text, _optimalAvg['K']!);
       _aiAdvice = null;
-      _aiSuggestedInterventions = [];
+
     });
   }
 
@@ -657,13 +531,13 @@ Future<void> _loadFarmPlots() async {
       });
 
       if (plots.isEmpty) {
-        print('⚠️ Zero plots loaded — verify Farm Management saved data');
+        debugPrint('⚠️ Zero plots loaded — verify Farm Management saved data');
       } else {
-        print('🎉 ${_farmPlots.length} plots ready for dropdown');
+        debugPrint('🎉 ${_farmPlots.length} plots ready for dropdown');
       }
     }
   } catch (e) {
-    print('❌ Failed to load farm plots: $e');
+    debugPrint('❌ Failed to load farm plots: $e');
     if (mounted) setState(() => _farmPlotsLoaded = true);
   }
 }
@@ -689,7 +563,6 @@ Future<void> _loadFarmPlots() async {
     setState(() {
       _aiLoading = true;
       _aiAdvice = null;
-      _aiSuggestedInterventions = [];
     });
 
     final nVal = _nCtrl.text.isEmpty ? 'not measured' : '${_nCtrl.text} kg/ha';
@@ -698,7 +571,6 @@ Future<void> _loadFarmPlots() async {
     final areaLabel = _areaInAcres > 0 ? '${_areaInAcres.toStringAsFixed(2)} acres' : 'unknown area';
 
     // ── Environmental context (IoT + satellite) ────────────────────────────
-    // Re-use readings already cached by FarmEnvironmentCard — zero extra calls.
     IotSensorReading? iot = _latestIot;
     SatelliteReading? sat = _latestSat;
     if (iot == null) {
@@ -712,41 +584,28 @@ Future<void> _loadFarmPlots() async {
     final rain7d = SatelliteReading.totalPrecipitation(hist);
 
     final iotBlock = iot == null ? '' :
-        '\nFarm sensor data (IoT · ${iot.farmLocation.county}):\n'
-        '- Soil temperature: ${iot.temperature}°C\n'
-        '- Soil humidity: ${iot.humidity}%\n'
-        '- Soil pH (sensor): ${iot.ph}\n'
-        '- EC: ${iot.ec} µs/cm\n';
-
+        'Farm sensor: temp ${iot.temperature}°C, humidity ${iot.humidity}%, pH ${iot.ph}, EC ${iot.ec} µs/cm.';
     final satBlock = sat == null ? '' :
-        '\nSatellite data (NASA POWER · ${sat.farmLocation.county}):\n'
-        '- Root zone moisture: ${(sat.rootZoneMoisture * 100).toStringAsFixed(0)}%\n'
-        '- 7-day rainfall: ${rain7d.toStringAsFixed(1)} mm\n'
-        '- Soil temperature layer 1: ${sat.soilTempLayer1}°C\n'
-        '- Photosynthetically active radiation: ${sat.par.toStringAsFixed(0)} W/m²\n';
+        'Satellite: root zone moisture ${(sat.rootZoneMoisture * 100).toStringAsFixed(0)}%, '
+        '7-day rain ${rain7d.toStringAsFixed(1)} mm, soil temp ${sat.soilTempLayer1}°C.';
 
-    final prompt = '''
-You are an agronomist advising Kenyan smallholder farmers.
-
-Plot info:
-- Crops: $cropLabel
-- Size: $areaLabel
-- N: $nVal (optimal ~${_optimalAvg['N']?.toStringAsFixed(0)})
-- P: $pVal (optimal ~${_optimalAvg['P']?.toStringAsFixed(0)})
-- K: $kVal (optimal ~${_optimalAvg['K']?.toStringAsFixed(0)})
-$iotBlock$satBlock
-Give:
-1. Short simple soil status (what is wrong), referencing sensor data if available.
-2. 3-5 practical interventions (mix of chemical, organic, biological).
-3. If soil moisture is low (< 40%), advise on irrigation before fertiliser application.
-
-After your advice, output ONLY this JSON (no extra text):
-INTERVENTIONS_JSON:
-[
-  {"type":"Apply Urea 46-0-0", "quantity":45, "unit":"kg", "category":"Chemical", "why":"Quick nitrogen for green leaves", "how":"Broadcast evenly and water"},
-  {"type":"Add well-decomposed manure", "quantity":2000, "unit":"kg", "category":"Organic", "why":"Improves soil health and slow nutrients", "how":"Spread and mix into top soil"}
-]
-''';
+    final prompt = buildAiAdvicePrompt(
+      roleContext: 'an agronomist',
+      situation: '''
+Plot: $cropLabel, $areaLabel
+Soil N: $nVal (target ~${_optimalAvg['N']?.toStringAsFixed(0)} kg/ha)
+Soil P: $pVal (target ~${_optimalAvg['P']?.toStringAsFixed(0)} kg/ha)
+Soil K: $kVal (target ~${_optimalAvg['K']?.toStringAsFixed(0)} kg/ha)
+${iotBlock.isNotEmpty ? iotBlock : ''}${satBlock.isNotEmpty ? '\n$satBlock' : ''}
+''',
+      extraInstructions: '''
+For "problem" name the most deficient nutrient or "Balanced" if all are fine.
+For recommendations include chemical fertilisers (category "chemical") and
+organic options (category "organic"). Add a cultural practice (category "cultural")
+if soil moisture is low. For each recommendation, "dosage" is kg/acre or litres/acre.
+If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
+''',
+    );
 
     try {
       final resp = await http.post(
@@ -758,53 +617,35 @@ INTERVENTIONS_JSON:
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         final raw = (data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?) ?? '';
-
-        String adviceText = raw;
-        List<Map<String, dynamic>> parsed = [];
-
-        // More robust JSON extraction
-        final jsonMatch = RegExp(r'INTERVENTIONS_JSON:\s*(\[.*?\])', dotAll: true).firstMatch(raw);
-        if (jsonMatch != null) {
-          adviceText = raw.substring(0, jsonMatch.start).trim();
-          final jsonStr = jsonMatch.group(1)!;
-          try {
-            parsed = (jsonDecode(jsonStr) as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList();
-          } catch (_) {}
-        }
-
         if (mounted) {
           setState(() {
-            _aiAdvice = adviceText.isNotEmpty ? adviceText : 'Analysis complete.';
-            _aiSuggestedInterventions = parsed;
+            _aiAdvice = AiAdviceData.fromRaw(raw);
             _aiLoading = false;
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _aiAdvice = 'AI service error. Please try again.';
+            _aiAdvice = AiAdviceData.error('AI service error. Please try again.');
             _aiLoading = false;
           });
         }
       }
     } catch (e) {
-      print('💥 AI Exception: $e');
       if (mounted) {
         setState(() {
-          _aiAdvice = 'Could not reach AI. Check internet and try again.';
+          _aiAdvice = AiAdviceData.error('Could not reach AI. Check internet and try again.');
           _aiLoading = false;
         });
       }
     }
   }
 
-  void _acceptAiIntervention(Map<String, dynamic> s) async {
+  void _acceptAiIntervention(AiRecommendation r) async {
     final result = await _showInterventionDialog(
-      preType: s['type'] as String?,
-      preQuantity: (s['quantity'] as num?)?.toDouble(),
-      preUnit: s['unit'] as String? ?? 'kg',
+      preType: r.title,
+      preQuantity: null,
+      preUnit: r.dosage.split(RegExp(r'\s+')).skip(1).join(' '),
     );
     if (result != null && mounted) setState(() => _interventions.add(result));
   }
@@ -881,6 +722,11 @@ INTERVENTIONS_JSON:
         // Attach environmental snapshots for historical analysis
         if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
         if (_latestSat != null) map['satelliteSnapshot'] = _latestSat!.toMap();
+        // Attach plot GPS so satellite/weather screens use the correct farm location
+        if (_plotLatLng != null) {
+          map['latitude']  = _plotLatLng!.latitude;
+          map['longitude'] = _plotLatLng!.longitude;
+        }
 
         await FirebaseFirestore.instance
             .collection('fielddata')
@@ -898,6 +744,10 @@ INTERVENTIONS_JSON:
         final map = fieldData.toMap();
         if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
         if (_latestSat != null) map['satelliteSnapshot'] = _latestSat!.toMap();
+        if (_plotLatLng != null) {
+          map['latitude']  = _plotLatLng!.latitude;
+          map['longitude'] = _plotLatLng!.longitude;
+        }
 
         await OfflineQueueService.enqueue(
           id:         'fielddata_$docId',
@@ -974,9 +824,8 @@ INTERVENTIONS_JSON:
         recs.add(_kNutrientRecs[key]!['Low']!.first['desc'] as String);
       }
     }
-    if (_aiAdvice != null && _aiAdvice!.isNotEmpty) {
-      recs.add(
-          'AI: ${_aiAdvice!.substring(0, _aiAdvice!.length.clamp(0, 120))}...');
+    if (_aiAdvice != null && _aiAdvice!.problem.isNotEmpty) {
+      recs.add('AI: ${_aiAdvice!.problem} — ${_aiAdvice!.summary}'.substring(0, 120.clamp(0, ('AI: ${_aiAdvice!.problem} — ${_aiAdvice!.summary}').length)));
     }
     return recs.join('; ');
   }
@@ -1060,16 +909,15 @@ INTERVENTIONS_JSON:
       _microNutrients.clear();
       _interventions.clear();
       _reminders.clear();
-      _nutrientStatus.updateAll((_, __) => '');
-      _optimalAvg.updateAll((_, __) => 0.0);
+      _nutrientStatus.updateAll((_, _) => '');
+      _optimalAvg.updateAll((_, _) => 0.0);
       _aiAdvice = null;
-      _aiSuggestedInterventions = [];
+      _plotLatLng = null;
+
     });
   }
 
-  // ── Intervention dialog — with cost capture ───────────────────────────────
-
-    Future<Map<String, dynamic>?> _showInterventionDialog({
+  Future<Map<String, dynamic>?> _showInterventionDialog({
     String? preType,
     double? preQuantity,
     String? preUnit,
@@ -1248,7 +1096,7 @@ INTERVENTIONS_JSON:
                         Switch(
                           value: saveToCosts,
                           onChanged: (v) => setS(() => saveToCosts = v),
-                          activeColor: FT.brandLight,
+                          activeThumbColor: FT.brandLight,
                           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         const SizedBox(width: 8),
@@ -1511,6 +1359,19 @@ INTERVENTIONS_JSON:
           setState(() { _farmingMethod = v; _isOrganic = v == 'Organic'; });
         }),
         const SizedBox(height: 16),
+
+        // ── Farm Location ───────────────────────────────────────────────────
+        // Setting GPS here means satellite data, weather, pest & disease
+        // screens will all use THIS farm's exact coordinates — not your
+        // registration county. Critical for farmers with farms far from home.
+        _sectionLabel('Farm location (GPS)'),
+        FarmLocationPreview(
+          latLng:   _plotLatLng,
+          plotName: widget.plotId,
+          onEdit:   _openLocationPicker,
+          onSkip:   () {}, // farmer can skip — location set later at farm
+        ),
+        const SizedBox(height: 16),
         if (_crops.isNotEmpty &&
             (_crops.first['type'] ?? '').isNotEmpty &&
             (_crops.first['stage'] ?? '').isNotEmpty)
@@ -1520,6 +1381,29 @@ INTERVENTIONS_JSON:
         const SizedBox(height: 16),
       ],
     );
+  }
+
+  // ── Farm GPS picker ───────────────────────────────────────────────────────
+
+  Future<void> _openLocationPicker() async {
+    final result = await Navigator.push<LatLng>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FarmLocationPicker(
+          initialLatLng: _plotLatLng,
+          plotName: widget.plotId,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _plotLatLng = result);
+      // Persist to Firestore in background so satellite screen picks it up
+      await FarmLocationService.savePlotGps(
+          widget.userId, widget.plotId, result.latitude, result.longitude);
+      // Auto-select this plot so satellite/weather screens switch to it
+      await FarmLocationService.selectPlot(widget.plotId);
+    }
   }
 
   Widget _cropCard(int idx) {
@@ -1752,143 +1636,85 @@ INTERVENTIONS_JSON:
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // ── IoT + Satellite auto-fill ──────────────────────────────
-        // Automatically loads soil sensor data for the farmer's registered
-        // county (set during registration). NPK fields are pre-filled if
-        // the farmer hasn't typed anything yet — they can always override.
+        // ── Farm conditions (weather + satellite) ──────────────────
+        // Shows live weather station and satellite data for context.
+        // NPK values below must be entered manually from a soil test.
         FarmEnvironmentCard(
           mode: FarmEnvironmentCardMode.soilSummary,
           onIotLoaded: (IotSensorReading reading) {
+            // Cache for Firestore snapshot (ambient farm conditions only).
+            // NPK fields are NOT auto-filled — soil test numbers must be
+            // entered manually by the farmer or field officer.
             _latestIot = reading;
-            if (_nCtrl.text.isEmpty && reading.n > 0) {
-              _nCtrl.text = reading.n.toStringAsFixed(1);
-            }
-            if (_pCtrl.text.isEmpty && reading.p > 0) {
-              _pCtrl.text = reading.p.toStringAsFixed(1);
-            }
-            if (_kCtrl.text.isEmpty && reading.k > 0) {
-              _kCtrl.text = reading.k.toStringAsFixed(1);
-            }
-            _updateNutrientStatus();
           },
+        ),
+        const SizedBox(height: 12),
+
+        // ── Weather station inline panel ────────────────────────────
+        WeatherStationInlinePanel(
+          showFertiliser: true,
+          showDegreeDays: false,
+          cropNames: _crops
+              .map((c) => (c['type'] ?? ''))
+              .where((t) => t.isNotEmpty)
+              .toList(),
+          onOpenFullScreen: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const WeatherStationScreen()),
+          ),
         ),
         const SizedBox(height: 12),
 
         // ── Macronutrients ─────────────────────────────────────────
         _sectionLabel('Macronutrients (kg/ha)'),
+        // Guidance: values come from a soil test, not auto-filled
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: FT.infoBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: FT.infoBorder, width: 1.5),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.science_outlined, size: 16, color: FT.infoText),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Enter your soil test results below.\n'
+                'Get a test from Egerton University, Crop Nutrition Lab, '
+                'or use a soil test kit. Leave blank if not yet tested.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: FT.infoText,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ]),
+        ),
         _npkRow(),
         const SizedBox(height: 8),
         ..._buildNutrientAlerts(),
 
-                                                         // ── AI Advisor Section ────────────────────────────────────────────
+        // ── AI Advisor Section ─────────────────────────────────────────
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [FT.aiGradientA, FT.aiGradientB],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: FT.brandLight, width: 1.5),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 18),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Shamba AI Advisor', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
-                      Text('Powered by Gemini', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                    ],
-                  ),
-                ),
-              ]),
-
-              const SizedBox(height: 16),
-
-              if (_aiLoading)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Column(children: [
-                      CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                      SizedBox(height: 16),
-                      Text('Analysing your soil...', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    ]),
-                  ),
-                )
-              else if (_aiAdvice != null && _aiAdvice!.isNotEmpty) ...[
-                
-                // Soil Status - Analysis Only
-                _aiCard(
-                  title: '🌱 Soil Status',
-                  color: Colors.white,
-                  child: Text(
-                    _cleanSoilStatus(_aiAdvice!),
-                    style: const TextStyle(fontSize: 14.5, height: 1.65, color: Colors.black87),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Recommended Interventions - Rich & Educational
-                _aiCard(
-                  title: '🚜 Recommended Interventions',
-                  color: FT.okBg,
-                  titleColor: FT.brandDark,
-                  child: _buildRichInterventionCards(),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Important Notes
-                _aiCard(
-                  title: '⚠️ Important Notes',
-                  color: FT.warnBg,
-                  titleColor: FT.warnText,
-                  child: Text(
-                    _extractWarnings(_aiAdvice!),
-                    style: const TextStyle(fontSize: 14, height: 1.6, color: Colors.black87),
-                  ),
-                ),
-              ] else ...[
-                const Text(
-                  'Get clear soil analysis and practical, explained recommendations.',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _fetchAiAdvice,
-                    icon: const Icon(Icons.auto_awesome, size: 18),
-                    label: const Text('Get AI Soil Advice', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: FT.brandDark,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+        AiAdviceCard(
+          headerTitle: 'Shamba AI Advisor',
+          headerSubtitle: 'Powered by Gemini · Enter NPK values first',
+          loading: _aiLoading,
+          loadingText: 'Analysing your soil...',
+          data: _aiAdvice,
+          emptyStateText:
+              'Enter your NPK values above, then get clear soil analysis and practical fertiliser advice.',
+          ctaLabel: 'Get AI soil advice',
+          onFetch: _fetchAiAdvice,
+          problemLabel: 'Soil status',
+          problemIcon: Icons.grass_outlined,
+          recommendationsLabel: 'Fertiliser recommendations',
+          onUseRecommendation: _acceptAiIntervention,
         ),
-      
 
         // ── Micronutrients ─────────────────────────────────────────────
         const SizedBox(height: 16),
@@ -1979,7 +1805,7 @@ INTERVENTIONS_JSON:
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _statusBorder(status).withOpacity(0.15),
+                    color: _statusBorder(status).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                         color: _statusBorder(status), width: 1.5),
@@ -2320,7 +2146,7 @@ INTERVENTIONS_JSON:
         _summaryRow('Crop', cropLabel.isNotEmpty ? cropLabel : '—'),
         _summaryRow('Plot size',
             _areaCtrl.text.isNotEmpty
-                ? '${_areaCtrl.text} ${_areaUnit == 'acres' ? 'acres' : _areaUnit == 'ha' ? 'ha' : 'm²'}${_areaConversionLabel.isNotEmpty ? '  (${_areaConversionLabel})' : ''}'
+                ? '${_areaCtrl.text} ${_areaUnit == 'acres' ? 'acres' : _areaUnit == 'ha' ? 'ha' : 'm²'}${_areaConversionLabel.isNotEmpty ? '  ($_areaConversionLabel)' : ''}'
                 : '—'),
         _summaryRow(
           'N / P / K',
@@ -2392,7 +2218,7 @@ INTERVENTIONS_JSON:
         ),
         Switch(
           value: value, onChanged: onChanged,
-          activeColor: _kAccentGreen,
+          activeThumbColor: _kAccentGreen,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ]),

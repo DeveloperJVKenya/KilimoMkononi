@@ -1,5 +1,4 @@
 // lib/education/widgets/module_content_list.dart
-// ignore_for_file: deprecated_member_use
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -272,7 +271,7 @@ class _ModuleContentList extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     child: ExpansionTile(
                       leading: CircleAvatar(
-                        backgroundColor: (list[0]['color'] as Color).withOpacity(0.2),
+                        backgroundColor: (list[0]['color'] as Color).withValues(alpha: 0.2),
                         child: Icon(list[0]['icon'] as IconData, color: list[0]['color']),
                       ),
                       title: Text(module, style: const TextStyle(fontWeight: FontWeight.bold)),

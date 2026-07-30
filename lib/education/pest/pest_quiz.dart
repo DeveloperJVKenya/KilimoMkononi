@@ -1,5 +1,4 @@
 // lib/education/pest/pest_quiz.dart
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -299,7 +298,7 @@ class _PestQuizScreenState extends State<PestQuizScreen> {
                 children: [
                   Icon(Icons.bug_report,
                       size: 100,
-                      color: primaryGreen.withOpacity(0.8)),
+                      color: primaryGreen.withValues(alpha: 0.8)),
                   const SizedBox(height: 30),
                   const Text(
                     'Test your pest management knowledge',
@@ -444,7 +443,7 @@ class _SplitActivityButtons extends StatelessWidget {
           decoration: BoxDecoration(
             color: onTap == null ? Colors.grey.shade100 : bgColor,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: onTap == null ? Colors.grey.shade300 : color.withOpacity(0.35)),
+            border: Border.all(color: onTap == null ? Colors.grey.shade300 : color.withValues(alpha: 0.35)),
           ),
           child: Row(children: [
             Icon(icon, color: onTap == null ? Colors.grey : color, size: 20),
@@ -454,7 +453,7 @@ class _SplitActivityButtons extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: onTap == null ? Colors.grey.shade200 : color.withOpacity(0.12),
+                color: onTap == null ? Colors.grey.shade200 : color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(count == 0 ? 'None yet' : '$count available',
@@ -463,7 +462,7 @@ class _SplitActivityButtons extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Icon(Icons.arrow_forward_ios, size: 13,
-                color: onTap == null ? Colors.grey.shade300 : color.withOpacity(0.6)),
+                color: onTap == null ? Colors.grey.shade300 : color.withValues(alpha: 0.6)),
           ]),
         ),
       );

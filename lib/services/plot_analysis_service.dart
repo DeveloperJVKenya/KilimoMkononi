@@ -1,8 +1,8 @@
 // lib/services/plot_analysis_service.dart
-// ignore_for_file: avoid_print
 
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 const String _geminiApiKey = 'AIzaSyDW-YIRD8p3cdveFgKG2o6KBEKWXP7mp7U';
@@ -168,7 +168,7 @@ Keep each field under 80 words. Use Kenyan crop and fertilizer names.''';
     try {
       return (jsonDecode(_extractJson(raw)) as Map<String, dynamic>)
           .map((k, v) => MapEntry(k, v.toString()));
-    } catch (e) { print('[PlotAnalysisService] field parse error: $e'); return null; }
+    } catch (e) { debugPrint('[PlotAnalysisService] field parse error: $e'); return null; }
   }
 
   Future<Map<String, String>?> _analysePestDisease(
@@ -191,7 +191,7 @@ Under 120 words. Reference specific names from the data.''';
     try {
       return (jsonDecode(_extractJson(raw)) as Map<String, dynamic>)
           .map((k, v) => MapEntry(k, v.toString()));
-    } catch (e) { print('[PlotAnalysisService] pest parse error: $e'); return null; }
+    } catch (e) { debugPrint('[PlotAnalysisService] pest parse error: $e'); return null; }
   }
 
   Future<Map<String, String>?> _analyseFinance(
@@ -222,7 +222,7 @@ Under 100 words. Use KES currency.''';
     try {
       return (jsonDecode(_extractJson(raw)) as Map<String, dynamic>)
           .map((k, v) => MapEntry(k, v.toString()));
-    } catch (e) { print('[PlotAnalysisService] finance parse error: $e'); return null; }
+    } catch (e) { debugPrint('[PlotAnalysisService] finance parse error: $e'); return null; }
   }
 
   Future<String?> _generateBriefing({
@@ -281,7 +281,7 @@ Start with "Welcome to this plot." End with the recommended next crop.''';
         }),
       ).timeout(const Duration(seconds: 60));
       if (resp.statusCode != 200) {
-        print('[PlotAnalysisService] HTTP ${resp.statusCode}');
+        debugPrint('[PlotAnalysisService] HTTP ${resp.statusCode}');
         return null;
       }
       final body  = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -291,10 +291,10 @@ Start with "Welcome to this plot." End with the recommended next crop.''';
       if (parts == null || parts.isEmpty) return null;
       return (parts[0] as Map<String, dynamic>)['text'] as String?;
     } on TimeoutException {
-      print('[PlotAnalysisService] Timed out');
+      debugPrint('[PlotAnalysisService] Timed out');
       return null;
     } catch (e) {
-      print('[PlotAnalysisService] Error: $e');
+      debugPrint('[PlotAnalysisService] Error: $e');
       return null;
     }
   }

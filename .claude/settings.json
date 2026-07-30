@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i '2702,3361 s/\\\\bsetState\\(/_rebuild\\(/g' \"lib/screens/farm_management_screen.dart\")",
+      "Bash(sed -i 's/parent\\\\.setState\\(/parent._rebuild\\(/' \"lib/screens/farm_management_screen.dart\")",
+      "Bash(awk 'NR==250{print; for\\(i=1;i<=length\\($0\\);i++\\) printf \"%d:%s\\\\n\", i, substr\\($0,i,1\\)}' \"lib/services/farm_alert_service.dart\")",
+      "Bash(awk 'NR==289{print; for\\(i=15;i<=35;i++\\) printf \"%d:%s\\\\n\", i, substr\\($0,i,1\\)}' \"lib/services/farm_alert_service.dart\")",
+      "Bash(awk 'NR==356{print; for\\(i=15;i<=35;i++\\) printf \"%d:%s\\\\n\", i, substr\\($0,i,1\\)}' \"lib/services/farm_alert_service.dart\")",
+      "Read(//c/Users/User/FlutterSDK/flutter/packages/flutter/lib/src/widgets/**)"
+    ],
+    "deny": [
+      "Read(build/**)",
+      "Glob(build/**)",
+      "Grep(build/**)",
+      "Read(functions/node_modules/**)",
+      "Glob(functions/node_modules/**)",
+      "Grep(functions/node_modules/**)",
+      "Read(.dart_tool/**)",
+      "Glob(.dart_tool/**)",
+      "Grep(.dart_tool/**)",
+      "Read(.firebase/**)",
+      "Glob(.firebase/**)",
+      "Grep(.firebase/**)"
+    ]
+  }
+}

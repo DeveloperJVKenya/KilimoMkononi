@@ -1,5 +1,4 @@
 // lib/education/pest/simulations/disease_management_interactive_simulation.dart
-// ignore_for_file: prefer_final_fields, avoid_renaming_method_parameters, use_build_context_synchronously, deprecated_member_use
 //
 // FLAME ENGINE — DiseaseManagementInteractiveSimulation
 //
@@ -90,7 +89,7 @@ class SpreadParticleComponent extends PositionComponent {
   @override
   void render(Canvas canvas) {
     canvas.drawCircle(const Offset(4, 4), 4 * _life.clamp(0, 1),
-        Paint()..color = color.withOpacity(_life.clamp(0, 1)));
+        Paint()..color = color.withValues(alpha: _life.clamp(0, 1)));
   }
 }
 
@@ -138,7 +137,7 @@ class PlantZoneComponent extends PositionComponent with TapCallbacks {
     required Vector2 position, required Vector2 size,
   }) : super(position: position, size: size);
 
-  @override void onTapDown(TapDownEvent e) => onTap(zone);
+  @override void onTapDown(TapDownEvent event) => onTap(zone);
   @override void update(double dt) => _t += dt * 2.5;
 
   Color get _zoneColor {
@@ -173,7 +172,7 @@ class PlantZoneComponent extends PositionComponent with TapCallbacks {
         RRect.fromRectAndRadius(
             Rect.fromLTWH(0, size.y * (1 - infFrac), size.x, size.y * infFrac),
             const Radius.circular(10)),
-        Paint()..color = _inf2.withOpacity(0.45),
+        Paint()..color = _inf2.withValues(alpha: 0.45),
       );
     }
 
@@ -322,13 +321,14 @@ class _DiseaseManagementInteractiveSimulationState
   late ConfettiController _confetti;
   final Random _rng = Random();
 
-  int _day = 1, _totalDays = 10;
+  int _day = 1;
+  final int _totalDays = 10;
   double _humidity = 70, _temperature = 25;
-  String _selectedCrop = 'Tomato';
+  final String _selectedCrop = 'Tomato';
   PlantZone? _selZone;
 
   int _fungCount = 0, _cultCount = 0, _resistCount = 0;
-  List<String> _log = [];
+  final List<String> _log = [];
   String _msg = '';
   bool _showTreat = false, _evaluating = false;
 
@@ -614,7 +614,7 @@ class _DiseaseManagementInteractiveSimulationState
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: color, borderRadius: BorderRadius.circular(10),
-            boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 6)],
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 6)],
           ),
           child: Text(label, textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white, fontSize: 10,

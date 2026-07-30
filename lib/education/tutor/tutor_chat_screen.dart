@@ -1,6 +1,4 @@
 // lib/education/tutor/tutor_chat_screen.dart
-// ignore_for_file: deprecated_member_use, unused_local_variable, use_build_context_synchronously
-
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -139,11 +137,7 @@ class _TutorChatScreenState extends State<TutorChatScreen> {
 
     _scrollToBottom();
 
-    // Build history EXCLUDING the opening message (which is synthetic)
-    final historyForApi = _messages
-        .where((m) => m != _messages.first || m.role == 'user')
-        .toList();
-    // Actually pass all messages except the very last (new user msg) as history
+    // Pass all messages except the very last (new user msg) as history
     final history = _messages.sublist(0, _messages.length - 1);
 
     final reply = await _service.sendMessage(
@@ -231,7 +225,7 @@ class _TutorChatScreenState extends State<TutorChatScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.psychology, size: 20, color: Colors.white),
@@ -425,7 +419,7 @@ class _MessageBubble extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -498,7 +492,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 4,
                     offset: const Offset(0, 2))
               ],
@@ -562,7 +556,7 @@ class _InputBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, -2))
         ],

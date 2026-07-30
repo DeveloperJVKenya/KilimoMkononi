@@ -1,7 +1,4 @@
 // lib/education/field/field_home.dart
-
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'field_data_input.dart';
@@ -93,14 +90,12 @@ class _FieldHomeState extends State<FieldHome> {
           : 'Farm Conditions';
     }
 
-    return WillPopScope(
-      onWillPop: () async {
-        // Android back gesture: on quiz tab → go to data tab first
-        if (onQuizTab && isMobile) {
-          setState(() => _currentTab = 0);
-          return false;
-        }
-        return true;
+    return PopScope(
+      // Android back gesture: on quiz tab → go to data tab first
+      canPop: !(onQuizTab && isMobile),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() => _currentTab = 0);
       },
       child: Scaffold(
         appBar: widget.showAppBar

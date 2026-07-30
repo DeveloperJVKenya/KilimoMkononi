@@ -241,7 +241,7 @@ class _ActionCard extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 2)),
         ],
@@ -262,7 +262,7 @@ class _ActionCard extends StatelessWidget {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: accent.withOpacity(0.12),
+                  color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
@@ -338,7 +338,7 @@ class _InfoChip extends StatelessWidget {
     decoration: BoxDecoration(
       color: _kBlueS,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: _kBlue.withOpacity(0.2)),
+      border: Border.all(color: _kBlue.withValues(alpha: 0.2)),
     ),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 12, color: _kBlue),

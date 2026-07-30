@@ -1,5 +1,4 @@
 // lib/screens/analysis/farmer_plot_analysis_screen.dart
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -373,7 +372,7 @@ class _AnalysisResultCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20)),
               child: Text('$rating/10',
                   style: const TextStyle(
@@ -499,9 +498,9 @@ class _AnalysisResultCard extends StatelessWidget {
   Widget _chip(String label, IconData icon, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3))),
+        border: Border.all(color: color.withValues(alpha: 0.3))),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 13, color: color),
       const SizedBox(width: 5),
@@ -613,7 +612,7 @@ class _FarmerGenerateCard extends StatelessWidget {
               Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                      color: _appGreen.withOpacity(0.1),
+                      color: _appGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10)),
                   child: const Icon(Icons.auto_awesome,
                       color: _appGreen, size: 24)),

@@ -11,8 +11,9 @@ import 'package:kilimomkononi/screens/market_price_screen.dart';
 import 'package:kilimomkononi/screens/manuals_screen.dart';
 import 'package:kilimomkononi/screens/pests_diseases_home.dart';
 import 'package:kilimomkononi/screens/weather_screen.dart';
+import 'package:kilimomkononi/screens/user_profile.dart';
 import 'package:kilimomkononi/authentication/login.dart';
-import 'package:kilimomkononi/settings/notifications_settings_screen.dart';
+import 'package:kilimomkononi/settings/notifications_screen.dart';
 import 'package:kilimomkononi/settings/settings_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -160,7 +161,25 @@ class _HomePageState extends State<HomePage> {
           );
         }
       } else {
-        if (mounted) setState(() => _userData = appUser.toMap());
+        // Also refresh the profile photo — previously only the name/data
+        // map was updated here, so a new photo saved in UserProfileScreen
+        // wouldn't show up in the drawer avatar until the next cold start.
+        Uint8List? decodedImage = _profileImageBytes;
+        if (appUser.profileImage != null && appUser.profileImage!.isNotEmpty) {
+          try {
+            decodedImage = base64Decode(appUser.profileImage!);
+          } catch (e) {
+            logger.e('Failed to decode profile image: $e');
+          }
+        } else {
+          decodedImage = null;
+        }
+        if (mounted) {
+          setState(() {
+            _userData = appUser.toMap();
+            _profileImageBytes = decodedImage;
+          });
+        }
       }
     });
 
@@ -233,7 +252,7 @@ class _HomePageState extends State<HomePage> {
       body: [
         _buildHomeContent(fullName),
         const SettingsScreen(isEducation: false),
-        const NotificationsSettingsScreen(),
+        const NotificationsScreen(),
       ][_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
@@ -476,18 +495,22 @@ class _HomePageState extends State<HomePage> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            UserAccountsDrawerHeader(
-              decoration: const BoxDecoration(color: Color.fromARGB(255, 3, 39, 4)),
-              accountName: Text(fullName, style: const TextStyle(fontSize: 18)),
-              currentAccountPicture: CircleAvatar(
-                radius: 40,
-                backgroundImage:
-                    _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                child: _profileImageBytes == null
-                    ? const Icon(Icons.person, size: 40, color: Colors.white70)
-                    : null,
+            GestureDetector(
+              onTap: () => _openUserProfile(fullName),
+              child: UserAccountsDrawerHeader(
+                decoration: const BoxDecoration(color: Color.fromARGB(255, 3, 39, 4)),
+                accountName: Text(fullName, style: const TextStyle(fontSize: 18)),
+                currentAccountPicture: CircleAvatar(
+                  radius: 40,
+                  backgroundImage:
+                      _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                  child: _profileImageBytes == null
+                      ? const Icon(Icons.person, size: 40, color: Colors.white70)
+                      : null,
+                ),
+                accountEmail: const Text('Tap to edit your profile',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
               ),
-              accountEmail: null,
             ),
             _drawerItem(Icons.home, 'Home', () => Navigator.pop(context)),
             _drawerItem(Icons.cloud, 'Weather Forecast',
@@ -522,6 +545,24 @@ class _HomePageState extends State<HomePage> {
   void _navigateTo(Widget page) {
     Navigator.pop(context);
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  void _openUserProfile(String fullName) {
+    Navigator.pop(context); // close the drawer first
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserProfileScreen(
+          profileImageBytes: _profileImageBytes,
+          fullName: fullName,
+          role: null, // farmer flow — UserProfileScreen loads the rest from Firestore
+        ),
+      ),
+    ).then((_) {
+      // In case the realtime listener hasn't caught up yet, refresh
+      // immediately when they come back from editing.
+      _fetchUserData();
+    });
   }
 
   ListTile _drawerItem(IconData icon, String title, VoidCallback onTap) {

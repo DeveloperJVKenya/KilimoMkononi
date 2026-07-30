@@ -1,8 +1,8 @@
 // lib/education/simulations/gemini_simulation_service.dart
-// ignore_for_file: avoid_print
 
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 // ─── Secure backend (same as GeminiQuizService) ─────────────────────────────
@@ -423,7 +423,7 @@ Return ONLY this JSON (no markdown, no extra text):
       return SimulationFeedback.fromJson(
           jsonDecode(cleaned) as Map<String, dynamic>);
     } catch (e) {
-      print('[GeminiSimulationService] parse error: $e');
+      debugPrint('[GeminiSimulationService] parse error: $e');
       return null;
     }
   }
@@ -455,7 +455,7 @@ Return ONLY this JSON (no markdown, no extra text):
       ).timeout(const Duration(seconds: 60));
 
       if (res.statusCode != 200) {
-        print('[GeminiSimulationService] Backend error: ${res.statusCode}');
+        debugPrint('[GeminiSimulationService] Backend error: ${res.statusCode}');
         return null;
       }
 
@@ -466,7 +466,7 @@ Return ONLY this JSON (no markdown, no extra text):
       final text = candidates[0]['content']?['parts']?[0]?['text'] as String?;
       return text;
     } catch (e) {
-      print('[GeminiSimulationService] Network error: $e');
+      debugPrint('[GeminiSimulationService] Network error: $e');
       return null;
     }
   }

@@ -26,12 +26,10 @@
 // In-memory cache per schoolId. TTL: 6 hours (same as NASA POWER).
 // Cleared on sign-out via EduSchoolConditionsService.clearAll().
 
-// ignore_for_file: unused_import
-
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:kilimomkononi/education/services/edu_farm_location_service.dart';
 
 // ── Satellite reading model (education-namespaced) ─────────────────────────

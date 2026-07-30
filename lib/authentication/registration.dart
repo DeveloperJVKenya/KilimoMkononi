@@ -8,6 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/data/kenya_locations.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
+import 'package:kilimomkononi/services/google_auth_service.dart';
+import 'package:kilimomkononi/screens/complete_farmer_profile.dart';
+import 'package:kilimomkononi/widgets/google_logo.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -296,6 +299,31 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                           : const Text('Sign Up', style: TextStyle(fontSize: 20.0, color: Colors.white)),
                     ),
                   ),
+                  const SizedBox(height: 20.0),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey[400])),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Text('OR', style: TextStyle(color: Colors.grey[600])),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey[400])),
+                    ],
+                  ),
+                  const SizedBox(height: 20.0),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _handleGoogleSignUp,
+                      icon: const GoogleLogo(size: 20),
+                      label: const Text('Sign up with Google', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: Colors.grey[400]!),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 10.0),
 
                   // Login Link
@@ -312,6 +340,62 @@ class RegistrationScreenState extends State<RegistrationScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleGoogleSignUp() async {
+    setState(() => _isLoading = true);
+
+    // See the comment in login.dart's _handleGoogleSignIn — this must
+    // be armed BEFORE the credential exchange, not after.
+    final authService = Provider.of<AuthStateService>(context, listen: false);
+    authService.setSkipNext();
+
+    try {
+      final result = await GoogleAuthService.signIn();
+      final uid = result.uid;
+
+      final eduDoc = await _firestore.collection('EducationUsers').doc(uid).get();
+      if (eduDoc.exists) {
+        await GoogleAuthService.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This Google account is registered with the Education app. Please use "Education (Schools)" mode.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final farmerDoc = await _firestore.collection('Users').doc(uid).get();
+      if (farmerDoc.exists) {
+        // Already has an account — just log them in.
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/home');
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => CompleteFarmerProfileScreen(
+            uid: uid,
+            email: result.email,
+            suggestedFullName: result.displayName,
+          ),
+        ),
+      );
+    } on GoogleAuthCancelledException {
+      // User closed the picker.
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google sign-up failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _signUp() async {

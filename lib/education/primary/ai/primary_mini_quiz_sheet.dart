@@ -1,5 +1,4 @@
 // lib/education/primary/primary_mini_quiz_sheet.dart
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'primary_ai_service.dart';
 import 'primary_language_toggle.dart';
@@ -94,7 +93,7 @@ class _PrimaryMiniQuizSheetState extends State<PrimaryMiniQuizSheet> {
         Padding(padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
           child: Row(children: [
             Container(padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: c.withOpacity(0.1),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10)),
               child: Icon(Icons.quiz_rounded, color: c, size: 20)),
             const SizedBox(width: 12),
@@ -162,9 +161,9 @@ class _PrimaryMiniQuizSheetState extends State<PrimaryMiniQuizSheet> {
             valueColor: AlwaysStoppedAnimation(c), minHeight: 6)),
       const SizedBox(height: 16),
       Container(width: double.infinity, padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: c.withOpacity(0.06),
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.withOpacity(0.15))),
+            border: Border.all(color: c.withValues(alpha: 0.15))),
         child: Text(q.question,
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.4))),
       const SizedBox(height: 14),
@@ -262,7 +261,7 @@ class _OptionTile extends StatelessWidget {
           Container(width: 26, height: 26,
             decoration: BoxDecoration(
               color: answered ? (isCorrect ? Colors.green.shade100 : selected ? Colors.red.shade100 : Colors.grey.shade100)
-                  : accentColor.withOpacity(0.1),
+                  : accentColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6)),
             child: Center(child: Text(labels[index], style: TextStyle(fontSize: 12,
                 fontWeight: FontWeight.bold,

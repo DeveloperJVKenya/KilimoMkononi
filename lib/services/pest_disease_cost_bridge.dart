@@ -1,10 +1,9 @@
-// ignore_for_file: avoid_print
-
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter/foundation.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // PestCostEntry
 // ─────────────────────────────────────────────────────────────────────────────
@@ -131,13 +130,13 @@ Future<List<Map<String, String>>> _loadFarmPlots(String userId) async {
       final list = jsonDecode(raw) as List<dynamic>;
       final plots = _parsePlots(list);
       if (plots.isNotEmpty) {
-        print('✅ Loaded ${plots.length} plots from SharedPreferences');
+        debugPrint('✅ Loaded ${plots.length} plots from SharedPreferences');
         return plots;
       }
     }
 
     // Firestore fallback
-    print('⚠️ Trying Firestore fallback...');
+    debugPrint('⚠️ Trying Firestore fallback...');
     final seasonDoc = await FirebaseFirestore.instance
         .collection('farmer_farm_management')
         .doc(userId)
@@ -149,11 +148,11 @@ Future<List<Map<String, String>>> _loadFarmPlots(String userId) async {
       final data = seasonDoc.data();
       final list = data?['plots'] as List<dynamic>? ?? [];
       final plots = _parsePlots(list);
-      print('✅ Loaded ${plots.length} plots from Firestore fallback');
+      debugPrint('✅ Loaded ${plots.length} plots from Firestore fallback');
       return plots;
     }
   } catch (e) {
-    print('❌ Error loading plots: $e');
+    debugPrint('❌ Error loading plots: $e');
   }
   return [];
 }

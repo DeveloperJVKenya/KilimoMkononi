@@ -54,7 +54,7 @@ class _LessonListScreenState extends State<LessonListScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: lesson['color'].withOpacity(0.15),
+                backgroundColor: lesson['color'].withValues(alpha: 0.15),
                 child: Icon(lesson['icon'], color: lesson['color']),
               ),
               title: Text(

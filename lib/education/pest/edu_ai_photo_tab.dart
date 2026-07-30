@@ -3,7 +3,6 @@
 // Full-page AI photo diagnosis tab for the education pest/disease home.
 // AI logic lives in gemini_vision_helper.dart — do not duplicate prompts here.
 //
-// ignore_for_file: unnecessary_underscores, deprecated_member_use, use_build_context_synchronously
 
 import 'dart:typed_data';
 
@@ -12,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kilimomkononi/education/pest/gemini_vision_helper.dart';
+import 'package:kilimomkononi/education/widgets/edu_ai_advice_card.dart';
 
 const List<String> _aiTabCrops = [
   'Beans', 'Maize', 'Cabbages/Kales', 'Carrots', 'Tomatoes',
@@ -40,7 +40,7 @@ class EduAiPhotoTab extends StatefulWidget {
 class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
   Uint8List? _imageBytes;
   String? _selectedCrop;
-  GeminiDiagResult? _result;
+  EduDiagResult? _result;
   bool _isLoading = false;
   String? _error;
 
@@ -79,8 +79,18 @@ class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
         return;
       }
 
+      // Map GeminiDiagResult to EduDiagResult for display
+      final eduResult = EduDiagResult(
+        name:           result.name,
+        type:           result.type,
+        confidence:     result.confidence,
+        description:    result.description,
+        recommendation: result.recommendation,
+        alternatives:   result.alternatives,
+        isHealthy:      result.isHealthy,
+      );
       // Low confidence — show result with warning, do NOT save to Firestore.
-      setState(() { _result = result; _isLoading = false; });
+      setState(() { _result = eduResult; _isLoading = false; });
 
       // Save only high/medium confidence, non-healthy results
       if (!result.isHealthy) {
@@ -192,6 +202,7 @@ class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
 
           // Crop selector
           DropdownButtonFormField<String>(
+            // ignore: deprecated_member_use  — value: (not initialValue:) is required so this dropdown stays in sync with external state resets (cascading selects / AI prefill).
             value: _selectedCrop,
             decoration: const InputDecoration(
               labelText: 'Crop in the photo',
@@ -301,7 +312,12 @@ class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
           // Results
           if (_result != null && !_isLoading) ...[
             const SizedBox(height: 20),
-            _buildResultSection(_result!),
+            EduAiResultCard(
+            result: _result!,
+            isPest: widget.isPest,
+            selectedCrop: _selectedCrop,
+            onUseResult: widget.onPrefill,
+          ),
           ],
 
           const SizedBox(height: 40),
@@ -310,172 +326,6 @@ class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
     );
   }
 
-  Widget _buildResultSection(GeminiDiagResult r) {
-    if (r.isHealthy) {
-      return Card(
-        color: Colors.green.shade50,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 28),
-            const SizedBox(width: 12),
-            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Plant appears healthy!',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
-                      color: Colors.green)),
-              SizedBox(height: 4),
-              Text('No signs of pest or disease damage were detected in this photo.',
-                  style: TextStyle(fontSize: 13)),
-            ])),
-          ]),
-        ),
-      );
-    }
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Medium confidence notice
-      if (r.confidence.toLowerCase() == 'medium')
-        Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.orange.shade200),
-          ),
-          child: Row(children: [
-            Icon(Icons.info_outline, color: Colors.orange.shade700, size: 16),
-            const SizedBox(width: 8),
-            Expanded(child: Text(
-              'Medium confidence — verify with a local agronomist before applying any treatment.',
-              style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
-            )),
-          ]),
-        ),
-
-      // AI notice
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.amber.shade50,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.amber.shade200),
-        ),
-        child: const Row(children: [
-          Icon(Icons.info_outline, color: Colors.amber, size: 16),
-          SizedBox(width: 8),
-          Expanded(child: Text(
-            'AI result — a guide, not a guarantee. Always verify with field observation.',
-            style: TextStyle(fontSize: 12),
-          )),
-        ]),
-      ),
-      const SizedBox(height: 14),
-
-      // Main result card
-      Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.teal.shade300, width: 2),
-          color: Colors.teal.shade50,
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.teal.shade100,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Row(children: [
-              Icon(r.type == 'pest' ? Icons.bug_report : Icons.local_florist,
-                  color: Colors.teal.shade800, size: 22),
-              const SizedBox(width: 10),
-              Expanded(child: Text(r.name,
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold,
-                      color: Colors.teal.shade900))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: r.confColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: r.confColor.withOpacity(0.4)),
-                ),
-                child: Text(r.confLabel,
-                    style: TextStyle(fontSize: 11, color: r.confColor,
-                        fontWeight: FontWeight.bold)),
-              ),
-            ]),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (r.description.isNotEmpty) ...[
-                const Text('What the AI sees:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 4),
-                Text(r.description,
-                    style: const TextStyle(fontSize: 13, height: 1.5)),
-              ],
-
-              if (r.recommendation.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.shade200),
-                  ),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(Icons.lightbulb, size: 16, color: Colors.amber.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(r.recommendation,
-                        style: TextStyle(fontSize: 13, color: Colors.amber.shade900))),
-                  ]),
-                ),
-              ],
-
-              if (r.alternatives.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text('Other possibilities: ${r.alternatives.join(', ')}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-              ],
-            ]),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 14),
-
-      // Use result button
-      if (widget.onPrefill != null)
-        ElevatedButton.icon(
-          icon: const Icon(Icons.auto_fix_high),
-          label: Text(
-            'Use Result & Go to ${widget.isPest ? "Pest Data" : "Disease Data"} Tab',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal.shade700,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-          onPressed: () {
-            widget.onPrefill!({
-              'crop':  _selectedCrop ?? '',
-              'stage': '',
-              'name':  r.name,
-              'type':  r.type,
-            });
-            _snack('✓ Form pre-filled: ${r.name}');
-          },
-        ),
-      const SizedBox(height: 40),
-    ]);
-  }
 
   // ── Firestore history ────────────────────────────────────────────────────────
   CollectionReference? get _photoDiagnosesCollection {
@@ -555,7 +405,7 @@ class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
                   controller: controller,
                   padding: const EdgeInsets.all(12),
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (_, i) {
                     final d = docs[i].data() as Map<String, dynamic>;
                     final ts = d['createdAt'] as Timestamp?;
@@ -583,9 +433,9 @@ class _EduAiPhotoTabState extends State<EduAiPhotoTab> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: confColor.withOpacity(0.1),
+                                color: confColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: confColor.withOpacity(0.4)),
+                                border: Border.all(color: confColor.withValues(alpha: 0.4)),
                               ),
                               child: Text(confidence,
                                   style: TextStyle(fontSize: 11, color: confColor,
