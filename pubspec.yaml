@@ -84,7 +84,8 @@ flutter:
     - assets/market_tips/
     - assets/market_tips/images/
     - assets/data/master.json  
-    - assets/iot/       
+    - assets/iot/   
+    - assets/education/primary/crops/  
 
    
 flutter_icons:
