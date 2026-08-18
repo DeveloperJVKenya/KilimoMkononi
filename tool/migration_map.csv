@@ -1,0 +1,218 @@
+old_path,new_path
+lib/authentication/login.dart,lib/features/farmer/auth/login.dart
+lib/authentication/registration.dart,lib/features/farmer/auth/registration.dart
+lib/authentication/splashscreen.dart,lib/features/farmer/auth/splashscreen.dart
+lib/config.dart,lib/app/config.dart
+lib/data/kenya_coordinates.dart,lib/core/data/kenya_coordinates.dart
+lib/data/kenya_locations.dart,lib/core/data/kenya_locations.dart
+lib/education/analysis/education_plot_analysis_screen.dart,lib/features/education/analysis/education_plot_analysis_screen.dart
+lib/education/approval_management_screen.dart,lib/features/education/approval_management_screen.dart
+lib/education/data/disease_treatments.dart,lib/features/education/data/disease_treatments.dart
+lib/education/data/fertilizer_recommendations.dart,lib/features/education/data/fertilizer_recommendations.dart
+lib/education/data/field_management_tips.dart,lib/features/education/data/field_management_tips.dart
+lib/education/data/pest_interventions.dart,lib/features/education/data/pest_interventions.dart
+lib/education/data/soil_optimal_ranges.dart,lib/features/education/data/soil_optimal_ranges.dart
+lib/education/edu_farm_conditions_screen.dart,lib/features/education/edu_farm_conditions_screen.dart
+lib/education/education_chat.dart,lib/features/education/education_chat.dart
+lib/education/education_farming_tips.dart,lib/features/education/education_farming_tips.dart
+lib/education/education_home.dart,lib/features/education/education_home.dart
+lib/education/education_login.dart,lib/features/education/education_login.dart
+lib/education/education_manuals.dart,lib/features/education/education_manuals.dart
+lib/education/education_market_price.dart,lib/features/education/education_market_price.dart
+lib/education/education_registration.dart,lib/features/education/education_registration.dart
+lib/education/education_resources.dart,lib/features/education/education_resources.dart
+lib/education/education_tier_selection.dart,lib/features/education/education_tier_selection.dart
+lib/education/education_weather_forecast.dart,lib/features/education/education_weather_forecast.dart
+lib/education/farm_management/farm_management_data_input.dart,lib/features/education/farm_management/farm_management_data_input.dart
+lib/education/farm_management/farm_management_screen.dart,lib/features/education/farm_management/farm_management_screen.dart
+lib/education/farm_management/farm_quiz.dart,lib/features/education/farm_management/farm_quiz.dart
+lib/education/farm_management/farm_simulation.dart,lib/features/education/farm_management/farm_simulation.dart
+lib/education/farm_management/simulations/farm_financial_management_simulation.dart,lib/features/education/farm_management/simulations/farm_financial_management_simulation.dart
+lib/education/farm_management/tabs/learning_tab.dart,lib/features/education/farm_management/tabs/learning_tab.dart
+lib/education/field/field_all_school_data.dart,lib/features/education/field/field_all_school_data.dart
+lib/education/field/field_data_input.dart,lib/features/education/field/field_data_input.dart
+lib/education/field/field_home.dart,lib/features/education/field/field_home.dart
+lib/education/field/field_quiz.dart,lib/features/education/field/field_quiz.dart
+lib/education/field/field_simulation.dart,lib/features/education/field/field_simulation.dart
+lib/education/field/simulations/field_operations_simulation.dart,lib/features/education/field/simulations/field_operations_simulation.dart
+lib/education/lessons/lesson_list.dart,lib/features/education/lessons/lesson_list.dart
+lib/education/mode_selection.dart,lib/features/education/mode_selection.dart
+lib/education/pest/disease_data_input.dart,lib/features/education/pest/disease_data_input.dart
+lib/education/pest/disease_home.dart,lib/features/education/pest/disease_home.dart
+lib/education/pest/disease_quiz.dart,lib/features/education/pest/disease_quiz.dart
+lib/education/pest/disease_simulation.dart,lib/features/education/pest/disease_simulation.dart
+lib/education/pest/edu_ai_photo_tab.dart,lib/features/education/pest/edu_ai_photo_tab.dart
+lib/education/pest/edu_photo_diagnosis_button.dart,lib/features/education/pest/edu_photo_diagnosis_button.dart
+lib/education/pest/edu_photo_diagnosis_page.dart,lib/features/education/pest/edu_photo_diagnosis_page.dart
+lib/education/pest/gemini_vision_helper.dart,lib/features/education/pest/gemini_vision_helper.dart
+lib/education/pest/pest_data_input.dart,lib/features/education/pest/pest_data_input.dart
+lib/education/pest/pest_disease_all_school_data.dart,lib/features/education/pest/pest_disease_all_school_data.dart
+lib/education/pest/pest_disease_home.dart,lib/features/education/pest/pest_disease_home.dart
+lib/education/pest/pest_home.dart,lib/features/education/pest/pest_home.dart
+lib/education/pest/pest_quiz.dart,lib/features/education/pest/pest_quiz.dart
+lib/education/pest/pest_simulation.dart,lib/features/education/pest/pest_simulation.dart
+lib/education/pest/simulations/disease_management_interactive_simulation.dart,lib/features/education/pest/simulations/disease_management_interactive_simulation.dart
+lib/education/pest/simulations/pest_management_interactive_simulation.dart,lib/features/education/pest/simulations/pest_management_interactive_simulation.dart
+lib/education/pest/symptom_checker_page.dart,lib/features/education/pest/symptom_checker_page.dart
+lib/education/pest/symptom_result_page.dart,lib/features/education/pest/symptom_result_page.dart
+lib/education/primary/ai/primary_ai_service.dart,lib/features/education/primary/ai/primary_ai_service.dart
+lib/education/primary/ai/primary_ai_tooltip.dart,lib/features/education/primary/ai/primary_ai_tooltip.dart
+lib/education/primary/ai/primary_class_summary_sheet.dart,lib/features/education/primary/ai/primary_class_summary_sheet.dart
+lib/education/primary/ai/primary_daily_challenge_service.dart,lib/features/education/primary/ai/primary_daily_challenge_service.dart
+lib/education/primary/ai/primary_fill_blank_sheet.dart,lib/features/education/primary/ai/primary_fill_blank_sheet.dart
+lib/education/primary/ai/primary_fun_fact_box.dart,lib/features/education/primary/ai/primary_fun_fact_box.dart
+lib/education/primary/ai/primary_language_toggle.dart,lib/features/education/primary/ai/primary_language_toggle.dart
+lib/education/primary/ai/primary_lesson_plan_sheet.dart,lib/features/education/primary/ai/primary_lesson_plan_sheet.dart
+lib/education/primary/ai/primary_mini_quiz_sheet.dart,lib/features/education/primary/ai/primary_mini_quiz_sheet.dart
+lib/education/primary/ai/primary_progress_service.dart,lib/features/education/primary/ai/primary_progress_service.dart
+lib/education/primary/ai/primary_spot_mistake.dart,lib/features/education/primary/ai/primary_spot_mistake.dart
+lib/education/primary/ai/primary_what_am_i_sheet.dart,lib/features/education/primary/ai/primary_what_am_i_sheet.dart
+lib/education/primary/features/primary_buying_selling.dart,lib/features/education/primary/features/primary_buying_selling.dart
+lib/education/primary/features/primary_farm_animals.dart,lib/features/education/primary/features/primary_farm_animals.dart
+lib/education/primary/features/primary_farming_story.dart,lib/features/education/primary/features/primary_farming_story.dart
+lib/education/primary/features/primary_farming_tools.dart,lib/features/education/primary/features/primary_farming_tools.dart
+lib/education/primary/features/primary_seeds_plants.dart,lib/features/education/primary/features/primary_seeds_plants.dart
+lib/education/primary/features/primary_soil_water.dart,lib/features/education/primary/features/primary_soil_water.dart
+lib/education/primary/features/primary_weeds_pests.dart,lib/features/education/primary/features/primary_weeds_pests.dart
+lib/education/primary/primary_home_screen.dart,lib/features/education/primary/primary_home_screen.dart
+lib/education/quiz/gemini_quiz_service.dart,lib/features/education/quiz/gemini_quiz_service.dart
+lib/education/quiz/quiz_home.dart,lib/features/education/quiz/quiz_home.dart
+lib/education/quiz/shared_quiz_widgets.dart,lib/features/education/quiz/shared_quiz_widgets.dart
+lib/education/services/edu_farm_location_service.dart,lib/features/education/services/edu_farm_location_service.dart
+lib/education/services/edu_school_conditions_service.dart,lib/features/education/services/edu_school_conditions_service.dart
+lib/education/simulation/simulation_home.dart,lib/features/education/simulation/simulation_home.dart
+lib/education/simulation/student_simulation_result_screen.dart,lib/features/education/simulation/student_simulation_result_screen.dart
+lib/education/simulations/crop_crisis_simulation.dart,lib/features/education/simulations/crop_crisis_simulation.dart
+lib/education/simulations/farm_planting_simulation.dart,lib/features/education/simulations/farm_planting_simulation.dart
+lib/education/simulations/gemini_simulation_service.dart,lib/features/education/simulations/gemini_simulation_service.dart
+lib/education/simulations/market_trading_simulation.dart,lib/features/education/simulations/market_trading_simulation.dart
+lib/education/simulations/simulation_result_screen.dart,lib/features/education/simulations/simulation_result_screen.dart
+lib/education/simulations/weather_prediction_simulation.dart,lib/features/education/simulations/weather_prediction_simulation.dart
+lib/education/student/ask_teacher.dart,lib/features/education/student/ask_teacher.dart
+lib/education/student/my_grades.dart,lib/features/education/student/my_grades.dart
+lib/education/teacher/grade_work.dart,lib/features/education/teacher/grade_work.dart
+lib/education/teacher/view_students.dart,lib/features/education/teacher/view_students.dart
+lib/education/tutor/gemini_tutor_service.dart,lib/features/education/tutor/gemini_tutor_service.dart
+lib/education/tutor/tutor_chat_screen.dart,lib/features/education/tutor/tutor_chat_screen.dart
+lib/education/tutor/tutor_fab.dart,lib/features/education/tutor/tutor_fab.dart
+lib/education/tutor/tutor_suppressor.dart,lib/features/education/tutor/tutor_suppressor.dart
+lib/education/utils/class_id_notifier.dart,lib/features/education/utils/class_id_notifier.dart
+lib/education/utils/education_utils.dart,lib/features/education/utils/education_utils.dart
+lib/education/widgets/edu_ai_advice_card.dart,lib/features/education/widgets/edu_ai_advice_card.dart
+lib/education/widgets/module_content_list.dart,lib/features/education/widgets/module_content_list.dart
+lib/education/widgets/school_conditions_widget.dart,lib/features/education/widgets/school_conditions_widget.dart
+lib/firebase_options.dart,lib/app/firebase_options.dart
+lib/home.dart,lib/features/farmer/home/home.dart
+lib/main.dart,lib/main.dart
+lib/models/disease_model.dart,lib/core/models/disease_model.dart
+lib/models/education_user.dart,lib/features/education/models/education_user.dart
+lib/models/farmer_diagnosis_record.dart,lib/core/models/farmer_diagnosis_record.dart
+lib/models/farmer_issue_record.dart,lib/core/models/farmer_issue_record.dart
+lib/models/field_data_model.dart,lib/core/models/field_data_model.dart
+lib/models/manual.dart,lib/core/models/manual.dart
+lib/models/market_data.dart,lib/core/models/market_data.dart
+lib/models/pest_disease_model.dart,lib/core/models/pest_disease_model.dart
+lib/models/symptom_model.dart,lib/core/models/symptom_model.dart
+lib/models/user_model.dart,lib/core/models/user_model.dart
+lib/screens/admin/admin_management_screen.dart,lib/features/farmer/admin/admin_management_screen.dart
+lib/screens/admin/filter_users_screen.dart,lib/features/farmer/admin/filter_users_screen.dart
+lib/screens/adminmanagementscreen.dart,lib/features/farmer/admin/adminmanagementscreen.dart
+lib/screens/adminsamplescreen.dart,lib/features/farmer/admin/adminsamplescreen.dart
+lib/screens/Alma Dairy/advisory_section.dart,lib/features/farmer/alma_dairy/advisory_section.dart
+lib/screens/Alma Dairy/alma_dairy_home.dart,lib/features/farmer/alma_dairy/alma_dairy_home.dart
+lib/screens/Alma Dairy/communication_hub.dart,lib/features/farmer/alma_dairy/communication_hub.dart
+lib/screens/Alma Dairy/customer_management.dart,lib/features/farmer/alma_dairy/customer_management.dart
+lib/screens/Alma Dairy/dairy_product_management.dart,lib/features/farmer/alma_dairy/dairy_product_management.dart
+lib/screens/Alma Dairy/dashboard.dart,lib/features/farmer/alma_dairy/dashboard.dart
+lib/screens/Alma Dairy/expense_monitoring.dart,lib/features/farmer/alma_dairy/expense_monitoring.dart
+lib/screens/Alma Dairy/farm_setup.dart,lib/features/farmer/alma_dairy/farm_setup.dart
+lib/screens/Alma Dairy/feed_management.dart,lib/features/farmer/alma_dairy/feed_management.dart
+lib/screens/Alma Dairy/herd_management.dart,lib/features/farmer/alma_dairy/herd_management.dart
+lib/screens/Alma Dairy/milk_collection.dart,lib/features/farmer/alma_dairy/milk_collection.dart
+lib/screens/Alma Dairy/officer_management.dart,lib/features/farmer/alma_dairy/officer_management.dart
+lib/screens/Alma Dairy/records_section.dart,lib/features/farmer/alma_dairy/records_section.dart
+lib/screens/Alma Dairy/report_generation.dart,lib/features/farmer/alma_dairy/report_generation.dart
+lib/screens/Alma Dairy/sustainability_tracker.dart,lib/features/farmer/alma_dairy/sustainability_tracker.dart
+lib/screens/analysis/farmer_plot_analysis_screen.dart,lib/features/farmer/plot_analysis/farmer_plot_analysis_screen.dart
+lib/screens/blogs_page.dart,lib/features/farmer/blogs/blogs_page.dart
+lib/screens/collection_management_screen.dart,lib/features/farmer/collection_management/collection_management_screen.dart
+lib/screens/community_chat.dart,lib/features/farmer/community/community_chat.dart
+lib/screens/community_home.dart,lib/features/farmer/community/community_home.dart
+lib/screens/community_page.dart,lib/features/farmer/community/community_page.dart
+lib/screens/complete_farmer_profile.dart,lib/features/farmer/profile/complete_farmer_profile.dart
+lib/screens/disease management/admin_disease_management_page.dart,lib/features/farmer/disease_management/admin_disease_management_page.dart
+lib/screens/disease management/disease_management_home.dart,lib/features/farmer/disease_management/disease_management_home.dart
+lib/screens/disease management/disease_management_page.dart,lib/features/farmer/disease_management/disease_management_page.dart
+lib/screens/disease management/disease_model.dart,lib/features/farmer/disease_management/disease_model.dart
+lib/screens/disease management/intervention_page.dart,lib/features/farmer/disease_management/intervention_page.dart
+lib/screens/disease management/user_disease_history_page.dart,lib/features/farmer/disease_management/user_disease_history_page.dart
+lib/screens/disease management/view_disease_interventions_page.dart,lib/features/farmer/disease_management/view_disease_interventions_page.dart
+lib/screens/farm_management_screen.dart,lib/features/farmer/farm_management/farm_management_screen.dart
+lib/screens/farming_tips_widget.dart,lib/features/farmer/farming_tips/farming_tips_widget.dart
+lib/screens/Field Data Input/field_data_input_home_page.dart,lib/features/farmer/field_data/field_data_input_home_page.dart
+lib/screens/Field Data Input/field_data_input_page.dart,lib/features/farmer/field_data/field_data_input_page.dart
+lib/screens/Field Data Input/plot_input_form.dart,lib/features/farmer/field_data/plot_input_form.dart
+lib/screens/Field Data Input/plot_summary_tab.dart,lib/features/farmer/field_data/plot_summary_tab.dart
+lib/screens/Field Data Input/satellite_data_screen.dart,lib/features/farmer/field_data/satellite_data_screen.dart
+lib/screens/Field Data Input/weather_station_screen.dart,lib/features/farmer/field_data/weather_station_screen.dart
+lib/screens/manuals_screen.dart,lib/features/farmer/manuals/manuals_screen.dart
+lib/screens/market_price_prediction_widget.dart,lib/features/farmer/market/market_price_prediction_widget.dart
+lib/screens/market_price_screen.dart,lib/features/farmer/market/market_price_screen.dart
+lib/screens/pest management/admin_pest_management_page.dart,lib/features/farmer/pest_management/admin_pest_management_page.dart
+lib/screens/pest management/intervention_page.dart,lib/features/farmer/pest_management/intervention_page.dart
+lib/screens/pest management/pest_management.dart,lib/features/farmer/pest_management/pest_management.dart
+lib/screens/pest management/pest_management_home.dart,lib/features/farmer/pest_management/pest_management_home.dart
+lib/screens/pest management/photo_diagnosis_page.dart,lib/features/farmer/pest_management/photo_diagnosis_page.dart
+lib/screens/pest management/unified_issue_history_page.dart,lib/features/farmer/pest_management/unified_issue_history_page.dart
+lib/screens/pest management/user_pest_history_page.dart,lib/features/farmer/pest_management/user_pest_history_page.dart
+lib/screens/pest management/view_interventions_page.dart,lib/features/farmer/pest_management/view_interventions_page.dart
+lib/screens/pests_diseases_home.dart,lib/features/farmer/pests_diseases/pests_diseases_home.dart
+lib/screens/symptom_checker_page.dart,lib/features/farmer/pests_diseases/symptom_checker_page.dart
+lib/screens/symptom_result_page.dart,lib/features/farmer/pests_diseases/symptom_result_page.dart
+lib/screens/user_profile.dart,lib/features/farmer/profile/user_profile.dart
+lib/screens/view_saved_data_page.dart,lib/features/farmer/saved_data/view_saved_data_page.dart
+lib/screens/weather_screen.dart,lib/features/farmer/weather/weather_screen.dart
+lib/services/auth_state_service.dart,lib/core/services/auth_state_service.dart
+lib/services/connectivity_service.dart,lib/core/services/connectivity_service.dart
+lib/services/diagnosis_service.dart,lib/core/services/diagnosis_service.dart
+lib/services/farm_alert_service.dart,lib/core/services/farm_alert_service.dart
+lib/services/farm_location_service.dart,lib/core/services/farm_location_service.dart
+lib/services/farmer_issue_service.dart,lib/core/services/farmer_issue_service.dart
+lib/services/field_cost_bridge.dart,lib/core/services/field_cost_bridge.dart
+lib/services/google_auth_service.dart,lib/core/services/google_auth_service.dart
+lib/services/iot_sensor_service.dart,lib/core/services/iot_sensor_service.dart
+lib/services/kindwise_name_mapper.dart,lib/features/farmer/diagnosis/kindwise_name_mapper.dart
+lib/services/kindwise_service.dart,lib/features/farmer/diagnosis/kindwise_service.dart
+lib/services/nasa_power_service.dart,lib/core/services/nasa_power_service.dart
+lib/services/nuasense_service.dart,lib/core/services/nuasense_service.dart
+lib/services/offline_queue_service.dart,lib/core/services/offline_queue_service.dart
+lib/services/pest_disease_cost_bridge.dart,lib/core/services/pest_disease_cost_bridge.dart
+lib/services/plot_analysis_service.dart,lib/features/education/services/plot_analysis_service.dart
+lib/settings/about_kilimo_mkononi_screen.dart,lib/settings/about_kilimo_mkononi_screen.dart
+lib/settings/account_settings_screen.dart,lib/settings/account_settings_screen.dart
+lib/settings/contact_us_screen.dart,lib/settings/contact_us_screen.dart
+lib/settings/cookies_settings_screen.dart,lib/settings/cookies_settings_screen.dart
+lib/settings/edit_profile_screen.dart,lib/settings/edit_profile_screen.dart
+lib/settings/faq_screen.dart,lib/settings/faq_screen.dart
+lib/settings/notifications_screen.dart,lib/settings/notifications_screen.dart
+lib/settings/notifications_settings_screen.dart,lib/settings/notifications_settings_screen.dart
+lib/settings/privacy_policy_screen.dart,lib/settings/privacy_policy_screen.dart
+lib/settings/providers/user_profile_provider.dart,lib/settings/providers/user_profile_provider.dart
+lib/settings/settings_screen.dart,lib/settings/settings_screen.dart
+lib/settings/terms_and_conditions_screen.dart,lib/settings/terms_and_conditions_screen.dart
+lib/utils/app_colors.dart,lib/features/education/utils/legacy/app_colors.dart
+lib/utils/class_id_notifier.dart,lib/features/education/utils/legacy/class_id_notifier.dart
+lib/utils/class_id_parser.dart,lib/features/education/utils/legacy/class_id_parser.dart
+lib/utils/database_migration.dart,lib/features/education/utils/database_migration.dart
+lib/utils/education_utils.dart,lib/features/education/utils/legacy/education_utils.dart
+lib/utils/firestore_helper.dart,lib/features/education/utils/firestore_helper.dart
+lib/utils/string_ext.dart,lib/features/education/utils/string_ext.dart
+lib/widgets/ai_advice_card.dart,lib/features/farmer/widgets/ai_advice_card.dart
+lib/widgets/farm_alerts_home_widget.dart,lib/core/widgets/farm_alerts_home_widget.dart
+lib/widgets/farm_environment_card.dart,lib/core/widgets/farm_environment_card.dart
+lib/widgets/farm_location_picker.dart,lib/core/widgets/farm_location_picker.dart
+lib/widgets/google_logo.dart,lib/core/widgets/google_logo.dart
+lib/widgets/grade_selector.dart,lib/features/education/widgets/grade_selector.dart
+lib/widgets/offline_sync_banner.dart,lib/core/widgets/offline_sync_banner.dart
+lib/widgets/plot_history_card.dart,lib/features/education/widgets/plot_history_card.dart
+lib/widgets/weather_station_inline_panel.dart,lib/core/widgets/weather_station_inline_panel.dart
