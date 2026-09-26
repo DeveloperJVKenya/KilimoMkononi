@@ -172,8 +172,10 @@ class _HomePageState extends State<HomePage> {
         // Verified-advice pushes go to crop topics; then open whatever
         // notification launched the app, now that the user is signed in.
         NotificationService.syncFarmerTopics(user.uid);
-        WidgetsBinding.instance.addPostFrameCallback(
-            (_) => NotificationService.consumePendingRoute());
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NotificationService.consumePendingRoute();
+          if (mounted) NotificationService.maybeShowBackgroundTip(context);
+        });
       }
     } catch (e) {
       logger.e('Error fetching user data: $e');

@@ -13,9 +13,16 @@
 //     Tapping a notification opens the screen named in its `route`.
 //   • Devices — the signed-in user's FCM token is stored at
 //     deviceTokens/{token} {uid}. Signing out deletes the token at FCM, so a
-//     shared phone stops receiving the previous user's pushes.
+//     shared phone stops receiving the previous user's pushes. If
+//     registration fails (e.g. signed in offline) it retries with backoff and
+//     as soon as the connection returns.
 //   • Topics — farmers are subscribed to `km_farmers` and one topic per crop
-//     they grow (from fielddata), used for verified-advice pushes.
+//     they grow (from fielddata), used for verified-advice pushes. Browsers
+//     can't subscribe themselves, so on web the `syncWebTopics` function does
+//     it for the browser's token.
+//   • Web — a tapped web push opens `/?km_route=…` (see buildMessage in
+//     functions/notifications.js); init() reads that and opens the screen.
+//     VAPID key: lib/config/push_config.dart (set once for the project).
 //
 // Every push is also written by the server to userNotifications/{uid}/items,
 // which the Notifications screen shows — so what arrives on the phone and
@@ -25,12 +32,17 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:kilimomkononi/config/push_config.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
@@ -90,9 +102,15 @@ class NotificationService {
   static ({String route, Map<String, String> args})? _pendingRoute;
   static StreamSubscription<User?>? _authSub;
   static String? _registeredUid;
+  static String? _token;
+
+  // Registration retry (signed in offline, or a transient failure).
+  static Timer? _retryTimer;
+  static int _retryAttempt = 0;
+  static StreamSubscription<List<ConnectivityResult>>? _connSub;
 
   static const _topicsPrefKey = 'km_subscribed_topics';
-  static const _vapidKey = String.fromEnvironment('FCM_VAPID_KEY');
+  static const _backgroundTipPrefKey = 'km_background_tip_shown';
 
   static Color get accent => const Color(0xFF2A6B2A);
 
@@ -134,6 +152,9 @@ class NotificationService {
     if (launch?.didNotificationLaunchApp ?? false) {
       _pendingRoute = _routeFromPayload(launch!.notificationResponse?.payload);
     }
+
+    // Web app opened by tapping a web push (fcmOptions.link → /?km_route=…).
+    if (kIsWeb) _pendingRoute ??= _routeFromWebUrl();
 
     if (await _pushSupported()) await _initPush();
   }
@@ -198,24 +219,57 @@ class NotificationService {
 
   static Future<void> _onAuthChanged(User? user) async {
     if (user == null) {
+      _stopRetrying();
       if (_registeredUid != null) await _forgetDevice();
       return;
     }
     if (_registeredUid == user.uid) return;
     _registeredUid = user.uid;
     await requestPermission();
+    await _register();
+  }
+
+  /// Gets this device's token and stores it for the signed-in user. On
+  /// failure, retries with backoff (30s → 15 min) and whenever the device
+  /// comes back online, until it succeeds or the user signs out.
+  static Future<void> _register() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    var ok = false;
     try {
-      final token = await FirebaseMessaging.instance
-          .getToken(vapidKey: _vapidKey.isEmpty ? null : _vapidKey);
-      if (token != null) await _saveToken(token);
+      final token = await FirebaseMessaging.instance.getToken(vapidKey: fcmWebVapidKey);
+      if (token != null) ok = await _saveToken(token);
     } catch (e) {
-      debugPrint('[NotificationService] no push token: $e');
+      debugPrint('[NotificationService] no push token yet: $e');
+    }
+    if (ok) {
+      _stopRetrying();
+    } else {
+      _scheduleRetry();
     }
   }
 
-  static Future<void> _saveToken(String token) async {
+  static void _scheduleRetry() {
+    _retryTimer?.cancel();
+    final seconds = (30 * (1 << _retryAttempt.clamp(0, 5))).clamp(30, 900);
+    _retryAttempt++;
+    _retryTimer = Timer(Duration(seconds: seconds), _register);
+    _connSub ??= Connectivity().onConnectivityChanged.listen((results) {
+      if (results.any((r) => r != ConnectivityResult.none)) _register();
+    });
+  }
+
+  static void _stopRetrying() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _retryAttempt = 0;
+    _connSub?.cancel();
+    _connSub = null;
+  }
+
+  static Future<bool> _saveToken(String token) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) return false;
+    _token = token;
     try {
       // One doc per device token: a new sign-in on the same phone simply
       // moves the device to the new user.
@@ -224,13 +278,16 @@ class NotificationService {
         'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      return true;
     } catch (e) {
       debugPrint('[NotificationService] token save failed: $e');
+      return false;
     }
   }
 
   static Future<void> _forgetDevice() async {
     _registeredUid = null;
+    _token = null;
     try {
       // Invalidates the token (and its topic subscriptions) at FCM. The
       // server drops the orphaned deviceTokens doc on its next send.
@@ -248,9 +305,10 @@ class NotificationService {
 
   /// Subscribes a farmer's device to km_farmers + their crop topics (from
   /// fielddata), unsubscribing crops they no longer grow. Call on the farmer
-  /// home screen. No-op on web (topics need a server there).
+  /// home screen. On web the `syncWebTopics` function subscribes the
+  /// browser's token (browsers can't subscribe themselves).
   static Future<void> syncFarmerTopics(String uid) async {
-    if (kIsWeb || !await _pushSupported()) return;
+    if (!await _pushSupported()) return;
     try {
       final snap = await FirebaseFirestore.instance
           .collection('fielddata')
@@ -264,6 +322,16 @@ class NotificationService {
           final type = (c is Map ? c['type'] : null)?.toString() ?? '';
           if (type.trim().isNotEmpty) wanted.add(cropTopic(type));
         }
+      }
+      if (kIsWeb) {
+        final token = _token ??
+            await FirebaseMessaging.instance.getToken(vapidKey: fcmWebVapidKey);
+        if (token == null) return;
+        await _saveToken(token); // the function checks this device is yours
+        await FirebaseFunctions.instance
+            .httpsCallable('syncWebTopics')
+            .call({'token': token, 'topics': wanted.toList()});
+        return;
       }
       final prefs = await SharedPreferences.getInstance();
       final had = (prefs.getStringList(_topicsPrefKey) ?? const []).toSet();
@@ -301,6 +369,7 @@ class NotificationService {
         ),
         iOS: const DarwinNotificationDetails(
             presentAlert: true, presentBadge: true, presentSound: true),
+        web: WebNotificationDetails(iconUrl: Uri.parse('/icons/Icon-192.png')),
       );
 
   /// Shows a notification now, in the shared style.
@@ -358,6 +427,22 @@ class NotificationService {
     );
   }
 
+  /// `/?km_route=weather_station&gatewayId=…` → that route (web only). The
+  /// query is then removed from the address bar so a reload doesn't reopen it.
+  static ({String route, Map<String, String> args})? _routeFromWebUrl() {
+    final q = Uri.base.queryParameters;
+    final route = q['km_route'];
+    if (route == null || route.isEmpty) return null;
+    SystemNavigator.routeInformationUpdated(uri: Uri(path: '/'), replace: true);
+    return (
+      route: route,
+      args: {
+        for (final e in q.entries)
+          if (e.key != 'km_route') e.key: e.value,
+      },
+    );
+  }
+
   static ({String route, Map<String, String> args})? _routeFromPayload(
       String? payload) {
     if (payload == null || payload.isEmpty) return null;
@@ -396,8 +481,54 @@ class NotificationService {
     _handleTap(tap);
   }
 
+  // ── Android background delivery ───────────────────────────────────────────
+
+  /// Once per install on Android: if battery optimisation applies to the app,
+  /// explain that some phones (Tecno, Infinix, itel, Xiaomi, Oppo…) block
+  /// alerts while it's closed, and offer the app's settings page. FCM itself
+  /// needs nothing here — this is about the phone letting it through.
+  static Future<void> maybeShowBackgroundTip(BuildContext context) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_backgroundTipPrefKey) ?? false) return;
+      if (await Permission.ignoreBatteryOptimizations.isGranted) return;
+      await prefs.setBool(_backgroundTipPrefKey, true);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.notifications_active_rounded),
+          title: const Text('Get weather alerts when the app is closed'),
+          content: const Text(
+            'Some phones stop apps in the background to save battery, which '
+            'can block weather alerts and farm reminders.\n\n'
+            'In the app settings, open Battery and choose "Unrestricted" '
+            '(or "No restrictions"), and turn on "Autostart" if you see it.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                openAppSettings();
+              },
+              child: const Text('Open settings'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('[NotificationService] background tip failed: $e');
+    }
+  }
+
   @visibleForTesting
   static Future<void> dispose() async {
+    _stopRetrying();
     await _authSub?.cancel();
   }
 }

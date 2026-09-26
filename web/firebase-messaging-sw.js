@@ -19,20 +19,38 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Every Kilimo Mkononi push carries a `notification` payload, which the
+// Firebase SDK displays by itself (and opens webpush.fcmOptions.link —
+// /?km_route=… — when clicked). Showing it here too would duplicate it, so
+// only data-only messages are shown manually.
 messaging.onBackgroundMessage((payload) => {
-  const n = payload.notification || {};
-  self.registration.showNotification(n.title || 'Kilimo Mkononi', {
-    body: n.body || '',
+  if (payload.notification) return;
+  const d = payload.data || {};
+  if (!d.title) return;
+  self.registration.showNotification(d.title, {
+    body: d.body || '',
     icon: '/icons/Icon-192.png',
-    data: payload.data || {},
+    tag: d.tag || undefined,
+    data: d,
   });
 });
 
-// Open (or focus) the app when a notification is clicked.
+// Clicks on the data-only notifications shown above: open the app on the
+// right screen (same /?km_route=… link the SDK uses), focusing an open tab.
 self.addEventListener('notificationclick', (event) => {
+  const d = event.notification.data || {};
+  if (d.FCM_MSG) return; // shown by the Firebase SDK, which handles the click
   event.notification.close();
+  const qs = new URLSearchParams();
+  if (d.route) qs.set('km_route', d.route);
+  for (const [k, v] of Object.entries(d)) {
+    if (!['route', 'title', 'body', 'tag', 'channel', 'type'].includes(k)) qs.set(k, v);
+  }
+  const url = '/' + (qs.toString() ? '?' + qs.toString() : '');
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-    for (const c of list) { if ('focus' in c) return c.focus(); }
-    return clients.openWindow('/');
+    for (const c of list) {
+      if ('navigate' in c) return c.navigate(url).then((w) => (w || c).focus());
+    }
+    return clients.openWindow(url);
   }));
 });

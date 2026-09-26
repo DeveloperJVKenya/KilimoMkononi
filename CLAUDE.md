@@ -23,7 +23,7 @@ flutter pub get                     # install dependencies
 flutter run -d <chrome|windows|...> # run app
 flutter analyze                     # static analysis (flutter_lints)
 flutter test                        # run all tests
-flutter test test/widget_test.dart  # run a single test file
+flutter test test/advisory_test.dart # run a single test file
 flutter build apk|appbundle|ios|web|windows|macos|linux
 ```
 
@@ -58,8 +58,13 @@ npm run logs     # firebase functions:log
   three of the four callers silently.
 - **IoT weather stations (NuaSense)**: `nuasense_service.dart` calls the `getNuaSenseData` callable
   function, which whitelists endpoints and requires an authenticated Firebase user.
-- **Weather**: OpenWeatherMap goes through the `getOpenWeather` callable via
-  `lib/services/open_weather_proxy.dart`.
+- **Weather (farmer)**: Google Weather API (current, 24 h, 7 days) + Geocoding go through the
+  `getGoogleWeather` callable (`functions/google_weather.js`, secret `GOOGLE_WEATHER_KEY`, a key
+  restricted to those two APIs) via `lib/services/google_weather_service.dart`; UI pieces in
+  `lib/widgets/google_weather_widgets.dart`. The Weather screen uses device location / the farm /
+  a typed place; the Weather Station screen shows it next to the station's own readings. Always
+  label the two sources (`WeatherSourceBadge`): advisories and alerts come ONLY from station data.
+  Education mode still uses OpenWeatherMap via `getOpenWeather` / `open_weather_proxy.dart`.
 - **Climate data**: `nasa_power_service.dart` hits NASA POWER directly (no key).
 
 ### Offline-first writes
@@ -94,11 +99,21 @@ top of it. Don't hand-roll classId parsing elsewhere.
   crop topics; admin TEST advisories → the admin only), education approval pushes. Every
   per-user push is also written to `userNotifications/{uid}/items` (Notifications → Inbox tab).
   Push `data` (e.g. `gatewayId`) reaches the opened screen via `routeHandler(route, args)`.
+- Delivery rules live in `buildMessage`: per-type expiry (weather alerts 6 h, advice 2 days,
+  approvals 7 days) so offline phones don't get stale alerts, and collapse keys so a newer alert
+  for the same station + hazard replaces the older one.
+- Web: the SDK shows background pushes itself; `webpush.fcmOptions.link` opens
+  `/?km_route=…` which `NotificationService` reads on start-up (`web/firebase-messaging-sw.js`
+  only shows data-only messages). VAPID key: `lib/config/push_config.dart` (public, set once;
+  empty = Firebase SDK default key). Browsers get crop topics through the `syncWebTopics` callable.
 - Devices: `deviceTokens/{fcmToken} {uid}`; farmers subscribe to `km_farmers` + `km_crop_<slug>`.
+  Token registration retries with backoff and on reconnect if it fails (e.g. signed in offline).
   Channel ids, routes and topic slugs must match between Dart and JS —
   `test/notification_contract_test.dart` checks this.
 - Local reminders use `AndroidScheduleMode.inexactAllowWhileIdle` (no exact-alarm permission).
 - Tests: `cd functions && npm test` (emulator; FCM is faked) or `npm run test:unit`.
+- Deploy functions with `FUNCTIONS_DISCOVERY_TIMEOUT=120 firebase deploy --only functions` — the
+  default 10 s code-analysis timeout often fails on a cold start ("An unexpected error").
 - IoT soil data is intentionally simulated (`IotDataSource.simulated` in iot_sensor_service.dart).
 
 ### State / DI

@@ -20,6 +20,7 @@
 //      firebase functions:secrets:set KINDWISE_CROP_HEALTH_KEY
 //      firebase functions:secrets:set KINDWISE_PLANT_ID_KEY
 //      firebase functions:secrets:set KINDWISE_INSECT_ID_KEY
+//      firebase functions:secrets:set GOOGLE_WEATHER_KEY   (Weather + Geocoding APIs only)
 
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret }      = require("firebase-functions/params");
@@ -35,6 +36,7 @@ const OPENWEATHER_KEY          = defineSecret("OPENWEATHER_KEY");
 const KINDWISE_CROP_HEALTH_KEY = defineSecret("KINDWISE_CROP_HEALTH_KEY");
 const KINDWISE_PLANT_ID_KEY    = defineSecret("KINDWISE_PLANT_ID_KEY");
 const KINDWISE_INSECT_ID_KEY   = defineSecret("KINDWISE_INSECT_ID_KEY");
+const GOOGLE_WEATHER_KEY       = defineSecret("GOOGLE_WEATHER_KEY");
 
 // Per-request abuse limits for the Gemini proxy.
 const MAX_PROMPT_CHARS = 60000;
@@ -529,5 +531,13 @@ async function readJson(res) {
 }
 
 // ── Push notifications (FCM) — see functions/notifications.js ────────────────
-const { createNotificationFunctions } = require("./notifications");
+const { createNotificationFunctions, createWebTopicsFunction } = require("./notifications");
 Object.assign(exports, createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }));
+// Browser push tokens → crop topics (lib/services/notification_service.dart).
+exports.syncWebTopics = createWebTopicsFunction();
+
+// ── Google Weather (forecast / area weather) — see functions/google_weather.js ─
+// Used by the Weather screen and alongside station data on the Weather
+// Station screen (lib/services/google_weather_service.dart).
+const { createGoogleWeatherFunction } = require("./google_weather");
+exports.getGoogleWeather = createGoogleWeatherFunction({ GOOGLE_WEATHER_KEY });

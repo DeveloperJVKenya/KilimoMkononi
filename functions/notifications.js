@@ -27,7 +27,9 @@
 //
 // Channels / routes / icon must match lib/services/notification_service.dart.
 
+const { createHash } = require("node:crypto");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const {
   onDocumentWritten,
   onDocumentCreated,
@@ -49,6 +51,21 @@ const ROUTE = {
 };
 const ICON = "ic_stat_km";
 const COLOR = "#2A6B2A";
+
+// Web app origin — web pushes open `${WEB_APP_URL}/?km_route=…` when tapped
+// (read by NotificationService on web start-up). Override with KM_WEB_APP_URL.
+const WEB_APP_URL = process.env.KM_WEB_APP_URL || "https://kilimomkononi-e1031.web.app";
+
+// How long an undelivered push stays worth delivering. A phone that's been
+// offline longer never gets it (FCM drops it) — no "heavy rain now" three days
+// late. The in-app inbox keeps the record regardless.
+const TTL_SECONDS = {
+  weather_alert: 6 * 60 * 60,
+  advisory: 2 * 24 * 60 * 60,
+  approval_request: 7 * 24 * 60 * 60,
+  approval_decision: 7 * 24 * 60 * 60,
+  general: 3 * 24 * 60 * 60,
+};
 
 // Re-alert the same station/category only after this long (unless it worsens).
 const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
@@ -332,19 +349,104 @@ function topicConditions(topics) {
   return out;
 }
 
-/** Common message shape (notification + data) for every push. */
-function buildMessage(n) {
+/**
+ * Pushes that supersede each other share a collapse key: a newer alert for
+ * the same station + hazard (or a re-send of the same advice) replaces the
+ * older one — in the tray, and in FCM's queue for offline phones.
+ */
+function collapseKeyFor(n) {
+  const d = n.data || {};
+  if (n.type === "weather_alert" && d.gatewayId && d.category) return `wx_${d.gatewayId}_${d.category}`;
+  if (n.type === "advisory" && d.advisoryId) return `adv_${d.advisoryId}`;
+  return null;
+}
+
+/** Where a web push opens: the web app, with the route + its data. */
+function webLink(route, extra) {
+  const qs = new URLSearchParams({ km_route: route });
+  for (const [k, v] of Object.entries(extra || {})) qs.set(k, String(v));
+  return `${WEB_APP_URL}/?${qs}`;
+}
+
+// Web Push "Topic" header: max 32 URL-safe chars.
+const webPushTopic = (key) => createHash("sha256").update(key).digest("base64url").slice(0, 32);
+
+/** Common message shape (notification + data + per-platform delivery rules). */
+function buildMessage(n, nowMs = Date.now()) {
   const data = { route: n.route || ROUTE.notifications, channel: n.channel, type: n.type || "general" };
   for (const [k, v] of Object.entries(n.data || {})) data[k] = String(v);
+  const ttl = TTL_SECONDS[n.type] ?? TTL_SECONDS.general;
+  const collapse = collapseKeyFor(n);
   return {
     notification: { title: n.title, body: n.body },
     data,
     android: {
       priority: "high",
-      notification: { channelId: n.channel, icon: ICON, color: COLOR },
+      ttl: ttl * 1000,
+      ...(collapse ? { collapseKey: collapse } : {}),
+      notification: { channelId: n.channel, icon: ICON, color: COLOR, ...(collapse ? { tag: collapse } : {}) },
     },
-    apns: { payload: { aps: { sound: "default" } } },
+    apns: {
+      headers: {
+        "apns-expiration": String(Math.floor(nowMs / 1000) + ttl),
+        ...(collapse ? { "apns-collapse-id": collapse.slice(0, 64) } : {}),
+      },
+      payload: { aps: { sound: "default" } },
+    },
+    webpush: {
+      headers: {
+        TTL: String(ttl),
+        Urgency: n.type === "weather_alert" ? "high" : "normal",
+        ...(collapse ? { Topic: webPushTopic(collapse) } : {}),
+      },
+      notification: { icon: "/icons/Icon-192.png", ...(collapse ? { tag: collapse } : {}) },
+      fcmOptions: { link: webLink(data.route, n.data) },
+    },
   };
+}
+
+// ── Web topics ───────────────────────────────────────────────────────────────
+// Browsers can't subscribe themselves to FCM topics (mobile SDKs can), so
+// the web app asks this function to do it for its token — then web farmers
+// get crop-topic advice too.
+const TOPIC_RE = /^km_(farmers|crop_[a-z0-9_]{1,40})$/;
+
+/** Topics to subscribe / unsubscribe to go from `had` to `wanted`. */
+function topicDiff(had, wanted) {
+  const h = new Set(had || []);
+  const w = new Set(wanted || []);
+  return { add: [...w].filter((t) => !h.has(t)), remove: [...h].filter((t) => !w.has(t)) };
+}
+
+function validateWebTopics(data) {
+  const token = String(data?.token ?? "");
+  const topics = Array.isArray(data?.topics) ? [...new Set(data.topics.map(String))] : null;
+  if (token.length < 20 || token.length > 4096 || token.includes("/")) {
+    throw new HttpsError("invalid-argument", "Invalid device token.");
+  }
+  if (!topics || topics.length > 25 || !topics.every((t) => TOPIC_RE.test(t))) {
+    throw new HttpsError("invalid-argument", "Invalid topics.");
+  }
+  return { token, topics };
+}
+
+function createWebTopicsFunction() {
+  return onCall({ timeoutSeconds: 30, memory: "256MiB", maxInstances: 10 }, async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    const { token, topics } = validateWebTopics(request.data);
+    const db = getFirestore();
+    const device = await db.collection("deviceTokens").doc(token).get();
+    if (!device.exists || device.data().uid !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "That device isn't registered to you.");
+    }
+    const stateRef = db.collection("webTopicState").doc(token);
+    const state = await stateRef.get();
+    const { add, remove } = topicDiff(state.exists ? state.data().topics : [], topics);
+    for (const t of add) await messaging().subscribeToTopic([token], t);
+    for (const t of remove) await messaging().unsubscribeFromTopic([token], t);
+    await stateRef.set({ uid: request.auth.uid, topics, updatedAt: FieldValue.serverTimestamp() });
+    return { added: add, removed: remove };
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -721,8 +823,14 @@ function createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }) 
 
 module.exports = {
   createNotificationFunctions,
+  createWebTopicsFunction,
   // exported for tests
   createWeatherSweep,
+  collapseKeyFor,
+  webLink,
+  topicDiff,
+  validateWebTopics,
+  TTL_SECONDS,
   cropTopic,
   parseReading,
   activeConditions,

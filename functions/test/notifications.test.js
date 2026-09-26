@@ -170,6 +170,50 @@ describe("buildMessage", () => {
   });
 });
 
+describe("delivery rules: expiry, collapsing, web links", () => {
+  const now = Date.UTC(2026, 8, 24, 12);
+  test("weather alerts expire in 6h and replace the previous alert of the same kind", () => {
+    const m = n.buildMessage({ title: "t", body: "b", channel: n.CHANNEL.weather, route: n.ROUTE.weatherStation,
+      type: "weather_alert", data: { category: "heavy_rain", gatewayId: "gw1" } }, now);
+    assert.equal(m.android.ttl, 6 * 3600 * 1000);
+    assert.equal(m.android.collapseKey, "wx_gw1_heavy_rain");
+    assert.equal(m.android.notification.tag, "wx_gw1_heavy_rain");
+    assert.equal(m.apns.headers["apns-expiration"], String(now / 1000 + 6 * 3600));
+    assert.equal(m.apns.headers["apns-collapse-id"], "wx_gw1_heavy_rain");
+    assert.equal(m.webpush.headers.TTL, String(6 * 3600));
+    assert.equal(m.webpush.headers.Urgency, "high");
+    assert.ok(m.webpush.headers.Topic.length <= 32);
+  });
+  test("approvals keep for a week and never collapse", () => {
+    const m = n.buildMessage({ title: "t", body: "b", channel: n.CHANNEL.approvals, route: n.ROUTE.eduHome, type: "approval_decision" }, now);
+    assert.equal(m.android.ttl, 7 * 86400 * 1000);
+    assert.equal(m.android.collapseKey, undefined);
+    assert.equal(m.webpush.headers.Topic, undefined);
+  });
+  test("web pushes open the web app on the right screen", () => {
+    const m = n.buildMessage({ title: "t", body: "b", channel: n.CHANNEL.advisories, route: n.ROUTE.weatherStation,
+      type: "advisory", data: { advisoryId: "a1", gatewayId: "gw1" } }, now);
+    const url = new URL(m.webpush.fcmOptions.link);
+    assert.equal(url.protocol, "https:");
+    assert.equal(url.searchParams.get("km_route"), "weather_station");
+    assert.equal(url.searchParams.get("gatewayId"), "gw1");
+    assert.equal(m.android.collapseKey, "adv_a1");
+  });
+});
+
+describe("web topics", () => {
+  test("diff and validation", () => {
+    assert.deepEqual(n.topicDiff(["km_farmers", "km_crop_maize"], ["km_farmers", "km_crop_beans"]),
+      { add: ["km_crop_beans"], remove: ["km_crop_maize"] });
+    const token = "t".repeat(40);
+    assert.deepEqual(n.validateWebTopics({ token, topics: ["km_farmers", "km_crop_irish_potatoes"] }).topics,
+      ["km_farmers", "km_crop_irish_potatoes"]);
+    assert.throws(() => n.validateWebTopics({ token, topics: ["news"] }));
+    assert.throws(() => n.validateWebTopics({ token: "short", topics: [] }));
+    assert.throws(() => n.validateWebTopics({ token: token + "/x", topics: [] }));
+  });
+});
+
 // ── Triggers against the Firestore emulator ─────────────────────────────────
 const emulator = !!process.env.FIRESTORE_EMULATOR_HOST;
 
@@ -194,13 +238,15 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
         };
       },
       send: async (m) => { sent.push({ kind: "condition", ...m }); return "id"; },
+      subscribeToTopic: async (tokens, topic) => { sent.push({ kind: "sub", tokens, topic }); },
+      unsubscribeFromTopic: async (tokens, topic) => { sent.push({ kind: "unsub", tokens, topic }); },
     });
   });
 
   beforeEach(async () => {
     sent = [];
     const cols = ["deviceTokens", "stationAssignments", "EducationUsers", "userNotifications",
-      "fielddata", "agronomic_advisories", "advisoryDelivery", "alertState"];
+      "fielddata", "agronomic_advisories", "advisoryDelivery", "alertState", "webTopicState"];
     for (const c of cols) {
       const docs = await db.collection(c).listDocuments();
       await Promise.all(docs.map((d) => db.recursiveDelete(d)));
@@ -374,6 +420,19 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
     // The alert covered "windy" — no second wind push in the same run.
     assert.equal(sent.length, 1);
     assert.ok(!sent.some((m) => /TEST/.test(m.notification.body)));
+  });
+
+  test("web topics: only the token's owner can subscribe it; changes are diffed", async () => {
+    const webTokens = n.createWebTopicsFunction();
+    const token = "web-token-farmer1-0123456789";
+    await db.doc(`deviceTokens/${token}`).set({ uid: "farmer1", platform: "web" });
+    await assert.rejects(webTokens.run({ auth: { uid: "intruder" }, data: { token, topics: ["km_farmers"] } }),
+      /isn't registered to you/);
+    await webTokens.run({ auth: { uid: "farmer1" }, data: { token, topics: ["km_farmers", "km_crop_maize"] } });
+    assert.deepEqual(sent.map((m) => `${m.kind}:${m.topic}`).sort(), ["sub:km_crop_maize", "sub:km_farmers"]);
+    sent = [];
+    await webTokens.run({ auth: { uid: "farmer1" }, data: { token, topics: ["km_farmers", "km_crop_beans"] } });
+    assert.deepEqual(sent.map((m) => `${m.kind}:${m.topic}`).sort(), ["sub:km_crop_beans", "unsub:km_crop_maize"]);
   });
 
   test("education sign-up → approvers of the right role and school; decision → applicant", async () => {

@@ -25,6 +25,9 @@ import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dar
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
+import 'package:kilimomkononi/screens/weather_screen.dart';
+import 'package:kilimomkononi/services/google_weather_service.dart';
+import 'package:kilimomkononi/widgets/google_weather_widgets.dart';
 
 const _kAskGeminiFunctionUrl =
     'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini';
@@ -118,6 +121,12 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
 
   AgronomistNote? _agronomistNote;
   bool _agronomistLoading = false;
+
+  // Google's area forecast, shown alongside (never instead of) the station.
+  GoogleWeather? _google;
+  String? _googlePlace;
+  bool _googleLoading = false;
+  String? _googleError;
 
   // Verified (published) advisories matching crop + current weather.
   List<AgronomicAdvisory> _verifiedAdvice = [];
@@ -317,6 +326,7 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
         _loading = false;
       });
       debugPrint('Using station: $_selectedStationId');
+      _loadGoogleForecast(loc);
       if (reading.isProvisioned) {
         _loadVerifiedAdvice();
         // No AI advice from an offline station's placeholder zeros.
@@ -337,6 +347,68 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
         _loading = false;
       });
     }
+  }
+
+  /// Google forecast at the station's coordinates (from NuaSense), else the
+  /// farm's location.
+  Future<void> _loadGoogleForecast(FarmLocation farm) async {
+    NuaStation? station;
+    for (final s in _stations) {
+      if (s.id == _selectedStationId) station = s;
+    }
+    final useStation = station?.lat != null && station?.lon != null;
+    final lat = useStation ? station!.lat! : farm.latitude;
+    final lon = useStation ? station!.lon! : farm.longitude;
+    setState(() {
+      _googleLoading = true;
+      _googleError = null;
+    });
+    try {
+      final w = await GoogleWeatherService.forLocation(lat, lon);
+      if (!mounted) return;
+      setState(() {
+        _google = w;
+        _googlePlace = useStation
+            ? (station!.name.isNotEmpty ? '${station.name} (station area)' : 'your station area')
+            : farm.displayLabel;
+        _googleLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _googleLoading = false;
+        _googleError = GoogleWeatherService.friendlyError(e);
+      });
+    }
+  }
+
+  Widget _buildGoogleForecast() {
+    if (_google != null) {
+      return GoogleForecastCompactCard(
+        weather: _google!,
+        place: _googlePlace,
+        onOpenFull: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const WeatherScreen())),
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const WeatherSourceBadge(WeatherSource.google),
+        const SizedBox(height: 10),
+        if (_googleLoading)
+          const LinearProgressIndicator(minHeight: 2)
+        else
+          Text(_googleError ?? 'Forecast not available.',
+              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+      ]),
+    );
   }
 
   Future<void> _loadAgronomistNote() async {
@@ -518,6 +590,11 @@ Farm conditions (context only — do not list these back):
                         children: [
                           if (_isFieldAgronomist) _buildAgronomistEntry(),
                           _noGpsBanner(),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: WeatherSourceBadge(WeatherSource.station),
+                          ),
+                          const SizedBox(height: 8),
                           _buildStatusBar(),
                           const SizedBox(height: 14),
                           if (_reading!.hasData) ...[
@@ -528,6 +605,9 @@ Farm conditions (context only — do not list these back):
                             _buildConditionsSummary(plan),
                           ] else
                             _buildOfflineCard(),
+                          const SizedBox(height: 16),
+                          _sectionLabel('Forecast for your area'),
+                          _buildGoogleForecast(),
                           const SizedBox(height: 16),
                           if (_adminTestMode) ...[
                             _buildAdminPreview(),
