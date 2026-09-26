@@ -56,6 +56,8 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
   String? _aiDraft;
 
   bool _verified = false;
+  // Editing already-published advice: re-notify farmers only if asked.
+  bool _notifyFarmers = false;
   bool _aiBusy = false;
   bool _saving = false;
   bool _dirty = false;
@@ -179,6 +181,15 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
     if (_advice.main.length > 200) {
       return 'Keep the main action under 200 characters.';
     }
+    if (_advice.doList.length > 10 || _advice.avoidList.length > 10) {
+      return 'Keep DO and AVOID to 10 lines each.';
+    }
+    if ([..._advice.doList, ..._advice.avoidList].any((l) => l.length > 160)) {
+      return 'Keep each DO / AVOID line under 160 characters.';
+    }
+    if (_advice.why.length > 600) {
+      return 'Keep the WHY under 600 characters.';
+    }
     if (forPublish && _advice.doList.isEmpty && _advice.avoidList.isEmpty) {
       return 'Add at least one DO or AVOID line before publishing.';
     }
@@ -234,19 +245,25 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
     try {
       await AgronomicAdvisoryService.save(
         id: _existing?.id,
+        expectedVersion: _existing?.version,
         content: _content,
         status: status,
         action: action,
+        notifyFarmers: _notifyFarmers,
       );
       if (!mounted) return;
       _snack(switch (action) {
         'published' when _testOnly => 'Published in TEST mode — admins only.',
         'republished' when _testOnly => 'Test advisory updated.',
         'published' => 'Verified and published to farmers.',
-        'republished' => 'Published advice updated.',
+        'republished' when _notifyFarmers =>
+          'Published advice updated — farmers will be notified.',
+        'republished' => 'Published advice updated (no new notification).',
         _ => 'Draft saved.',
       });
       _close(true);
+    } on AdvisoryConflictException catch (e) {
+      _snack('$e', error: true);
     } catch (e) {
       _snack('Save failed: $e', error: true);
     } finally {
@@ -405,6 +422,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                 ),
               ),
               if (!_readOnly) _verificationBox(),
+              if (!_readOnly && _isPublished) _notifyBox(),
               if (e != null)
                 _section(
                   'Audit history',
@@ -708,6 +726,34 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
         subtitle: const Text(
           'It is agronomically sound for the selected crops and weather condition. '
           'Your name will be shown to farmers as the verifying agronomist.',
+          style: TextStyle(fontSize: 11.5, height: 1.35),
+        ),
+      ),
+    ),
+  );
+
+  Widget _notifyBox() => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AdvisoryColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: CheckboxListTile(
+        value: _notifyFarmers,
+        activeColor: AdvisoryColors.verified,
+        controlAffinity: ListTileControlAffinity.leading,
+        onChanged: (v) => setState(() => _notifyFarmers = v ?? false),
+        title: const Text(
+          'Notify farmers about this change',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        subtitle: const Text(
+          'Leave off for small corrections. When on, farmers get the updated '
+          'advice again — straight away for "Any conditions", otherwise the '
+          'next time the condition occurs at their station.',
           style: TextStyle(fontSize: 11.5, height: 1.35),
         ),
       ),

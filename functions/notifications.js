@@ -3,13 +3,21 @@
 // Push notifications (Firebase Cloud Messaging) for Kilimo Mkononi.
 // Wired into index.js via createNotificationFunctions().
 //
-//   weatherAlertSweep      hourly: reads every assigned NuaSense station,
-//                          pushes HIGH/CRITICAL weather alerts to the farmers
-//                          on that station (with the matching verified
-//                          advisory, if a Field Agronomist has published one).
-//   onAdvisoryPublished    a Field Agronomist publishes / updates advice →
-//                          farmers on that station, or on the advice's crop
-//                          topics. Admin TEST advisories go to the admin only.
+//   weatherAlertSweep      hourly, per assigned NuaSense station:
+//                          • HIGH/CRITICAL weather alerts to the farmers on
+//                            that station, each with the verified advisory
+//                            that matches THEIR crops (if one is published);
+//                          • condition-targeted verified advice (Raining,
+//                            Wet leaves, …) when that condition is actually
+//                            occurring at the station — once per farmer per
+//                            advisory, repeated at most daily while it lasts.
+//   onAdvisoryPublished    a Field Agronomist publishes "Any conditions"
+//                          advice (or updates it and ticks "notify") →
+//                          farmers on that station growing those crops, or
+//                          the crop topics. Condition-targeted advice is NOT
+//                          pushed at publish time (it may not apply today);
+//                          the sweep delivers it when the condition occurs.
+//                          Admin TEST advisories go to the admin only.
 //   onEducationSignup      new education account → its approvers.
 //   onEducationDecision    approved / denied → the applicant.
 //
@@ -44,6 +52,8 @@ const COLOR = "#2A6B2A";
 
 // Re-alert the same station/category only after this long (unless it worsens).
 const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+// Re-send the same condition advice to a farmer at most this often.
+const ADVISORY_REPEAT_MS = 24 * 60 * 60 * 1000;
 // Ignore stations whose latest reading is older than this (offline).
 const STALE_READING_MS = 3 * 60 * 60 * 1000;
 
@@ -56,6 +66,7 @@ const CONDITION_LABELS = {
   high_wind: "Windy",
   heat: "Hot",
   cool: "Cool",
+  frost: "Frost risk",
   dry_stress: "Dry air / water stress",
   good_spray: "Good spray window",
 };
@@ -80,14 +91,14 @@ function cropTopic(crop) {
 
 /** Parses NuaSense /weather + /derived responses (same shape the app parses). */
 function parseReading(weather, derived) {
+  const series = weather?.series || [];
   const last = (id) => {
-    const s = (weather?.series || []).find((x) => x.id === id);
+    const s = series.find((x) => x.id === id);
     const pts = s?.data || [];
     return pts.length ? Number(pts[pts.length - 1].y) || 0 : 0;
   };
   const lastTime = () => {
-    const s = (weather?.series || [])[0];
-    const pts = s?.data || [];
+    const pts = series[0]?.data || [];
     return pts.length ? new Date(pts[pts.length - 1].x) : null;
   };
   const pts = derived?.points || [];
@@ -98,60 +109,89 @@ function parseReading(weather, derived) {
     rainfall: last("rainfall"),
     windSpeed: last("wind_speed"),
     windGusts: last("wind_gusts"),
-    lwdHour: Number(d.lwd_hour) || 0,
+    lwdHour: Math.round(Number(d.lwd_hour) || 0),
     lwdConsecutiveHours: Number(d.lwd_consecutive_hours) || 0,
+    vpd: Number(d.vpd) || 0,
+    sprayQualityIndex: Number(d.spray_quality_index) || 0,
+    sprayQualityLabel: d.spray_quality_label ? String(d.spray_quality_label) : "",
+    // No points in the window = offline station; every value above is then a
+    // placeholder 0 and must not be read as 0°C / 0% humidity.
+    hasData: series.some((s) => (s?.data || []).length > 0),
     timestamp: lastTime(),
   };
 }
 
 /**
+ * Advisory condition keys active for a reading — mirrors
+ * activeConditionKeys() in advisory_conditions.dart. Always has "general".
+ */
+function activeConditions(r) {
+  const keys = new Set(["general"]);
+  if (!r || !r.hasData) return keys;
+  const raining = r.rainfall > 0.1;
+  if (raining) keys.add("raining");
+  if (r.lwdHour === 1 || r.lwdConsecutiveHours >= 6) keys.add("wet_leaves");
+  if (r.humidity > 80) keys.add("high_humidity");
+  if (r.windSpeed > 5) keys.add("high_wind");
+  if (r.airTemp > 32) keys.add("heat");
+  if (r.airTemp < 15) keys.add("cool");
+  if (r.airTemp <= 4) keys.add("frost");
+  if (r.vpd > 2.5 || r.humidity < 40) keys.add("dry_stress");
+  const goodSpray = r.sprayQualityLabel ? r.sprayQualityIndex >= 70 : r.windSpeed < 3.0;
+  if (goodSpray && !raining) keys.add("good_spray");
+  return keys;
+}
+
+/**
  * HIGH / CRITICAL alerts worth waking a farmer for. Milder conditions are
  * already covered by the in-app day plan — pushes are for real risk only.
- * `advisoryCondition` links an alert to a Field Agronomist advisory condition.
+ * `advisoryConditions` links an alert to Field Agronomist advisory
+ * conditions, most specific first.
  */
 function computeWeatherAlerts(r) {
   const alerts = [];
-  const add = (category, severity, title, body, advisoryCondition) =>
-    alerts.push({ category, severity, title, body, advisoryCondition });
+  const add = (category, severity, title, body, advisoryConditions) =>
+    alerts.push({ category, severity, title, body, advisoryConditions });
 
   if (r.rainfall >= 25) {
     add("heavy_rain", "critical", "Very heavy rain at your farm",
-      `${r.rainfall.toFixed(1)} mm in the last hour. Check drainage and hold spraying, fertiliser and field work.`, "raining");
+      `${r.rainfall.toFixed(1)} mm in the last hour. Check drainage and hold spraying, fertiliser and field work.`, ["raining"]);
   } else if (r.rainfall >= 10) {
     add("heavy_rain", "high", "Heavy rain at your farm",
-      `${r.rainfall.toFixed(1)} mm in the last hour. Hold spraying and top-dressing until it clears.`, "raining");
+      `${r.rainfall.toFixed(1)} mm in the last hour. Hold spraying and top-dressing until it clears.`, ["raining"]);
   }
 
   if (r.windSpeed >= 12 || r.windGusts >= 18) {
     add("strong_wind", "critical", "Dangerous wind at your farm",
-      `Wind ${r.windSpeed.toFixed(1)} m/s (gusts ${r.windGusts.toFixed(0)}). Do not spray; secure nurseries and structures.`, "high_wind");
+      `Wind ${r.windSpeed.toFixed(1)} m/s (gusts ${r.windGusts.toFixed(0)}). Do not spray; secure nurseries and structures.`, ["high_wind"]);
   } else if (r.windSpeed >= 8) {
     add("strong_wind", "high", "Strong wind — don't spray",
-      `Wind ${r.windSpeed.toFixed(1)} m/s. Spray will drift; wait for calmer conditions.`, "high_wind");
+      `Wind ${r.windSpeed.toFixed(1)} m/s. Spray will drift; wait for calmer conditions.`, ["high_wind"]);
   }
 
   if (r.airTemp >= 38) {
     add("heat", "critical", "Extreme heat at your farm",
-      `${r.airTemp.toFixed(1)}°C. Irrigate early or late, shade seedlings, avoid field work at midday.`, "heat");
+      `${r.airTemp.toFixed(1)}°C. Irrigate early or late, shade seedlings, avoid field work at midday.`, ["heat"]);
   } else if (r.airTemp >= 35) {
     add("heat", "high", "Heat stress risk",
-      `${r.airTemp.toFixed(1)}°C. Water crops early morning and watch for wilting.`, "heat");
+      `${r.airTemp.toFixed(1)}°C. Water crops early morning and watch for wilting.`, ["heat"]);
   }
 
+  // Frost advice first; general cool-weather advice only if there's none.
   if (r.airTemp <= 2) {
     add("frost", "critical", "Frost at your farm",
-      `${r.airTemp.toFixed(1)}°C. Cover seedlings and sensitive crops now.`, "cool");
+      `${r.airTemp.toFixed(1)}°C. Cover seedlings and sensitive crops now.`, ["frost", "cool"]);
   } else if (r.airTemp <= 4) {
     add("frost", "high", "Frost risk tonight",
-      `${r.airTemp.toFixed(1)}°C and falling. Protect seedlings and sensitive crops.`, "cool");
+      `${r.airTemp.toFixed(1)}°C and falling. Protect seedlings and sensitive crops.`, ["frost", "cool"]);
   }
 
   if (r.lwdConsecutiveHours >= 18 && r.humidity >= 85) {
     add("fungal", "critical", "Severe fungal disease risk",
-      `Leaves wet for ${r.lwdConsecutiveHours}h. Scout for blight and leaf spot today.`, "wet_leaves");
+      `Leaves wet for ${r.lwdConsecutiveHours}h. Scout for blight and leaf spot today.`, ["wet_leaves"]);
   } else if (r.lwdConsecutiveHours >= 10 && r.humidity >= 85) {
     add("fungal", "high", "High fungal disease risk",
-      `Leaves wet for ${r.lwdConsecutiveHours}h in humid air. Scout lower leaves for disease.`, "wet_leaves");
+      `Leaves wet for ${r.lwdConsecutiveHours}h in humid air. Scout lower leaves for disease.`, ["wet_leaves"]);
   }
   return alerts;
 }
@@ -164,36 +204,108 @@ function shouldSendAlert(previous, alert, nowMs) {
   return nowMs - lastMs >= ALERT_COOLDOWN_MS;
 }
 
-/** Does this advisory write warrant a push? null | "new" | "updated". */
+// ── Crops (mirror of cropsMatch() in advisory_conditions.dart) ───────────────
+const norm = (s) => String(s).trim().toLowerCase();
+
+function isForAllCrops(advisoryCrops) {
+  return (advisoryCrops || []).some((c) => norm(c) === "all crops");
+}
+
+/**
+ * Does advice for `advisoryCrops` apply to a farmer growing `farmerCrops`?
+ * [] = farmer recorded no crops → matches everything (same as the app).
+ * null = crops unknown (lookup failed) → only "All crops" advice.
+ */
+function cropsMatch(advisoryCrops, farmerCrops) {
+  if (isForAllCrops(advisoryCrops)) return true;
+  if (farmerCrops === null || farmerCrops === undefined) return false;
+  if (!farmerCrops.length) return true;
+  const mine = new Set(farmerCrops.map(norm));
+  return (advisoryCrops || []).some((c) => mine.has(norm(c)));
+}
+
+const publishedMs = (a) => a.publishedAt?.toMillis?.() || Number(a.publishedAt) || 0;
+
+/**
+ * Advisories that apply at `gatewayId`, most specific first: station-scoped
+ * before all-stations, a specific condition before "general", then newest.
+ * Same order as AgronomicAdvisoryService.publishedFor() in the app.
+ */
+function rankAdvisories(advisories, gatewayId) {
+  const rank = (a) => (a.gatewayId ? 0 : 2) + ((a.condition || "general") === "general" ? 1 : 0);
+  return advisories
+    .filter((a) => !a.gatewayId || a.gatewayId === gatewayId)
+    .sort((a, b) => rank(a) - rank(b) || publishedMs(b) - publishedMs(a));
+}
+
+/** The best advisory for one farmer (their crops, their station), or null. */
+function bestAdvisoryFor(advisories, farmerCrops, gatewayId) {
+  return rankAdvisories(advisories, gatewayId).find((a) => cropsMatch(a.crops, farmerCrops)) || null;
+}
+
+/** Version farmers were last (to be) notified about; older docs lack it. */
+function notifyVersionOf(a) {
+  return Number.isInteger(a.notifyVersion) ? a.notifyVersion : a.version;
+}
+
+/** Deliver condition advice to a farmer? New, re-notified, or a day old. */
+function shouldDeliverAdvisory(previous, advisory, nowMs) {
+  if (!previous) return true;
+  if (previous.notifyVersion !== notifyVersionOf(advisory)) return true;
+  const lastMs = previous.lastSentAt?.toMillis ? previous.lastSentAt.toMillis() : Number(previous.lastSentAt) || 0;
+  return nowMs - lastMs >= ADVISORY_REPEAT_MS;
+}
+
+/**
+ * Does this advisory write warrant a publish-time push? null | "new" | "updated".
+ * Updates only notify when the agronomist ticked "Notify farmers" — the app
+ * then sets notifyVersion to the new version.
+ */
 function advisoryPushKind(before, after) {
   if (!after || after.status !== "published") return null;
   if (!before || before.status !== "published") return "new";
-  if (before.version !== after.version) return "updated";
+  if (before.version === after.version) return null;
+  if (Number.isInteger(after.notifyVersion) &&
+      after.notifyVersion === after.version &&
+      after.notifyVersion !== before.notifyVersion) {
+    return "updated";
+  }
   return null;
 }
 
-/** Who an advisory push goes to. */
+/**
+ * Pushed when published? Only "Any conditions" advice — condition-targeted
+ * advice is delivered by the sweep when its condition occurs. Admin TEST
+ * advisories always go to the admin straight away, to try the flow.
+ */
+function pushesAtPublish(a) {
+  return !!a.testOnly || (a.condition || "general") === "general";
+}
+
+/** Who a publish-time advisory push goes to. */
 function advisoryAudience(a) {
   if (a.testOnly) return { type: "users", uids: [a.publishedBy].filter(Boolean) };
   if (a.gatewayId) return { type: "station", gatewayId: a.gatewayId };
   const crops = a.crops || [];
-  if (!crops.length || crops.some((c) => String(c).toLowerCase() === "all crops")) {
+  if (!crops.length || isForAllCrops(crops)) {
     return { type: "topics", topics: ["km_farmers"] };
   }
   return { type: "topics", topics: [...new Set(crops.map(cropTopic))] };
 }
 
-function advisoryNotification(a, kind) {
+function advisoryNotification(a, kind, gatewayId = a.gatewayId) {
   const label = CONDITION_LABELS[a.condition] || "Weather";
   const prefix = a.testOnly ? "TEST · " : "";
   const verb = kind === "updated" ? "Updated verified advice" : "Verified advice";
+  const data = { advisoryId: a.__id || "", testOnly: a.testOnly ? "true" : "false" };
+  if (gatewayId) data.gatewayId = gatewayId;
   return {
     title: `${prefix}${verb} · ${label}`,
     body: `${(a.crops || []).join(", ")}: ${a.main || ""}`.trim(),
     channel: CHANNEL.advisories,
     route: ROUTE.weatherStation,
     type: "advisory",
-    data: { advisoryId: a.__id || "", testOnly: a.testOnly ? "true" : "false" },
+    data,
   };
 }
 
@@ -244,6 +356,17 @@ const chunk = (arr, n) => {
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
   return out;
 };
+
+/** Groups items into Map(key → [items]). */
+function groupBy(items, keyOf) {
+  const out = new Map();
+  for (const item of items) {
+    const k = keyOf(item);
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(item);
+  }
+  return out;
+}
 
 async function tokensFor(uids) {
   const db = getFirestore();
@@ -313,17 +436,174 @@ async function farmersOnStation(gatewayId, platform) {
   return snap.docs.map((d) => d.data().uid);
 }
 
-/** Latest live verified advisory for a condition at a station (or null). */
-async function verifiedAdviceFor(condition, gatewayId) {
-  const snap = await getFirestore().collection("agronomic_advisories")
-    .where("status", "==", "published")
-    .where("testOnly", "==", false)
-    .where("condition", "==", condition)
-    .get();
-  const list = snap.docs.map((d) => d.data())
-    .filter((a) => !a.gatewayId || a.gatewayId === gatewayId)
-    .sort((a, b) => (b.publishedAt?.toMillis?.() || 0) - (a.publishedAt?.toMillis?.() || 0));
-  return list[0] || null;
+/**
+ * Each farmer's crops, from their recent field records (fielddata.crops[].type)
+ * — the same source the app uses. Map(uid → [crops] | null when unknown).
+ */
+async function farmerCrops(uids) {
+  const db = getFirestore();
+  const out = new Map();
+  await Promise.all([...new Set(uids)].map(async (uid) => {
+    try {
+      const snap = await db.collection("fielddata")
+        .where("userId", "==", uid)
+        .orderBy("timestamp", "desc")
+        .limit(30)
+        .get();
+      const crops = new Set();
+      for (const d of snap.docs) {
+        for (const c of d.data().crops || []) {
+          const type = c && typeof c === "object" ? String(c.type || "").trim() : "";
+          if (type) crops.add(type);
+        }
+      }
+      out.set(uid, [...crops]);
+    } catch (e) {
+      console.warn(`[farmerCrops] ${uid}: ${e.message}`);
+      out.set(uid, null);
+    }
+  }));
+  return out;
+}
+
+/** Live (non-test) published advisories for any of `conditions`. */
+async function publishedLiveAdvisories(conditions) {
+  const out = [];
+  for (const part of chunk([...new Set(conditions)], 30)) {
+    const snap = await getFirestore().collection("agronomic_advisories")
+      .where("status", "==", "published")
+      .where("testOnly", "==", false)
+      .where("condition", "in", part)
+      .get();
+    snap.docs.forEach((d) => out.push({ ...d.data(), __id: d.id }));
+  }
+  return out;
+}
+
+const deliveryRef = (uid, advisoryId) =>
+  getFirestore().collection("advisoryDelivery").doc(`${uid}_${advisoryId}`);
+
+/** Records that `uids` got `advisory` now (for the daily repeat limit). */
+async function markDelivered(uids, advisory, gatewayId, nowMs) {
+  const db = getFirestore();
+  for (const part of chunk(uids, 400)) {
+    const batch = db.batch();
+    for (const uid of part) {
+      batch.set(deliveryRef(uid, advisory.__id), {
+        uid,
+        advisoryId: advisory.__id,
+        gatewayId,
+        notifyVersion: notifyVersionOf(advisory),
+        lastSentAt: Timestamp.fromMillis(nowMs),
+      });
+    }
+    await batch.commit();
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Weather sweep (the body of weatherAlertSweep; exported for tests)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Builds the hourly sweep. `fetchReading(gatewayId)` returns parseReading()
+ * output (or null); injected so tests don't call NuaSense.
+ */
+function createWeatherSweep({ PLATFORM, fetchReading }) {
+  return async function runWeatherSweep(nowMs = Date.now()) {
+    const db = getFirestore();
+    const assignments = await db.collection("stationAssignments")
+      .where("platform", "==", PLATFORM).get();
+    const byStation = groupBy(assignments.docs.map((d) => d.data()), (a) => a.gatewayId);
+
+    for (const [gatewayId, rows] of byStation) {
+      const uids = [...new Set(rows.map((r) => r.uid).filter(Boolean))];
+      let reading;
+      try {
+        reading = await fetchReading(gatewayId);
+      } catch (e) {
+        console.warn(`[weatherAlertSweep] ${gatewayId}: ${e.message}`);
+        continue;
+      }
+      if (!reading || !reading.hasData || !reading.timestamp ||
+          nowMs - reading.timestamp.getTime() > STALE_READING_MS) {
+        continue;
+      }
+
+      const alerts = computeWeatherAlerts(reading);
+      const active = [...activeConditions(reading)].filter((c) => c !== "general");
+      const conditions = [...new Set([...active, ...alerts.flatMap((a) => a.advisoryConditions)])];
+      if (!alerts.length && !active.length) continue;
+
+      const crops = await farmerCrops(uids);
+      const advisories = conditions.length ? await publishedLiveAdvisories(conditions) : [];
+      // Conditions each farmer already heard about in an alert this run — no
+      // second push about the same weather.
+      const covered = new Map(uids.map((u) => [u, new Set()]));
+
+      // 1) Alerts, each farmer's copy carrying the advice for THEIR crops.
+      for (const alert of alerts) {
+        const stateRef = db.collection("alertState").doc(`${gatewayId}_${alert.category}`);
+        const prev = await stateRef.get();
+        if (!shouldSendAlert(prev.exists ? prev.data() : null, alert, nowMs)) continue;
+
+        const adviceFor = (uid) => {
+          for (const cond of alert.advisoryConditions) {
+            const a = bestAdvisoryFor(advisories.filter((x) => x.condition === cond), crops.get(uid), gatewayId);
+            if (a) return a;
+          }
+          return null;
+        };
+        const picks = uids.map((uid) => ({ uid, advice: adviceFor(uid) }));
+        for (const group of groupBy(picks, (p) => p.advice?.__id || "").values()) {
+          const advice = group[0].advice;
+          const groupUids = group.map((p) => p.uid);
+          await deliverToUsers(groupUids, {
+            title: `${alert.severity === "critical" ? "⚠ " : ""}${alert.title}`,
+            body: advice ? `${alert.body}\nVerified advice: ${advice.main}` : alert.body,
+            channel: CHANNEL.weather,
+            route: ROUTE.weatherStation,
+            type: "weather_alert",
+            severity: alert.severity,
+            data: { category: alert.category, gatewayId, ...(advice ? { advisoryId: advice.__id } : {}) },
+          });
+          if (advice) await markDelivered(groupUids, advice, gatewayId, nowMs);
+          groupUids.forEach((u) => alert.advisoryConditions.forEach((c) => covered.get(u).add(c)));
+        }
+        await stateRef.set({ lastSentAt: Timestamp.fromMillis(nowMs), severity: alert.severity });
+        console.log(`[weatherAlertSweep] ${gatewayId} ${alert.category}/${alert.severity} → ${uids.length} farmer(s)`);
+      }
+
+      // 2) Condition advice now in effect — at most one per farmer per run
+      //    (the most specific one due); the rest follow in later runs.
+      const conditionAdvice = advisories.filter((a) => active.includes(a.condition));
+      if (!conditionAdvice.length) continue;
+      const candidates = new Map(uids.map((uid) => [
+        uid,
+        rankAdvisories(conditionAdvice, gatewayId)
+          .filter((a) => cropsMatch(a.crops, crops.get(uid)) && !covered.get(uid).has(a.condition)),
+      ]));
+      const refs = [];
+      for (const [uid, list] of candidates) list.forEach((a) => refs.push(deliveryRef(uid, a.__id)));
+      const state = new Map();
+      for (const part of chunk(refs, 100)) {
+        (await db.getAll(...part)).forEach((s) => state.set(s.id, s.exists ? s.data() : null));
+      }
+
+      const picks = [];
+      for (const [uid, list] of candidates) {
+        const due = list.find((a) => shouldDeliverAdvisory(state.get(`${uid}_${a.__id}`), a, nowMs));
+        if (due) picks.push({ uid, advice: due });
+      }
+      for (const group of groupBy(picks, (p) => p.advice.__id).values()) {
+        const advice = group[0].advice;
+        const groupUids = group.map((p) => p.uid);
+        await deliverToUsers(groupUids, advisoryNotification(advice, "condition", gatewayId));
+        await markDelivered(groupUids, advice, gatewayId, nowMs);
+        console.log(`[weatherAlertSweep] ${gatewayId} advice ${advice.__id} (${advice.condition}) → ${groupUids.length} farmer(s)`);
+      }
+    }
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -344,11 +624,16 @@ function createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }) 
         metrics: "air_temperature,humidity,rainfall,wind_speed,wind_gusts",
         start: "-2h", resolution: "hourly", aggregate: "last",
       }),
-      get("derived", { fields: "lwd_hour,lwd_consecutive_hours", start: "-2h" }),
+      get("derived", {
+        fields: "lwd_hour,lwd_consecutive_hours,vpd,spray_quality_index,spray_quality_label",
+        start: "-2h",
+      }),
     ]);
     if (!weather || !derived) return null;
     return parseReading(weather, derived);
   }
+
+  const runWeatherSweep = createWeatherSweep({ PLATFORM, fetchReading: fetchStationReading });
 
   const weatherAlertSweep = onSchedule(
     {
@@ -359,49 +644,7 @@ function createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }) 
       memory: "256MiB",
       maxInstances: 1,
     },
-    async () => {
-      const db = getFirestore();
-      const assignments = await db.collection("stationAssignments")
-        .where("platform", "==", PLATFORM).get();
-      const byStation = new Map();
-      assignments.docs.forEach((d) => {
-        const { gatewayId, uid } = d.data();
-        if (!byStation.has(gatewayId)) byStation.set(gatewayId, []);
-        byStation.get(gatewayId).push(uid);
-      });
-
-      const now = Date.now();
-      for (const [gatewayId, uids] of byStation) {
-        let reading;
-        try {
-          reading = await fetchStationReading(gatewayId);
-        } catch (e) {
-          console.warn(`[weatherAlertSweep] ${gatewayId}: ${e.message}`);
-          continue;
-        }
-        if (!reading || !reading.timestamp || now - reading.timestamp.getTime() > STALE_READING_MS) continue;
-
-        for (const alert of computeWeatherAlerts(reading)) {
-          const stateRef = db.collection("alertState").doc(`${gatewayId}_${alert.category}`);
-          const prev = await stateRef.get();
-          if (!shouldSendAlert(prev.exists ? prev.data() : null, alert, now)) continue;
-
-          const advice = await verifiedAdviceFor(alert.advisoryCondition, gatewayId);
-          const body = advice ? `${alert.body}\nVerified advice: ${advice.main}` : alert.body;
-          await deliverToUsers(uids, {
-            title: `${alert.severity === "critical" ? "⚠ " : ""}${alert.title}`,
-            body,
-            channel: CHANNEL.weather,
-            route: ROUTE.weatherStation,
-            type: "weather_alert",
-            severity: alert.severity,
-            data: { category: alert.category, gatewayId },
-          });
-          await stateRef.set({ lastSentAt: Timestamp.fromMillis(now), severity: alert.severity });
-          console.log(`[weatherAlertSweep] ${gatewayId} ${alert.category}/${alert.severity} → ${uids.length} farmer(s)`);
-        }
-      }
-    }
+    () => runWeatherSweep()
   );
 
   const onAdvisoryPublished = onDocumentWritten("agronomic_advisories/{advisoryId}", async (event) => {
@@ -411,16 +654,22 @@ function createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }) 
     if (!kind) return;
 
     const advisory = { ...after, __id: event.params.advisoryId };
+    if (!pushesAtPublish(advisory)) {
+      console.log(`[onAdvisoryPublished] ${advisory.__id} ${kind} — "${advisory.condition}" advice is delivered when the condition occurs`);
+      return;
+    }
     const n = advisoryNotification(advisory, kind);
     const audience = advisoryAudience(advisory);
     if (audience.type === "users") {
       await deliverToUsers(audience.uids, n);
     } else if (audience.type === "station") {
-      await deliverToUsers(await farmersOnStation(audience.gatewayId, PLATFORM), n);
+      const uids = await farmersOnStation(audience.gatewayId, PLATFORM);
+      const crops = await farmerCrops(uids);
+      await deliverToUsers(uids.filter((u) => cropsMatch(advisory.crops, crops.get(u))), n);
     } else {
       await deliverToTopics(audience.topics, n);
     }
-    console.log(`[onAdvisoryPublished] ${event.params.advisoryId} ${kind} → ${audience.type}`);
+    console.log(`[onAdvisoryPublished] ${advisory.__id} ${kind} → ${audience.type}`);
   });
 
   const onEducationSignup = onDocumentCreated("EducationUsers/{uid}", async (event) => {
@@ -473,11 +722,18 @@ function createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }) 
 module.exports = {
   createNotificationFunctions,
   // exported for tests
+  createWeatherSweep,
   cropTopic,
   parseReading,
+  activeConditions,
   computeWeatherAlerts,
   shouldSendAlert,
+  cropsMatch,
+  rankAdvisories,
+  bestAdvisoryFor,
+  shouldDeliverAdvisory,
   advisoryPushKind,
+  pushesAtPublish,
   advisoryAudience,
   advisoryNotification,
   approverFilter,
@@ -487,4 +743,5 @@ module.exports = {
   setMessagingForTests,
   CHANNEL,
   ROUTE,
+  CONDITION_LABELS,
 };

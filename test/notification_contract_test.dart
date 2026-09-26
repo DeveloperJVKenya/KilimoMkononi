@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 
 void main() {
@@ -33,6 +34,20 @@ void main() {
     expect(NotificationService.cropTopic('Cabbages/Kales'), 'km_crop_cabbages_kales');
     expect(NotificationService.cropTopic('Irish Potatoes'), 'km_crop_irish_potatoes');
     expect(NotificationService.cropTopic(' Maize '), 'km_crop_maize');
+  });
+
+  test('advisory condition keys match in the app, the functions and the rules', () {
+    final app = kAdvisoryConditions.map((c) => c.key).toSet();
+    final fnLabels = RegExp(r'const CONDITION_LABELS = \{([^}]*)\}').firstMatch(server)!.group(1)!;
+    final functions = RegExp(r'^\s*([a-z_]+):', multiLine: true)
+        .allMatches(fnLabels)
+        .map((m) => m.group(1)!)
+        .toSet();
+    final rules = File('firestore.rules').readAsStringSync();
+    final ruleList = RegExp(r"d\.condition in \[([^\]]*)\]").firstMatch(rules)!.group(1)!;
+    final ruleKeys = RegExp(r"'([a-z_]+)'").allMatches(ruleList).map((m) => m.group(1)!).toSet();
+    expect(functions, app);
+    expect(ruleKeys, app);
   });
 
   test('status-bar icon exists for Android', () {

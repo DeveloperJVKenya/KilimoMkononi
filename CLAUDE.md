@@ -86,10 +86,14 @@ top of it. Don't hand-roll classId parsing elsewhere.
   `main.dart`. Every notification uses a `KmChannel` (`NotificationService.details(...)` /
   `.show(...)`) so local reminders and pushes share the icon (`@drawable/ic_stat_km`), colour and
   channels. Don't create `AndroidNotificationDetails` or new channels in screens.
-- Push = FCM. `functions/notifications.js`: hourly `weatherAlertSweep` (server-side NuaSense alerts
-  per assigned station, with the matching verified advisory), `onAdvisoryPublished` (station farmers
-  or crop topics; admin TEST advisories → the admin only), education approval pushes. Every
+- Push = FCM. `functions/notifications.js`: hourly `weatherAlertSweep` (per assigned station:
+  HIGH/CRITICAL alerts, each farmer's copy carrying the verified advisory for *their* crops; plus
+  condition-targeted advice when that condition is occurring — once per farmer per advisory,
+  repeated at most daily, state in `advisoryDelivery/{uid}_{advisoryId}`), `onAdvisoryPublished`
+  (only "Any conditions" advice is pushed at publish time — station farmers growing the crop, or
+  crop topics; admin TEST advisories → the admin only), education approval pushes. Every
   per-user push is also written to `userNotifications/{uid}/items` (Notifications → Inbox tab).
+  Push `data` (e.g. `gatewayId`) reaches the opened screen via `routeHandler(route, args)`.
 - Devices: `deviceTokens/{fcmToken} {uid}`; farmers subscribe to `km_farmers` + `km_crop_<slug>`.
   Channel ids, routes and topic slugs must match between Dart and JS —
   `test/notification_contract_test.dart` checks this.
@@ -116,20 +120,27 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   Update them whenever you change the rules.
 
 ## Notes for future changes
-- `test/widget_test.dart` is still the unmodified Flutter counter-app template — it does not test this
-  app and will fail if run as-is (`MyApp` has no counter). Don't assume it reflects test coverage.
 - `lib/enterprise/features/weather/` — **Field Agronomist** role + verified weather advisories.
   - Role: `Agronomists/{uid}` doc, granted by an admin (Admin panel → "Assign Field Agronomist").
     Checked with `AgronomicAdvisoryService.isFieldAgronomist()`; enforced by `isAgronomist()` in the
     rules. Agronomists can read live conditions for every KM station (`getNuaSenseData`).
   - `agronomic_advisories/{id}`: MAIN/DO/AVOID/WHY targeted by crop(s) + weather-condition key
-    (`advisory_conditions.dart` — keys are also listed in firestore.rules; add, never rename).
+    (`advisory_conditions.dart` — keys are also listed in firestore.rules and in
+    `CONDITION_LABELS` / `activeConditions()` in functions/notifications.js; add, never rename;
+    `test/notification_contract_test.dart` checks all three agree).
     Status draft → published (= verified; publisher recorded) → archived.
   - Every write goes through `AgronomicAdvisoryService.save`, which writes the advisory and its
     immutable `history/v{version}` audit entry in one transaction — the rules reject one without
-    the other.
+    the other. Pass `expectedVersion` (the editor does) so a stale save throws
+    `AdvisoryConflictException` instead of overwriting someone else's edit.
+  - Farmers are notified on first publish; edits to published advice only re-notify when the
+    agronomist ticks "Notify farmers" (`notifyVersion == version`). Verifier/notify fields are
+    locked by the rules except when publishing. Deleting a never-published draft deletes its
+    history in the same batch; agronomists never see or edit admin TEST advisories.
   - Farmers see published advisories matching their crops (from `fielddata.crops[].type`) and the
     station's live conditions in the Weather Station screen's "Verified advice" section; the AI
     Farm Advisor card below it is labelled "AI-generated · not verified".
+  - An offline station (no points in the last 2h) gives `NuaSenseReading.hasData == false` —
+    values are placeholder zeros, so only "general" advice applies and no AI/day plan is shown.
   - Tests: `test/advisory_test.dart`, `test/advisory_widgets_test.dart` (layout at 360px),
     advisory cases in `rules-tests/`.

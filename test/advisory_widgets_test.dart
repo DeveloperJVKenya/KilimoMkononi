@@ -105,4 +105,41 @@ void main() {
     expect(find.byType(PopupMenuButton<String>), findsNothing); // no unpublish/archive
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('editing published advice offers "notify farmers" (off by default)', (tester) async {
+    await phone(tester);
+    final published = AgronomicAdvisory(
+      id: 'a2',
+      title: 't',
+      advice: const StructuredAdvice(main: 'Scout for blight', doList: ['Check leaves']),
+      crops: const ['Maize'],
+      condition: 'wet_leaves',
+      status: AdvisoryStatus.published,
+      version: 3,
+      publishedByName: 'Jane',
+      publishedAt: DateTime(2026, 9, 20),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: AdvisoryEditorScreen(existing: published),
+    ));
+    await tester.pump();
+    expect(find.text('Update published'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Notify farmers about this change'), 300,
+        scrollable: find.byType(Scrollable).first);
+    final tile = tester.widget<CheckboxListTile>(find.ancestor(
+        of: find.text('Notify farmers about this change'),
+        matching: find.byType(CheckboxListTile)));
+    expect(tile.value, isFalse);
+    // Scrolling builds the audit-history section below, which reads
+    // Firestore — not initialised in widget tests. Anything else must fail.
+    final e = tester.takeException();
+    expect(e == null || '$e'.contains('no-app'), isTrue, reason: '$e');
+  });
+
+  testWidgets('new advice has no "notify" option (first publish always notifies)', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(const MaterialApp(home: AdvisoryEditorScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Notify farmers about this change', skipOffstage: false), findsNothing);
+  });
 }

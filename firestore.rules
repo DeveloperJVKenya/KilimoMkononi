@@ -139,7 +139,9 @@ service cloud.firestore {
       function validAdvisory() {
         let d = request.resource.data;
         return d.condition in ['general', 'raining', 'wet_leaves', 'high_humidity',
-                               'high_wind', 'heat', 'cool', 'dry_stress', 'good_spray'] &&
+                               'high_wind', 'heat', 'cool', 'frost', 'dry_stress',
+                               'good_spray'] &&
+               d.get('title', '') is string && d.get('title', '').size() <= 200 &&
                d.crops is list && d.crops.size() > 0 && d.crops.size() <= 20 &&
                d.main is string && d.main.size() > 0 && d.main.size() <= 300 &&
                d.doList is list && d.doList.size() <= 10 &&
@@ -151,6 +153,9 @@ service cloud.firestore {
                // catch-all); agronomists always write live ones.
                d.testOnly == false &&
                d.version is int &&
+               // Farmers are (re)notified when notifyVersion == version.
+               (!('notifyVersion' in d) ||
+                  (d.notifyVersion is int && d.notifyVersion <= d.version)) &&
                d.updatedBy == uid() &&
                d.updatedAt == request.time &&
                // Publishing = verifying: the publisher is recorded, now.
@@ -168,19 +173,34 @@ service cloud.firestore {
                        request.resource.data.version == 1 &&
                        request.resource.data.createdBy == uid() &&
                        request.resource.data.createdAt == request.time;
+      // Verifier + notification fields only change by publishing — so a
+      // once-published advisory can't be made to look never-published (and
+      // then deleted), and farmers can't be re-notified without publishing.
+      function keepsVerifier() {
+        let d = request.resource.data;
+        let o = resource.data;
+        return d.get('publishedBy', null) == o.get('publishedBy', null) &&
+               d.get('publishedByName', null) == o.get('publishedByName', null) &&
+               d.get('publishedAt', null) == o.get('publishedAt', null) &&
+               d.get('notifyVersion', null) == o.get('notifyVersion', null);
+      }
+      function neverPublishedDraft(a) {
+        return a.status == 'draft' && a.get('publishedAt', null) == null;
+      }
+
       allow update: if isAgronomist() && validAdvisory() &&
+                       // Admin TEST advisories are the admin's; agronomists
+                       // can't edit them (or flip them live).
+                       resource.data.get('testOnly', false) == false &&
                        request.resource.data.version == resource.data.version + 1 &&
                        request.resource.data.createdBy == resource.data.createdBy &&
                        request.resource.data.createdByName == resource.data.createdByName &&
                        request.resource.data.createdAt == resource.data.createdAt &&
-                       // Verifier fields only change by publishing.
-                       (request.resource.data.status == 'published' ||
-                        request.resource.data.get('publishedBy', null) ==
-                          resource.data.get('publishedBy', null));
+                       (request.resource.data.status == 'published' || keepsVerifier());
       // Only never-published drafts can be deleted; published advice is archived.
       allow delete: if isAgronomist() &&
-                       resource.data.status == 'draft' &&
-                       resource.data.get('publishedAt', null) == null;
+                       resource.data.get('testOnly', false) == false &&
+                       neverPublishedDraft(resource.data);
 
       match /history/{entryId} {
         allow read: if isAgronomist();
@@ -190,6 +210,12 @@ service cloud.firestore {
                          entryId == 'v' + string(request.resource.data.version) &&
                          getAfter(/databases/$(database)/documents/agronomic_advisories/$(advisoryId))
                            .data.version == request.resource.data.version;
+        // Entries are otherwise immutable; they only go together with their
+        // never-published draft, deleted in the same batch.
+        allow delete: if isAgronomist() &&
+                         !existsAfter(/databases/$(database)/documents/agronomic_advisories/$(advisoryId)) &&
+                         neverPublishedDraft(
+                           get(/databases/$(database)/documents/agronomic_advisories/$(advisoryId)).data);
       }
     }
 

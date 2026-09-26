@@ -79,12 +79,13 @@ Future<void> main() async {
 }
 
 /// Opens the screen a tapped notification points to (`route` in the push).
-void _openNotificationRoute(String route) {
+void _openNotificationRoute(String route, Map<String, String> args) {
   final nav = NotificationService.navigatorKey.currentState;
   if (nav == null) return;
   switch (route) {
     case KmRoute.weatherStation:
-      nav.push(MaterialPageRoute(builder: (_) => const WeatherStationScreen()));
+      nav.push(MaterialPageRoute(
+          builder: (_) => WeatherStationScreen(initialStationId: args['gatewayId'])));
     case KmRoute.notifications:
       nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
     case KmRoute.eduHome:

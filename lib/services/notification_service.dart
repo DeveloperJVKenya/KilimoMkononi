@@ -82,11 +82,12 @@ class NotificationService {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   /// Opens a screen for a route. Set by main.dart (keeps this service free of
-  /// screen imports).
-  static void Function(String route)? routeHandler;
+  /// screen imports). [args] carries the push's extra data, e.g. `gatewayId`
+  /// so a station alert opens that station.
+  static void Function(String route, Map<String, String> args)? routeHandler;
 
   static bool _initialized = false;
-  static String? _pendingRoute;
+  static ({String route, Map<String, String> args})? _pendingRoute;
   static StreamSubscription<User?>? _authSub;
   static String? _registeredUid;
 
@@ -112,7 +113,7 @@ class NotificationService {
           requestSoundPermission: false,
         ),
       ),
-      onDidReceiveNotificationResponse: (r) => _handleRoute(_routeFromPayload(r.payload)),
+      onDidReceiveNotificationResponse: (r) => _handleTap(_routeFromPayload(r.payload)),
     );
 
     final android =
@@ -172,9 +173,9 @@ class NotificationService {
 
     FirebaseMessaging.onMessage.listen(_showForegroundPush);
     FirebaseMessaging.onMessageOpenedApp
-        .listen((m) => _handleRoute(m.data['route'] as String?));
+        .listen((m) => _handleTap(_routeFromData(m.data)));
     final initial = await fm.getInitialMessage(); // app opened from a closed state
-    if (initial != null) _pendingRoute = initial.data['route'] as String?;
+    if (initial != null) _pendingRoute = _routeFromData(initial.data);
 
     fm.onTokenRefresh.listen((t) => _saveToken(t));
 
@@ -309,6 +310,7 @@ class NotificationService {
     required String body,
     KmChannel channel = KmChannel.general,
     String? route,
+    Map<String, String> args = const {},
   }) async {
     try {
       await plugin.show(
@@ -316,7 +318,7 @@ class NotificationService {
         title: title,
         body: body,
         notificationDetails: details(channel, body: body),
-        payload: route == null ? null : jsonEncode({'route': route}),
+        payload: route == null ? null : jsonEncode({'route': route, 'args': args}),
       );
     } catch (e) {
       debugPrint('[NotificationService] show failed: $e');
@@ -334,39 +336,64 @@ class NotificationService {
       body: n.body ?? '',
       channel: KmChannel.fromId(m.data['channel'] as String? ?? n.android?.channelId),
       route: m.data['route'] as String?,
+      args: _routeFromData(m.data)?.args ?? const {},
     );
   }
 
   // ── Taps → screens ────────────────────────────────────────────────────────
 
-  static String? _routeFromPayload(String? payload) {
+  // Keys of a push's data that are routing metadata, not screen arguments.
+  static const _metaKeys = {'route', 'channel', 'type'};
+
+  static ({String route, Map<String, String> args})? _routeFromData(
+      Map<String, dynamic> data) {
+    final route = data['route'] as String?;
+    if (route == null) return null;
+    return (
+      route: route,
+      args: {
+        for (final e in data.entries)
+          if (!_metaKeys.contains(e.key)) e.key: '${e.value}',
+      },
+    );
+  }
+
+  static ({String route, Map<String, String> args})? _routeFromPayload(
+      String? payload) {
     if (payload == null || payload.isEmpty) return null;
     try {
-      return (jsonDecode(payload) as Map)['route'] as String?;
+      final m = jsonDecode(payload) as Map;
+      final route = m['route'] as String?;
+      if (route == null) return null;
+      final args = (m['args'] as Map?) ?? const {};
+      return (
+        route: route,
+        args: {for (final e in args.entries) '${e.key}': '${e.value}'},
+      );
     } catch (_) {
       return null;
     }
   }
 
-  static void _handleRoute(String? route) {
-    if (route == null) return;
+  static void _handleTap(({String route, Map<String, String> args})? tap) {
+    if (tap == null) return;
     final handler = routeHandler;
     // Not signed in / app not ready yet → open after the home screen loads.
     if (handler == null ||
         navigatorKey.currentState == null ||
         FirebaseAuth.instance.currentUser == null) {
-      _pendingRoute = route;
+      _pendingRoute = tap;
       return;
     }
-    handler(route);
+    handler(tap.route, tap.args);
   }
 
   /// Call once the signed-in home screen is showing; opens the screen of a
   /// notification that launched the app.
   static void consumePendingRoute() {
-    final route = _pendingRoute;
+    final tap = _pendingRoute;
     _pendingRoute = null;
-    if (route != null) _handleRoute(route);
+    _handleTap(tap);
   }
 
   @visibleForTesting

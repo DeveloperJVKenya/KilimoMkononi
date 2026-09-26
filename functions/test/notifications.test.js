@@ -35,10 +35,74 @@ describe("computeWeatherAlerts", () => {
     assert.deepEqual(cats({ lwdConsecutiveHours: 12, humidity: 90 }), ["fungal:high"]);
     assert.deepEqual(cats({ lwdConsecutiveHours: 12, humidity: 70 }), []); // dry air → no fungal push
   });
-  test("each alert links to an advisory condition the app knows", () => {
-    const all = n.computeWeatherAlerts({ airTemp: 39, humidity: 95, rainfall: 30, windSpeed: 13, windGusts: 20, lwdConsecutiveHours: 20 });
-    const known = ["raining", "wet_leaves", "high_humidity", "high_wind", "heat", "cool", "dry_stress", "good_spray", "general"];
-    for (const a of all) assert.ok(known.includes(a.advisoryCondition), a.advisoryCondition);
+  test("each alert links to advisory conditions the app knows", () => {
+    const hot = n.computeWeatherAlerts({ airTemp: 39, humidity: 95, rainfall: 30, windSpeed: 13, windGusts: 20, lwdConsecutiveHours: 20 });
+    const cold = n.computeWeatherAlerts({ ...calm, airTemp: 1 });
+    const known = Object.keys(n.CONDITION_LABELS);
+    for (const a of [...hot, ...cold]) {
+      assert.ok(a.advisoryConditions.length > 0);
+      for (const c of a.advisoryConditions) assert.ok(known.includes(c), c);
+    }
+  });
+  test("frost alerts prefer frost advice, then cool", () => {
+    assert.deepEqual(n.computeWeatherAlerts({ ...calm, airTemp: 1 })[0].advisoryConditions, ["frost", "cool"]);
+  });
+});
+
+describe("parseReading / activeConditions", () => {
+  const weather = (pts) => ({ series: [
+    { id: "air_temperature", data: pts.map((y) => ({ x: "2026-09-24T10:00:00Z", y })) },
+    { id: "humidity", data: pts.map(() => ({ x: "2026-09-24T10:00:00Z", y: 85 })) },
+  ] });
+  test("offline station (no points) → no data, only general", () => {
+    const r = n.parseReading(weather([]), { points: [] });
+    assert.equal(r.hasData, false);
+    assert.equal(r.timestamp, null);
+    assert.deepEqual([...n.activeConditions(r)], ["general"]);
+  });
+  test("live reading → matching conditions (same rules as the app)", () => {
+    const r = n.parseReading(weather([3]), { points: [{ lwd_hour: 1, vpd: 0.2, spray_quality_index: 20, spray_quality_label: "Poor" }] });
+    assert.equal(r.hasData, true);
+    const keys = n.activeConditions(r);
+    for (const k of ["general", "cool", "frost", "high_humidity", "wet_leaves"]) assert.ok(keys.has(k), k);
+    assert.ok(!keys.has("good_spray"));
+    assert.ok(!keys.has("dry_stress"));
+  });
+  test("spray window falls back to calm wind when there's no spray score", () => {
+    const base = { hasData: true, airTemp: 22, humidity: 60, rainfall: 0, windSpeed: 1, lwdHour: 0, lwdConsecutiveHours: 0, vpd: 1, sprayQualityIndex: 0, sprayQualityLabel: "" };
+    assert.ok(n.activeConditions(base).has("good_spray"));
+    assert.ok(!n.activeConditions({ ...base, rainfall: 2 }).has("good_spray"));
+  });
+});
+
+describe("crop matching and ranking", () => {
+  test("cropsMatch mirrors the app; unknown crops only get All crops advice", () => {
+    assert.equal(n.cropsMatch(["All crops"], ["Maize"]), true);
+    assert.equal(n.cropsMatch(["Tomatoes"], []), true);
+    assert.equal(n.cropsMatch(["Tomatoes"], ["maize"]), false);
+    assert.equal(n.cropsMatch(["Irish Potatoes"], [" irish potatoes "]), true);
+    assert.equal(n.cropsMatch(["Tomatoes"], null), false);
+    assert.equal(n.cropsMatch(["All crops"], null), true);
+  });
+  test("best advice: this station first, then specific condition, then newest", () => {
+    const list = [
+      { __id: "old-all", condition: "raining", crops: ["Maize"], publishedAt: 1 },
+      { __id: "new-all", condition: "raining", crops: ["Maize"], publishedAt: 5 },
+      { __id: "station", condition: "raining", crops: ["Maize"], gatewayId: "gw1", publishedAt: 2 },
+      { __id: "other-station", condition: "raining", crops: ["Maize"], gatewayId: "gw2", publishedAt: 9 },
+      { __id: "tomato", condition: "raining", crops: ["Tomatoes"], gatewayId: "gw1", publishedAt: 9 },
+    ];
+    assert.equal(n.bestAdvisoryFor(list, ["Maize"], "gw1").__id, "station");
+    assert.equal(n.bestAdvisoryFor(list, ["Maize"], "gw3").__id, "new-all");
+    assert.equal(n.bestAdvisoryFor(list, ["Beans"], "gw1"), null);
+  });
+  test("condition advice repeats at most daily, or when re-notified", () => {
+    const now = Date.UTC(2026, 8, 24, 12);
+    const a = { version: 3, notifyVersion: 2 };
+    assert.equal(n.shouldDeliverAdvisory(null, a, now), true);
+    assert.equal(n.shouldDeliverAdvisory({ notifyVersion: 2, lastSentAt: now - 3600e3 }, a, now), false);
+    assert.equal(n.shouldDeliverAdvisory({ notifyVersion: 2, lastSentAt: now - 25 * 3600e3 }, a, now), true);
+    assert.equal(n.shouldDeliverAdvisory({ notifyVersion: 1, lastSentAt: now - 3600e3 }, a, now), true);
   });
 });
 
@@ -54,12 +118,23 @@ describe("shouldSendAlert", () => {
 });
 
 describe("advisory pushes", () => {
-  test("push only on publish or re-publish", () => {
+  test("push on publish; updates only when the agronomist asked to notify", () => {
     assert.equal(n.advisoryPushKind(null, { status: "draft" }), null);
     assert.equal(n.advisoryPushKind({ status: "draft" }, { status: "published", version: 2 }), "new");
-    assert.equal(n.advisoryPushKind({ status: "published", version: 2 }, { status: "published", version: 3 }), "updated");
+    // edit without "notify farmers" — notifyVersion unchanged
+    assert.equal(n.advisoryPushKind({ status: "published", version: 2, notifyVersion: 2 },
+      { status: "published", version: 3, notifyVersion: 2 }), null);
+    assert.equal(n.advisoryPushKind({ status: "published", version: 2 }, { status: "published", version: 3 }), null);
+    // edit with "notify farmers"
+    assert.equal(n.advisoryPushKind({ status: "published", version: 2, notifyVersion: 2 },
+      { status: "published", version: 3, notifyVersion: 3 }), "updated");
     assert.equal(n.advisoryPushKind({ status: "published", version: 3 }, { status: "published", version: 3 }), null);
     assert.equal(n.advisoryPushKind({ status: "published", version: 3 }, { status: "archived", version: 4 }), null);
+  });
+  test("only 'Any conditions' (or admin TEST) advice is pushed at publish time", () => {
+    assert.equal(n.pushesAtPublish({ condition: "general" }), true);
+    assert.equal(n.pushesAtPublish({ condition: "raining" }), false);
+    assert.equal(n.pushesAtPublish({ condition: "raining", testOnly: true }), true);
   });
   test("audience: test → publisher only; station → station farmers; else crop topics", () => {
     assert.deepEqual(n.advisoryAudience({ testOnly: true, publishedBy: "admin1", crops: ["Maize"] }),
@@ -73,6 +148,10 @@ describe("advisory pushes", () => {
     const msg = n.advisoryNotification({ testOnly: true, condition: "wet_leaves", crops: ["Maize"], main: "Hold spraying" }, "new");
     assert.match(msg.title, /^TEST · Verified advice · Wet leaves$/);
     assert.equal(msg.body, "Maize: Hold spraying");
+  });
+  test("station advice carries the station, so a tap opens it", () => {
+    const msg = n.advisoryNotification({ __id: "a1", condition: "raining", crops: ["Maize"], main: "x" }, "condition", "gw1");
+    assert.deepEqual(msg.data, { advisoryId: "a1", testOnly: "false", gatewayId: "gw1" });
   });
   test("topic conditions are chunked at 5 (FCM limit)", () => {
     const c = n.topicConditions(["a", "b", "c", "d", "e", "f"]);
@@ -120,7 +199,8 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
 
   beforeEach(async () => {
     sent = [];
-    const cols = ["deviceTokens", "stationAssignments", "EducationUsers", "userNotifications"];
+    const cols = ["deviceTokens", "stationAssignments", "EducationUsers", "userNotifications",
+      "fielddata", "agronomic_advisories", "advisoryDelivery", "alertState"];
     for (const c of cols) {
       const docs = await db.collection(c).listDocuments();
       await Promise.all(docs.map((d) => db.recursiveDelete(d)));
@@ -149,21 +229,46 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
     assert.equal((await db.collection("userNotifications/farmer1/items").get()).size, 0);
   });
 
-  test("station advisory → that station's farmers; dead tokens are cleaned up", async () => {
+  test("station advisory → that station's farmers who grow the crop; dead tokens are cleaned up", async () => {
+    // farmer2 is on the same station but grows only tomatoes.
+    await db.doc("stationAssignments/gw1_farmer2").set({ gatewayId: "gw1", uid: "farmer2", platform: "km" });
+    await db.doc("deviceTokens/tok-farmer2").set({ uid: "farmer2" });
+    await db.doc("fielddata/f2").set({ userId: "farmer2", timestamp: new Date(), crops: [{ type: "Tomatoes" }] });
+
+    await fns.onAdvisoryPublished.run(advisoryEvent(null, {
+      status: "published", version: 1, testOnly: false, gatewayId: "gw1",
+      condition: "general", crops: ["Beans"], main: "Delay spraying",
+    }));
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].tokens.sort(), ["dead-token", "tok-farmer1"]);
+    assert.equal(sent[0].data.gatewayId, "gw1");
+    assert.equal((await db.doc("deviceTokens/dead-token").get()).exists, false);
+    assert.equal((await db.collection("userNotifications/farmer1/items").get()).size, 1);
+    assert.equal((await db.collection("userNotifications/farmer2/items").get()).size, 0);
+  });
+
+  test("condition advice isn't pushed at publish time (the sweep delivers it)", async () => {
     await fns.onAdvisoryPublished.run(advisoryEvent(null, {
       status: "published", version: 1, testOnly: false, gatewayId: "gw1",
       condition: "high_wind", crops: ["Beans"], main: "Delay spraying",
     }));
+    assert.equal(sent.length, 0);
+  });
+
+  test("updates re-notify only when notifyVersion moves", async () => {
+    const base = { status: "published", testOnly: false, gatewayId: null, condition: "general", crops: ["All crops"], main: "x" };
+    await fns.onAdvisoryPublished.run(advisoryEvent({ ...base, version: 1, notifyVersion: 1 }, { ...base, version: 2, notifyVersion: 1 }));
+    assert.equal(sent.length, 0);
+    await fns.onAdvisoryPublished.run(advisoryEvent({ ...base, version: 2, notifyVersion: 1 }, { ...base, version: 3, notifyVersion: 3 }));
     assert.equal(sent.length, 1);
-    assert.deepEqual(sent[0].tokens.sort(), ["dead-token", "tok-farmer1"]);
-    assert.equal((await db.doc("deviceTokens/dead-token").get()).exists, false);
-    assert.equal((await db.collection("userNotifications/farmer1/items").get()).size, 1);
+    assert.match(sent[0].notification.title, /^Updated verified advice/);
+    assert.equal(sent[0].condition, "'km_farmers' in topics");
   });
 
   test("crop advisory → crop topics, no per-user inbox", async () => {
     await fns.onAdvisoryPublished.run(advisoryEvent(null, {
       status: "published", version: 1, testOnly: false, gatewayId: null,
-      condition: "heat", crops: ["Maize", "Tomatoes"], main: "Irrigate early",
+      condition: "general", crops: ["Maize", "Tomatoes"], main: "Irrigate early",
     }));
     assert.equal(sent.length, 1);
     assert.equal(sent[0].condition, "'km_crop_maize' in topics || 'km_crop_tomatoes' in topics");
@@ -174,6 +279,101 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
     await fns.onAdvisoryPublished.run(advisoryEvent(null, { status: "draft", version: 1 }));
     await fns.onAdvisoryPublished.run(advisoryEvent({ status: "published", version: 2 }, { status: "archived", version: 3 }));
     assert.equal(sent.length, 0);
+  });
+
+  // ── Hourly sweep ────────────────────────────────────────────────────────
+  const NOW = Date.UTC(2026, 8, 24, 12);
+  const liveReading = (over = {}) => ({
+    hasData: true, timestamp: new Date(NOW - 20 * 60e3),
+    airTemp: 22, humidity: 60, rainfall: 0, windSpeed: 2, windGusts: 4,
+    lwdHour: 0, lwdConsecutiveHours: 0, vpd: 1, sprayQualityIndex: 30, sprayQualityLabel: "Poor",
+    ...over,
+  });
+  const publish = (id, data) => db.doc(`agronomic_advisories/${id}`).set({
+    status: "published", testOnly: false, version: 1, notifyVersion: 1,
+    gatewayId: null, publishedAt: new Date(NOW - 86400e3), ...data,
+  });
+  const sweep = (reading) => n.createWeatherSweep({ PLATFORM: "km", fetchReading: async () => reading });
+  const tokensOf = (m) => (m.tokens || []).filter((t) => !t.startsWith("dead")).sort();
+
+  async function twoFarmers() {
+    // farmer1 grows maize, farmer2 tomatoes — both on gw1.
+    await db.doc("deviceTokens/dead-token").delete();
+    await db.doc("stationAssignments/gw1_farmer2").set({ gatewayId: "gw1", uid: "farmer2", platform: "km" });
+    await db.doc("deviceTokens/tok-farmer2").set({ uid: "farmer2" });
+    await db.doc("fielddata/f1").set({ userId: "farmer1", timestamp: new Date(), crops: [{ type: "Maize" }] });
+    await db.doc("fielddata/f2").set({ userId: "farmer2", timestamp: new Date(), crops: [{ type: "Tomatoes" }] });
+  }
+
+  test("sweep: each farmer's alert carries the advice for their own crop", async () => {
+    await twoFarmers();
+    await publish("rain-maize", { condition: "raining", crops: ["Maize"], main: "Open maize drainage" });
+    await publish("rain-tomato", { condition: "raining", crops: ["Tomatoes"], main: "Stake tomatoes" });
+
+    await sweep(liveReading({ rainfall: 12 }))(NOW);
+    const alerts = sent.filter((m) => m.data.type === "weather_alert");
+    assert.equal(alerts.length, 2);
+    const forF1 = alerts.find((m) => tokensOf(m).includes("tok-farmer1"));
+    const forF2 = alerts.find((m) => tokensOf(m).includes("tok-farmer2"));
+    assert.match(forF1.notification.body, /Verified advice: Open maize drainage/);
+    assert.match(forF2.notification.body, /Verified advice: Stake tomatoes/);
+    assert.equal(forF1.data.gatewayId, "gw1");
+    // The advice came with the alert — no separate advisory push for it.
+    assert.equal(sent.filter((m) => m.data.type === "advisory").length, 0);
+  });
+
+  test("sweep: condition advice is delivered when it occurs, to matching crops, not repeated", async () => {
+    await twoFarmers();
+    await publish("humid-maize", { condition: "high_humidity", crops: ["Maize"], main: "Scout maize for rust" });
+    await publish("cool-any", { condition: "cool", crops: ["All crops"], main: "Delay planting" });
+
+    // Warm, humid (no alerts): only the humidity advice applies, only to farmer1.
+    await sweep(liveReading({ humidity: 85 }))(NOW);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].data.type, "advisory");
+    assert.equal(sent[0].data.advisoryId, "humid-maize");
+    assert.deepEqual(tokensOf(sent[0]), ["tok-farmer1"]);
+    assert.equal((await db.collection("userNotifications/farmer1/items").get()).size, 1);
+
+    // An hour later, still humid → nothing new.
+    sent = [];
+    await sweep(liveReading({ humidity: 85, timestamp: new Date(NOW + 3600e3 - 60e3) }))(NOW + 3600e3);
+    assert.equal(sent.length, 0);
+
+    // After a day it's sent again; re-notified versions go straight out.
+    await sweep(liveReading({ humidity: 85, timestamp: new Date(NOW + 25 * 3600e3 - 60e3) }))(NOW + 25 * 3600e3);
+    assert.equal(sent.length, 1);
+    sent = [];
+    await db.doc("agronomic_advisories/humid-maize").update({ version: 2, notifyVersion: 2 });
+    await sweep(liveReading({ humidity: 85, timestamp: new Date(NOW + 26 * 3600e3 - 60e3) }))(NOW + 26 * 3600e3);
+    assert.equal(sent.length, 1);
+    sent = [];
+    // A version bump WITHOUT notify doesn't.
+    await db.doc("agronomic_advisories/humid-maize").update({ version: 3 });
+    await sweep(liveReading({ humidity: 85, timestamp: new Date(NOW + 27 * 3600e3 - 60e3) }))(NOW + 27 * 3600e3);
+    assert.equal(sent.length, 0);
+  });
+
+  test("sweep: an offline or stale station sends nothing", async () => {
+    await twoFarmers();
+    await publish("cool-any", { condition: "cool", crops: ["All crops"], main: "Delay planting" });
+    await sweep(liveReading({ hasData: false, airTemp: 0, humidity: 0 }))(NOW);
+    await sweep(liveReading({ airTemp: 1, timestamp: new Date(NOW - 4 * 3600e3) }))(NOW);
+    assert.equal(sent.length, 0);
+  });
+
+  test("sweep: station-scoped advice beats all-station advice; TEST advice never goes out", async () => {
+    await twoFarmers();
+    await publish("wind-all", { condition: "high_wind", crops: ["All crops"], main: "General wind advice", publishedAt: new Date(NOW - 1000) });
+    await publish("wind-gw1", { condition: "high_wind", crops: ["All crops"], main: "gw1 wind advice", gatewayId: "gw1" });
+    await publish("wind-test", { condition: "high_wind", crops: ["All crops"], main: "TEST", testOnly: true, gatewayId: "gw1" });
+    await sweep(liveReading({ windSpeed: 9 }))(NOW);
+    const alerts = sent.filter((m) => m.data.type === "weather_alert");
+    assert.equal(alerts.length, 1);
+    assert.match(alerts[0].notification.body, /Verified advice: gw1 wind advice/);
+    // The alert covered "windy" — no second wind push in the same run.
+    assert.equal(sent.length, 1);
+    assert.ok(!sent.some((m) => /TEST/.test(m.notification.body)));
   });
 
   test("education sign-up → approvers of the right role and school; decision → applicant", async () => {

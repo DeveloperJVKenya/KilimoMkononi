@@ -191,14 +191,17 @@ class _FieldAgronomistPanelScreenState
             children: [
               _AdvisoryList(
                 status: AdvisoryStatus.draft,
+                testMode: widget.testMode,
                 onOpen: (a) => _openEditor(existing: a),
               ),
               _AdvisoryList(
                 status: AdvisoryStatus.published,
+                testMode: widget.testMode,
                 onOpen: (a) => _openEditor(existing: a),
               ),
               _AdvisoryList(
                 status: AdvisoryStatus.archived,
+                testMode: widget.testMode,
                 onOpen: (a) => _openEditor(existing: a),
               ),
             ],
@@ -294,6 +297,17 @@ class _LiveConditionsCard extends StatelessWidget {
             Text(
               'Could not load station data: $error',
               style: const TextStyle(fontSize: 12, color: AdvisoryColors.red),
+            )
+          else if (r != null && r.isProvisioned && !r.hasData)
+            const Text(
+              'This station has not reported in the last 2 hours — it may be '
+              'offline. Farmers on it only see "Any conditions" advice until it '
+              'is back.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AdvisoryColors.amber,
+                height: 1.4,
+              ),
             )
           else if (r == null || !r.isProvisioned)
             const Text(
@@ -434,13 +448,21 @@ class _CoverageChips extends StatelessWidget {
 
 class _AdvisoryList extends StatelessWidget {
   final AdvisoryStatus status;
+  final bool testMode;
   final ValueChanged<AgronomicAdvisory> onOpen;
-  const _AdvisoryList({required this.status, required this.onOpen});
+  const _AdvisoryList({
+    required this.status,
+    required this.testMode,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<AgronomicAdvisory>>(
-      stream: AgronomicAdvisoryService.streamByStatus(status),
+      stream: AgronomicAdvisoryService.streamByStatus(
+        status,
+        includeTest: testMode,
+      ),
       builder: (context, snap) {
         if (snap.hasError) {
           return Center(

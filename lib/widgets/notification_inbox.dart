@@ -19,6 +19,8 @@ class InboxItem {
   final String title;
   final String body;
   final String? route;
+  /// Extra push data (e.g. gatewayId) passed to the screen [route] opens.
+  final Map<String, String> args;
   final String? severity;
   final bool read;
   final DateTime? createdAt;
@@ -30,6 +32,7 @@ class InboxItem {
     required this.title,
     required this.body,
     this.route,
+    this.args = const {},
     this.severity,
     this.read = false,
     this.createdAt,
@@ -44,6 +47,10 @@ class InboxItem {
       title: (d['title'] as String?) ?? '',
       body: (d['body'] as String?) ?? '',
       route: d['route'] as String?,
+      args: {
+        for (final e in ((d['data'] as Map?) ?? const {}).entries)
+          '${e.key}': '${e.value}',
+      },
       severity: d['severity'] as String?,
       read: d['read'] == true,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
@@ -187,7 +194,9 @@ class _InboxCard extends StatelessWidget {
           onTap: () {
             if (!item.read) col.doc(item.id).update({'read': true});
             final route = item.route;
-            if (route != null) NotificationService.routeHandler?.call(route);
+            if (route != null) {
+              NotificationService.routeHandler?.call(route, item.args);
+            }
           },
           child: Column(children: [
             Container(

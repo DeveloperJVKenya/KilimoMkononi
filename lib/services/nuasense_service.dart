@@ -150,6 +150,11 @@ class NuaSenseReading {
   /// station hasn't been installed yet" instead of a generic offline state.
   final bool isProvisioned;
 
+  /// False when the station sent nothing in the last 2 hours (the window we
+  /// query) — i.e. it's offline. Every value is then a placeholder 0, so
+  /// nothing should be advised from this reading.
+  final bool hasData;
+
   const NuaSenseReading({
     required this.airTemp,
     required this.humidity,
@@ -184,6 +189,7 @@ class NuaSenseReading {
     required this.timestamp,
     this.isStale = false,
     this.isProvisioned = true,
+    this.hasData = true,
   });
 
   /// Returns a safe zero-value reading — used when station is offline.
@@ -203,6 +209,7 @@ class NuaSenseReading {
         timestamp: DateTime.fromMillisecondsSinceEpoch(0),
         isStale: true,
         isProvisioned: isProvisioned,
+        hasData: false,
       );
 
   bool get leafIsWet => lwdHour == 1;
@@ -482,6 +489,12 @@ class NuaSenseService {
       return (pts.last['y'] as num?)?.toDouble() ?? 0.0;
     }
 
+    // No points in the -2h window = the station is offline. lastVal() then
+    // returns 0 for everything, which must not be read as 0°C / 0% humidity.
+    bool hasPoints(Map<String, dynamic> resp) =>
+        ((resp['series'] as List?) ?? const []).any(
+            (s) => s is Map && ((s['data'] as List?)?.isNotEmpty ?? false));
+
     DateTime lastTime(Map<String, dynamic> resp) {
       final series = (resp['series'] as List?)?.firstOrNull;
       final pts    = series?['data'] as List?;
@@ -539,6 +552,7 @@ class NuaSenseService {
       timestamp:         lastTime(weatherNow),
       isStale:           false,
       isProvisioned:     true,
+      hasData:           hasPoints(weatherNow),
     );
 
     // ── Parse 24h hourly history ──────────────────────────────────────────
@@ -647,5 +661,6 @@ extension _NuaSenseCopy on NuaSenseReading {
         timestamp:          timestamp,
         isStale:            isStale ?? this.isStale,
         isProvisioned:      isProvisioned ?? this.isProvisioned,
+        hasData:            hasData,
       );
 }

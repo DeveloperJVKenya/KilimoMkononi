@@ -330,6 +330,70 @@ test("advisories: published advice is archived, not deleted; drafts can be delet
   await assertSucceeds(deleteDoc(doc(as("agro"), "agronomic_advisories/drf")));
 });
 
+test("advisories: verifier and notify fields only change by publishing", async () => {
+  await seedAgronomist();
+  // publish (v1) with a notification, then unpublish (v2) keeping the verifier
+  await assertSucceeds(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { status: "published", extra: { notifyVersion: 1 } })));
+  await assertSucceeds(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { version: 2 }), { create: false }));
+  // can't make it look never-published, then delete it
+  await assertFails(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { version: 3, extra: { publishedAt: null } }), { create: false }));
+  await assertFails(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { version: 3, extra: { publishedByName: "someoneElse" } }), { create: false }));
+  await assertFails(deleteDoc(doc(as("agro"), "agronomic_advisories/v1")));
+  // can't re-notify farmers without publishing
+  await assertFails(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { version: 3, extra: { notifyVersion: 3 } }), { create: false }));
+  // republish with a new notification; notifyVersion can't run ahead
+  await assertFails(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { version: 3, status: "published", extra: { notifyVersion: 4 } }), { create: false }));
+  await assertSucceeds(writeAdvisory(as("agro"), "v1",
+    advisoryData("agro", { version: 3, status: "published", extra: { notifyVersion: 3 } }), { create: false }));
+});
+
+test("advisories: frost is a valid condition; titles are bounded", async () => {
+  await seedAgronomist();
+  await assertSucceeds(writeAdvisory(as("agro"), "f1",
+    advisoryData("agro", { extra: { condition: "frost" } })));
+  await assertFails(writeAdvisory(as("agro"), "f2",
+    advisoryData("agro", { extra: { condition: "blizzard" } })));
+  await assertFails(writeAdvisory(as("agro"), "f3",
+    advisoryData("agro", { extra: { title: "x".repeat(201) } })));
+});
+
+test("advisories: agronomists can't edit or delete admin TEST advisories", async () => {
+  await seedAgronomist();
+  await assertSucceeds(writeAdvisory(as("admin"), "t1",
+    advisoryData("admin", { extra: { testOnly: true } })));
+  // flipping it live is refused too
+  await assertFails(writeAdvisory(as("agro"), "t1",
+    advisoryData("agro", { version: 2 }), { create: false }));
+  await assertFails(deleteDoc(doc(as("agro"), "agronomic_advisories/t1")));
+});
+
+test("advisories: a deleted draft takes its history with it — nothing else does", async () => {
+  await seedAgronomist();
+  await writeAdvisory(as("agro"), "d1", advisoryData("agro"));
+  await writeAdvisory(as("agro"), "d1", advisoryData("agro", { version: 2 }), { create: false });
+  // history alone can't be removed while the advisory exists
+  await assertFails(deleteDoc(doc(as("agro"), "agronomic_advisories/d1/history/v1")));
+  const agro = as("agro");
+  const b = writeBatch(agro);
+  b.delete(doc(agro, "agronomic_advisories/d1/history/v1"));
+  b.delete(doc(agro, "agronomic_advisories/d1/history/v2"));
+  b.delete(doc(agro, "agronomic_advisories/d1"));
+  await assertSucceeds(b.commit());
+
+  // published advice keeps its history, even alongside a (refused) delete
+  await writeAdvisory(as("agro"), "p1", advisoryData("agro", { status: "published" }));
+  const b2 = writeBatch(agro);
+  b2.delete(doc(agro, "agronomic_advisories/p1/history/v1"));
+  b2.delete(doc(agro, "agronomic_advisories/p1"));
+  await assertFails(b2.commit());
+});
+
 test("agronomist role can only be granted by an admin", async () => {
   await assertFails(setDoc(doc(as("farmer"), "Agronomists/farmer"), { added: true }));
   await assertSucceeds(setDoc(doc(as("admin"), "Agronomists/farmer"), { added: true }));

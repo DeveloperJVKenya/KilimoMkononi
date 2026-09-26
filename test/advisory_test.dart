@@ -14,6 +14,7 @@ NuaSenseReading reading({
   int lwdConsecutiveHours = 0,
   double sprayQualityIndex = 0,
   String sprayQualityLabel = '',
+  bool hasData = true,
 }) =>
     NuaSenseReading(
       airTemp: airTemp, humidity: humidity, rainfall: rainfall,
@@ -28,6 +29,7 @@ NuaSenseReading reading({
       ddDbmHour: 0, ddTutaHour: 0, ddThripsHour: 0, ddArmywormHour: 0,
       ddCbbHour: 0,
       timestamp: DateTime(2026, 9, 24),
+      hasData: hasData,
     );
 
 void main() {
@@ -59,6 +61,18 @@ void main() {
       expect(activeConditionKeys(reading(humidity: 35)), contains('dry_stress'));
     });
 
+    test('frost at 4°C or below (also counts as cool)', () {
+      expect(activeConditionKeys(reading(airTemp: 3)), containsAll(['frost', 'cool']));
+      expect(activeConditionKeys(reading(airTemp: 6)), isNot(contains('frost')));
+    });
+
+    test('offline station: placeholder zeros light up nothing but general', () {
+      // What an offline station looks like: every value 0, no points.
+      final offline = reading(airTemp: 0, humidity: 0, windSpeed: 0, vpd: 0, hasData: false);
+      expect(activeConditionKeys(offline), {'general'});
+      expect(activeConditionKeys(NuaSenseReading.empty()), {'general'});
+    });
+
     test('station spray score takes precedence over the wind heuristic', () {
       final poor = reading(sprayQualityIndex: 30, sprayQualityLabel: 'Poor');
       expect(activeConditionKeys(poor), isNot(contains('good_spray')));
@@ -79,6 +93,11 @@ void main() {
     });
     test('farmer with no recorded crops sees everything', () {
       expect(cropsMatch(['Tomatoes'], []), isTrue);
+    });
+    test("isForAllCrops (used when the farmer's crops could not be loaded)", () {
+      expect(isForAllCrops([kAllCrops]), isTrue);
+      expect(isForAllCrops(['all crops ']), isTrue);
+      expect(isForAllCrops(['Maize']), isFalse);
     });
     test('matches case-insensitively on the farmer form names', () {
       expect(cropsMatch(['Irish Potatoes', 'Maize'], ['maize']), isTrue);

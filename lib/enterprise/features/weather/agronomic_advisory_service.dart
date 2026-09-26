@@ -24,6 +24,16 @@ const _kAskGeminiUrl =
 ///                testOnly (hidden from farmers) and live advice is read-only.
 enum AdvisoryAccess { none, agronomist, adminTest }
 
+/// Thrown by [AgronomicAdvisoryService.save] when someone else changed the
+/// advisory after it was opened — saving would silently undo their change.
+class AdvisoryConflictException implements Exception {
+  const AdvisoryConflictException();
+  @override
+  String toString() =>
+      'This advice was changed by someone else while you had it open. '
+      'Close it and open it again to see the latest version.';
+}
+
 class AgronomicAdvisoryService {
   AgronomicAdvisoryService._();
 
@@ -68,11 +78,15 @@ class AgronomicAdvisoryService {
   /// the farmer's crops and station. Most specific first: station-scoped
   /// before all-stations, a specific condition before 'general', then newest.
   ///
+  /// [farmerCrops] null means the crops couldn't be loaded — only
+  /// 'All crops' advice is returned then, rather than guessing. (An empty
+  /// list means the farmer has recorded none, and matches everything.)
+  ///
   /// [includeTest] (admins only — rules deny it for farmers) also returns
   /// test-mode advisories so an admin can see the farmer view end to end.
   static Future<List<AgronomicAdvisory>> publishedFor({
     required Set<String> conditions,
-    required List<String> farmerCrops,
+    required List<String>? farmerCrops,
     String? gatewayId,
     bool includeTest = false,
   }) async {
@@ -86,7 +100,9 @@ class AgronomicAdvisoryService {
 
     final list = snap.docs
         .map(AgronomicAdvisory.fromDoc)
-        .where((a) => cropsMatch(a.crops, farmerCrops))
+        .where((a) => farmerCrops == null
+            ? isForAllCrops(a.crops)
+            : cropsMatch(a.crops, farmerCrops))
         .where((a) => !a.isStationScoped || a.gatewayId == gatewayId)
         .toList();
 
@@ -104,10 +120,16 @@ class AgronomicAdvisoryService {
 
   // ── Panel ─────────────────────────────────────────────────────────────────
 
+  /// [includeTest] is for admins in test mode. Field Agronomists never see
+  /// admin TEST advisories — the rules wouldn't let them edit those anyway.
   static Stream<List<AgronomicAdvisory>> streamByStatus(
-    AdvisoryStatus status,
-  ) => _col.where('status', isEqualTo: status.name).snapshots().map((s) {
-    final list = s.docs.map(AgronomicAdvisory.fromDoc).toList()
+    AdvisoryStatus status, {
+    bool includeTest = false,
+  }) => _col.where('status', isEqualTo: status.name).snapshots().map((s) {
+    final list = s.docs
+        .map(AgronomicAdvisory.fromDoc)
+        .where((a) => includeTest || !a.testOnly)
+        .toList()
       ..sort(
         (a, b) =>
             (b.updatedAt ?? DateTime(0)).compareTo(a.updatedAt ?? DateTime(0)),
@@ -129,11 +151,22 @@ class AgronomicAdvisoryService {
   /// [status] is the target status; [action] names the change for the audit
   /// log (created, edited, published, republished, unpublished, archived,
   /// restored). Returns the advisory id.
+  ///
+  /// [expectedVersion] is the version the editor opened; if the advisory has
+  /// moved on since, [AdvisoryConflictException] is thrown instead of
+  /// overwriting someone else's change.
+  ///
+  /// Farmers are notified when advice is first published. Changes to advice
+  /// that is already published only notify them when [notifyFarmers] is set
+  /// (so a typo fix doesn't re-push to everyone) — recorded as
+  /// `notifyVersion`, which the Cloud Functions compare against.
   static Future<String> save({
     String? id,
+    int? expectedVersion,
     required AdvisoryContent content,
     required AdvisoryStatus status,
     required String action,
+    bool notifyFarmers = false,
   }) async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final name = await _myName();
@@ -144,7 +177,13 @@ class AgronomicAdvisoryService {
       if (id != null && !(current?.exists ?? false)) {
         throw StateError('This advisory no longer exists.');
       }
-      final version = ((current?.data()?['version'] as num?)?.toInt() ?? 0) + 1;
+      final currentVersion = (current?.data()?['version'] as num?)?.toInt() ?? 0;
+      if (expectedVersion != null && currentVersion != expectedVersion) {
+        throw const AdvisoryConflictException();
+      }
+      final version = currentVersion + 1;
+      final wasPublished =
+          current?.data()?['status'] == AdvisoryStatus.published.name;
       final now = FieldValue.serverTimestamp();
 
       final data = <String, dynamic>{
@@ -171,6 +210,7 @@ class AgronomicAdvisoryService {
           'publishedByName': name,
           'publishedAt': now,
         });
+        if (!wasPublished || notifyFarmers) data['notifyVersion'] = version;
       }
 
       if (current == null) {
@@ -192,12 +232,14 @@ class AgronomicAdvisoryService {
   }
 
   /// Status-only change (unpublish / archive / restore), keeping content.
+  /// Fails with [AdvisoryConflictException] if [a] is out of date.
   static Future<void> changeStatus(
     AgronomicAdvisory a,
     AdvisoryStatus status,
     String action,
   ) => save(
     id: a.id,
+    expectedVersion: a.version,
     content: AdvisoryContent(
       title: a.title,
       advice: a.advice,
@@ -214,8 +256,18 @@ class AgronomicAdvisoryService {
   );
 
   /// Only drafts that were never published can be deleted (rules enforce
-  /// this); anything farmers may have seen is archived instead.
-  static Future<void> deleteDraft(String id) => _col.doc(id).delete();
+  /// this); anything farmers may have seen is archived instead. The draft's
+  /// history entries go with it in the same batch, so nothing is orphaned.
+  static Future<void> deleteDraft(String id) async {
+    final ref = _col.doc(id);
+    final history = await ref.collection('history').get();
+    final batch = _db.batch();
+    for (final h in history.docs) {
+      batch.delete(h.reference);
+    }
+    batch.delete(ref);
+    await batch.commit();
+  }
 
   // ── AI drafting ───────────────────────────────────────────────────────────
 

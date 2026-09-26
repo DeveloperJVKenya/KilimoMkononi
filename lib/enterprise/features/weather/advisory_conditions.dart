@@ -63,6 +63,12 @@ const List<AdvisoryCondition> kAdvisoryConditions = [
     Icons.ac_unit_rounded,
   ),
   AdvisoryCondition(
+    'frost',
+    'Frost risk',
+    'Air temperature 4°C or below',
+    Icons.severe_cold_rounded,
+  ),
+  AdvisoryCondition(
     'dry_stress',
     'Dry air / water stress',
     'VPD above 2.5 kPa or humidity below 40%',
@@ -82,8 +88,13 @@ AdvisoryCondition conditionFor(String key) => kAdvisoryConditions.firstWhere(
 );
 
 /// Condition keys active for this reading. Always includes 'general'.
+///
+/// An offline station ([NuaSenseReading.hasData] false) reports placeholder
+/// zeros — 0°C, 0% humidity, no wind — which would otherwise light up
+/// 'cool', 'frost', 'dry_stress' and 'good_spray'. Only 'general' applies.
 Set<String> activeConditionKeys(NuaSenseReading r) {
   final keys = <String>{'general'};
+  if (!r.hasData) return keys;
   final raining = r.rainingNow;
   if (raining) keys.add('raining');
   if (r.leafIsWet || r.lwdConsecutiveHours >= 6) keys.add('wet_leaves');
@@ -91,6 +102,7 @@ Set<String> activeConditionKeys(NuaSenseReading r) {
   if (r.windSpeed > 5) keys.add('high_wind');
   if (r.airTemp > 32) keys.add('heat');
   if (r.airTemp < 15) keys.add('cool');
+  if (r.airTemp <= 4) keys.add('frost');
   if (r.vpd > 2.5 || r.humidity < 40) keys.add('dry_stress');
   final goodSpray = r.sprayQualityLabel.isNotEmpty
       ? r.sprayQualityGood
@@ -119,11 +131,15 @@ const List<String> kAdvisoryCrops = [
 
 String _norm(String s) => s.trim().toLowerCase();
 
+/// True when the advisory targets every crop.
+bool isForAllCrops(List<String> advisoryCrops) =>
+    advisoryCrops.any((c) => _norm(c) == _norm(kAllCrops));
+
 /// True when an advisory for [advisoryCrops] applies to a farmer growing
 /// [farmerCrops]. Unknown farmer crops (empty) match everything, so a farmer
 /// who hasn't recorded field data still sees verified advice.
 bool cropsMatch(List<String> advisoryCrops, List<String> farmerCrops) {
-  if (advisoryCrops.any((c) => _norm(c) == _norm(kAllCrops))) return true;
+  if (isForAllCrops(advisoryCrops)) return true;
   if (farmerCrops.isEmpty) return true;
   final mine = farmerCrops.map(_norm).toSet();
   return advisoryCrops.any((c) => mine.contains(_norm(c)));

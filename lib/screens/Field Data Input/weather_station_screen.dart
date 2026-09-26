@@ -89,7 +89,11 @@ StructuredAdvice _planToStructured(WeatherDayPlan plan) {
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 class WeatherStationScreen extends StatefulWidget {
-  const WeatherStationScreen({super.key});
+  /// Opens on this station (e.g. from a push about it) instead of the
+  /// farmer's first one. Ignored if it isn't one of their stations.
+  final String? initialStationId;
+
+  const WeatherStationScreen({super.key, this.initialStationId});
 
   @override
   State<WeatherStationScreen> createState() => _WeatherStationScreenState();
@@ -118,7 +122,11 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   // Verified (published) advisories matching crop + current weather.
   List<AgronomicAdvisory> _verifiedAdvice = [];
   bool _verifiedLoading = false;
+  // Bumped per request, so a slow older response can't overwrite a newer one.
+  int _verifiedRequest = 0;
   List<String> _farmerCrops = [];
+  // False until crops have loaded once (stays false if loading fails).
+  bool _farmerCropsKnown = false;
   AdvisoryAccess _advisoryAccess = AdvisoryAccess.none;
   bool get _isFieldAgronomist => _advisoryAccess != AdvisoryAccess.none;
   bool get _adminTestMode => _advisoryAccess == AdvisoryAccess.adminTest;
@@ -127,10 +135,17 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   void initState() {
     super.initState();
     _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    _load();
+    _init();
     _loadPlots();
-    _loadStations();
     _checkRole();
+  }
+
+  /// Stations first, so the reading and the station-scoped advice both use
+  /// the same explicit station (the server's default and the list order can
+  /// differ for farmers with several stations).
+  Future<void> _init() async {
+    await _loadStations();
+    await _load();
   }
 
   Future<void> _checkRole() async {
@@ -143,6 +158,8 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
 
   /// The farmer's crops for the selected plot, from their field records
   /// (fielddata.crops[].type). Falls back to all their recorded crops.
+  /// On failure the last known crops are kept; if none were ever loaded,
+  /// [_farmerCropsKnown] stays false and only 'All crops' advice is shown.
   Future<void> _loadFarmerCrops() async {
     if (_userId.isEmpty) return;
     try {
@@ -163,35 +180,42 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
         if (data['plotId'] == _selectedPlotId) forPlot.addAll(types);
       }
       if (!mounted) return;
-      setState(() => _farmerCrops = (forPlot.isNotEmpty ? forPlot : all).toList());
-    } catch (_) {}
+      setState(() {
+        _farmerCrops = (forPlot.isNotEmpty ? forPlot : all).toList();
+        _farmerCropsKnown = true;
+      });
+    } catch (e) {
+      debugPrint('[WeatherStationScreen] loading crops failed: $e');
+    }
   }
 
-  /// Station the reading came from: the explicit pick, else the default
-  /// (first assigned) one.
-  String? get _effectiveStationId =>
-      _selectedStationId ?? (_stations.isNotEmpty ? _stations.first.id : null);
+  /// Station the reading came from. [_loadStations] makes the pick explicit
+  /// before the first reading, so this is only null when the station list
+  /// couldn't load (the server's default is used; only all-station advice
+  /// applies then).
+  String? get _effectiveStationId => _selectedStationId;
 
   Future<void> _loadVerifiedAdvice() async {
     final r = _reading;
     if (!mounted || r == null || !r.isProvisioned) return;
+    final request = ++_verifiedRequest;
     setState(() => _verifiedLoading = true);
     try {
       await _loadFarmerCrops();
       final list = await AgronomicAdvisoryService.publishedFor(
         conditions: activeConditionKeys(r),
-        farmerCrops: _farmerCrops,
+        farmerCrops: _farmerCropsKnown ? _farmerCrops : null,
         gatewayId: _effectiveStationId,
         includeTest: _adminTestMode,
       );
-      if (!mounted) return;
+      if (!mounted || request != _verifiedRequest) return;
       setState(() {
         _verifiedAdvice = list;
         _verifiedLoading = false;
       });
     } catch (e) {
       debugPrint('[WeatherStationScreen] verified advice failed: $e');
-      if (!mounted) return;
+      if (!mounted || request != _verifiedRequest) return;
       setState(() {
         _verifiedAdvice = [];
         _verifiedLoading = false;
@@ -216,10 +240,27 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
     try {
       final stations = await NuaSenseService.getStations();
       if (!mounted) return;
-      setState(() => _stations = stations);
-      // Station-scoped advisories need the station id — refresh once known.
-      if (_selectedStationId == null && stations.isNotEmpty) _loadVerifiedAdvice();
-    } catch (_) {}
+      setState(() {
+        _stations = stations;
+        final wanted = widget.initialStationId;
+        if (_selectedStationId == null && stations.isNotEmpty) {
+          _selectedStationId = stations.any((s) => s.id == wanted)
+              ? wanted
+              : stations.first.id;
+        }
+      });
+    } catch (e) {
+      debugPrint('[WeatherStationScreen] loading stations failed: $e');
+    }
+  }
+
+  String get _stationLabel {
+    final id = _selectedStationId;
+    if (id == null) return 'Your station';
+    for (final s in _stations) {
+      if (s.id == id) return s.name.isNotEmpty ? s.name : id;
+    }
+    return id;
   }
 
   Future<void> _switchStation(String? stationId) async {
@@ -278,7 +319,15 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
       debugPrint('Using station: $_selectedStationId');
       if (reading.isProvisioned) {
         _loadVerifiedAdvice();
-        _loadAiAdvice();
+        // No AI advice from an offline station's placeholder zeros.
+        if (reading.hasData) {
+          _loadAiAdvice();
+        } else {
+          setState(() {
+            _aiAdvice = null;
+            _aiLoading = false;
+          });
+        }
         _loadAgronomistNote();
       }
     } catch (e) {
@@ -407,7 +456,7 @@ Farm conditions (context only — do not list these back):
                     fontSize: 17,
                     fontWeight: FontWeight.w600)),
             Text(
-              _selectedStationId ?? 'default / first assigned',
+              _stationLabel,
               style: const TextStyle(fontSize: 11, color: Colors.white70),
             ),
           ],
@@ -471,11 +520,14 @@ Farm conditions (context only — do not list these back):
                           _noGpsBanner(),
                           _buildStatusBar(),
                           const SizedBox(height: 14),
-                          _buildMainAdviceCard(plan!),
-                          const SizedBox(height: 14),
-                          _buildDoAvoidChips(plan),
-                          const SizedBox(height: 16),
-                          _buildConditionsSummary(plan),
+                          if (_reading!.hasData) ...[
+                            _buildMainAdviceCard(plan!),
+                            const SizedBox(height: 14),
+                            _buildDoAvoidChips(plan),
+                            const SizedBox(height: 16),
+                            _buildConditionsSummary(plan),
+                          ] else
+                            _buildOfflineCard(),
                           const SizedBox(height: 16),
                           if (_adminTestMode) ...[
                             _buildAdminPreview(),
@@ -580,10 +632,38 @@ Farm conditions (context only — do not list these back):
         ),
       );
 
+  /// Shown instead of the day plan when the station sent nothing in the
+  /// last 2 hours: its values are placeholders, not real weather.
+  Widget _buildOfflineCard() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _C.lightAmber,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _C.amber.withValues(alpha: 0.3)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.sensors_off_rounded, color: _C.amber),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Your weather station has not sent any readings in the last '
+                '2 hours, so there is no live advice for today. Check that '
+                'the station has power and signal, then pull down to refresh. '
+                'Only general verified advice is shown below.',
+                style: TextStyle(fontSize: 12.5, height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      );
+
   Widget _buildStatusBar() {
     final r = _reading!;
     final timeAgo = _timeAgo(r.timestamp);
-    final stale = r.isStale;
+    final stale = r.isStale || !r.hasData;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -600,9 +680,11 @@ Farm conditions (context only — do not list these back):
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            stale
-                ? 'Cached data · Last updated $timeAgo'
-                : 'Live · Updated $timeAgo',
+            !r.hasData
+                ? 'No readings in the last 2 hours · station may be offline'
+                : stale
+                    ? 'Cached data · Last updated $timeAgo'
+                    : 'Live · Updated $timeAgo',
             style: TextStyle(
                 fontSize: 12,
                 color: stale ? _C.amber : _C.midGreen,
