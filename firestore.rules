@@ -1,242 +1,601 @@
 rules_version = '2';
+
+// Kilimo Mkononi — Firestore security rules.
+//
+// Principles:
+//   • Deny by default. Every collection the app uses is listed below.
+//   • Privilege fields are never client-writable by their owner:
+//       Users.isDisabled, EducationUsers.{role, approvalStatus, approvedBy,
+//       approvedAt, isDisabled, requestedRole, schoolName, uid}.
+//     Roles are granted only through the approval chain
+//     (mainadmin → headteacher → teacher → student) or by an admin.
+//   • Education access is scoped to the caller's own school and classes.
+//     classIds / currentClassId can only point at classes of the caller's
+//     own school: "<schoolName with spaces→_>_<system>_<grade>".
+//   • Admins (docs in /Admins/{uid}) can read/write everything — the admin
+//     screens rely on that (see the catch-all at the bottom).
+//
+// NOTE: Firestore rules have no startsWith/endsWith; class ids are checked
+// by rebuilding them from their parts and comparing for equality.
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ──────────────────────────────────────────────────────────────
-    // Helper functions
-    // ──────────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════
+    //  Identity helpers
+    // ════════════════════════════════════════════════════════════════
+    function signedIn() { return request.auth != null; }
+    function uid()      { return request.auth.uid; }
+
     function isAdmin() {
-      return request.auth != null && exists(/databases/$(database)/documents/Admins/$(request.auth.uid));
+      return signedIn() &&
+             exists(/databases/$(database)/documents/Admins/$(request.auth.uid));
     }
 
-    function isTeacher() {
-      return request.auth != null && 
-             get(/databases/$(database)/documents/EducationUsers/$(request.auth.uid)).data.role == 'teacher';
+    // Field Agronomists — granted by an admin (Agronomists/{uid}).
+    function isAgronomist() {
+      return signedIn() &&
+             exists(/databases/$(database)/documents/Agronomists/$(request.auth.uid));
     }
 
-    function isStudent() {
-      return request.auth != null && 
-             get(/databases/$(database)/documents/EducationUsers/$(request.auth.uid)).data.role == 'student';
-    }
+    // ── Education profile of the caller ──────────────────────────────
+    function eduDoc(u) { return /databases/$(database)/documents/EducationUsers/$(u); }
+    function hasEdu()  { return signedIn() && exists(eduDoc(uid())); }
+    function me()      { return get(eduDoc(uid())).data; }
 
-    function getUserDoc(uid) {
-      return get(/databases/$(database)/documents/EducationUsers/$(uid)).data;
+    // Approved and not disabled — pending/denied users get no school access.
+    function approved() {
+      return hasEdu() &&
+             me().get('approvalStatus', '') == 'approved' &&
+             me().get('isDisabled', false) != true;
     }
+    function eduRole()       { return me().get('role', ''); }
+    function isMainAdmin()   { return isAdmin() || (approved() && eduRole() == 'mainadmin'); }
+    function isHeadteacher() { return approved() && eduRole() == 'headteacher'; }
+    function isTeacher()     { return approved() && eduRole() == 'teacher'; }
+    function isStudent()     { return approved() && eduRole() == 'student'; }
+    function isStaff()       { return isHeadteacher() || isTeacher(); }
 
-    function teacherSchool() {
-      return getUserDoc(request.auth.uid).schoolName;
-    }
-
-    function teacherClassIds() {
-      let ids = getUserDoc(request.auth.uid).classIds;
+    // Same normalisation the app uses: schoolName.trim().replaceAll(' ', '_')
+    function schoolKeyOf(name) { return name.trim().replace(' ', '_'); }
+    function mySchoolName()    { return me().get('schoolName', ''); }
+    function mySchoolKey()     { return schoolKeyOf(mySchoolName()); }
+    function myCurrentClass()  { return me().get('currentClassId', ''); }
+    function myClassIds() {
+      let ids = me().get('classIds', []);
       return ids is list ? ids : [];
     }
 
-    function ownsGrade(schoolId, gradeId) {
-      let ids = teacherClassIds();
-      return isTeacher() && (
-        (schoolId + '_primary_' + gradeId) in ids ||
-        (schoolId + '_junior_' + gradeId) in ids ||
-        (schoolId + '_senior_' + gradeId) in ids ||
-        (schoolId + '_eightfourfour_' + gradeId) in ids
-      );
+    function classIdOf(school, sys, grade) { return school + '_' + sys + '_' + grade; }
+
+    // Is `cid` a well-formed class id belonging to the school named `schoolName`?
+    function isClassOfSchool(cid, schoolName) {
+      let parts = cid.split('_');
+      let sys   = parts[parts.size() - 2];
+      let grade = parts[parts.size() - 1];
+      return parts.size() >= 3 &&
+             sys in ['primary', 'junior', 'senior', 'eightfourfour'] &&
+             grade.matches('[0-9]{1,2}') &&
+             cid == schoolKeyOf(schoolName) + '_' + sys + '_' + grade;
     }
 
-    function inGrade(schoolId, gradeId) {
-      let current = getUserDoc(request.auth.uid).currentClassId;
-      return isStudent() && current != null && current.startsWith(schoolId) && (
-        current.endsWith('_primary_' + gradeId) ||
-        current.endsWith('_junior_' + gradeId) ||
-        current.endsWith('_senior_' + gradeId) ||
-        current.endsWith('_eightfourfour_' + gradeId)
-      );
+    // Caller belongs to class `cid` (any role) — school must match too.
+    function inClass(school, cid) {
+      return approved() && mySchoolKey() == school &&
+             (cid == myCurrentClass() || cid in myClassIds());
     }
-
-    function isValidContentType(contentType) {
-      return contentType in [
-        'farming_content',
-        'market_content',
-        'weather_content',
-        'field_content',
-        'pest_content',
-        'disease_content',
-        'farm_management_content'
-      ];
+    // Class id only (school is implied: classIds are locked to own school).
+    function inClassId(cid) {
+      return approved() && (cid == myCurrentClass() || cid in myClassIds());
     }
-
-    function canCreateContent(schoolId, gradeId) {
-      return isValidContentType(request.resource.data.contentType) &&
-             ownsGrade(schoolId, gradeId) &&
-             request.resource.data.type in ['quiz', 'simulation'] &&
-             request.resource.data.data is string &&
-             request.resource.data.createdAt is timestamp;
+    // Teacher of the class, or headteacher of the school.
+    function classStaff(school, cid) {
+      return (isTeacher() && inClass(school, cid)) ||
+             (isHeadteacher() && mySchoolKey() == school);
     }
+    function schoolMember(school) { return approved() && mySchoolKey() == school; }
 
-    function canListContent(schoolId, gradeId) {
-      return inGrade(schoolId, gradeId) &&
-             request.query.where != null &&
-             request.query.where.size() == 1 &&
-             request.query.where[0][0] == 'type' &&
-             request.query.where[0][2] in ['quiz', 'simulation'];
-    }
+    // ── Generic ownership helpers (docs carrying a `userId` field) ───
+    function ownsExisting() { return signedIn() && resource.data.get('userId', '') == uid(); }
+    function createsOwn()   { return signedIn() && request.resource.data.get('userId', '') == uid(); }
+    function keepsOwner()   { return request.resource.data.get('userId', '') == resource.data.get('userId', ''); }
 
-    function canUpdateCounters(schoolId, gradeId) {
-      return ownsGrade(schoolId, gradeId) &&
-             request.resource.data.keys().hasOnly([
-               'studentCount', 'quizCount', 'simulationCount', 'newQuiz', 'newSimulation', 'updatedAt'
-             ]);
-    }
+    // Owner-only collection keyed by a `userId` field.
+    // (Used via copy below — rules can't parameterise match blocks.)
 
-    function canCreateFeed(schoolId, gradeId) {
-      let userData = getUserDoc(request.auth.uid);
-      return ownsGrade(schoolId, gradeId) &&
-             request.resource.data.senderName == userData.fullName &&
-             request.resource.data.message is string &&
-             request.resource.data.timestamp is timestamp;
-    }
-
-    function canCreateSubmission() {
-      let userData = getUserDoc(request.auth.uid);
-      return isStudent() &&
-             request.resource.data.studentId == request.auth.uid &&
-             request.resource.data.gradeId == userData.currentClassId &&
-             request.resource.data.type in ['quiz', 'simulation'] &&
-             request.resource.data.score is int &&
-             request.resource.data.submittedAt is timestamp &&
-             request.resource.data.answers is map;
-    }
-
-    function canReadSubmission() {
-      let classIds = teacherClassIds();
-      return request.auth.uid == resource.data.studentId ||
-             (isTeacher() && (resource.data.gradeId in classIds));
-    }
-
-    function canListSubmissions() {
-      let classIds = teacherClassIds();
-      return isTeacher() && (resource.data.gradeId in classIds) ||
-             (isStudent() && request.query.where != null &&
-              request.query.where.size() == 1 &&
-              request.query.where[0] == ['studentId', '==', request.auth.uid]);
-    }
-
-    function canUpdateSubmission() {
-      let classIds = teacherClassIds();
-      return isTeacher() && (resource.data.gradeId in classIds) &&
-             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-               'score', 'gradedBy', 'gradedAt', 'feedback'
-             ]);
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Default deny
-    // ──────────────────────────────────────────────────────────────
-    match /{document=**} { allow read, write: if false; }
-
-    // ──────────────────────────────────────────────────────────────
-    // Admins
-    // ──────────────────────────────────────────────────────────────
-    match /Admins/{uid} { allow read, write: if isAdmin(); }
-
-    // ──────────────────────────────────────────────────────────────
-    // Users (farmers)
-    // ──────────────────────────────────────────────────────────────
-    match /Users/{userId} { 
-      allow read, write: if request.auth.uid == userId || isAdmin(); 
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Education Users
-    // ──────────────────────────────────────────────────────────────
-    match /EducationUsers/{userId} {
-      allow read, write: if request.auth.uid == userId || isAdmin();
-      allow list: if isTeacher() || isAdmin();
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Farmer Data (UNCHANGED)
-    // ──────────────────────────────────────────────────────────────
-    match /fielddata/{doc} {
-      allow read: if request.auth != null && (resource == null || request.auth.uid == resource.data.userId);
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow update, delete: if request.auth.uid == resource.data.userId;
+    // ════════════════════════════════════════════════════════════════
+    //  Admin catch-all — admin screens read/write any collection.
+    //  (Rules are OR-ed, so this only ADDS access for admins.)
+    // ════════════════════════════════════════════════════════════════
+    match /{document=**} {
       allow read, write: if isAdmin();
     }
 
-    match /marketdata/{doc} {
-      allow read: if request.auth != null && (resource == null || request.auth.uid == resource.data.userId);
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow update, delete: if request.auth.uid == resource.data.userId;
-      allow read, write: if isAdmin();
+    // ════════════════════════════════════════════════════════════════
+    //  Admins — users may check their OWN admin status; only admins write.
+    // ════════════════════════════════════════════════════════════════
+    match /Admins/{userId} {
+      allow get: if signedIn() && uid() == userId;
     }
 
-    match /pestinterventiondata/{doc} {
-      allow read: if request.auth != null && (resource == null || (request.auth.uid == resource.data.userId && resource.data.isDeleted == false));
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow update: if request.auth.uid == resource.data.userId;
-      allow delete: if isAdmin();
-      allow read, write: if isAdmin();
+    // ════════════════════════════════════════════════════════════════
+    //  Agronomists (role) — users may check their OWN role; admins grant.
+    // ════════════════════════════════════════════════════════════════
+    match /Agronomists/{userId} {
+      allow get: if signedIn() && uid() == userId;
     }
 
-    match /diseaseinterventiondata/{doc} {
-      allow read: if request.auth != null && (resource == null || (request.auth.uid == resource.data.userId && resource.data.isDeleted == false));
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow update: if request.auth.uid == resource.data.userId;
-      allow delete: if isAdmin();
-      allow read, write: if isAdmin();
-    }
+    // ════════════════════════════════════════════════════════════════
+    //  Agronomic advisories — written/verified by Field Agronomists.
+    //  Farmers only ever read PUBLISHED advisories. Every create/update
+    //  must write history/v{version} in the same batch (existsAfter), and
+    //  history entries are immutable — so the audit trail can't be skipped
+    //  or rewritten by agronomists.
+    // ════════════════════════════════════════════════════════════════
+    match /agronomic_advisories/{advisoryId} {
+      function historyDoc(v) {
+        return /databases/$(database)/documents/agronomic_advisories/$(advisoryId)/history/$('v' + string(v));
+      }
+      function validAdvisory() {
+        let d = request.resource.data;
+        return d.condition in ['general', 'raining', 'wet_leaves', 'high_humidity',
+                               'high_wind', 'heat', 'cool', 'dry_stress', 'good_spray'] &&
+               d.crops is list && d.crops.size() > 0 && d.crops.size() <= 20 &&
+               d.main is string && d.main.size() > 0 && d.main.size() <= 300 &&
+               d.doList is list && d.doList.size() <= 10 &&
+               d.avoidList is list && d.avoidList.size() <= 10 &&
+               d.why is string && d.why.size() <= 600 &&
+               d.status in ['draft', 'published', 'archived'] &&
+               d.platform == 'km' &&
+               // Test-mode advisories are created by admins (via the admin
+               // catch-all); agronomists always write live ones.
+               d.testOnly == false &&
+               d.version is int &&
+               d.updatedBy == uid() &&
+               d.updatedAt == request.time &&
+               // Publishing = verifying: the publisher is recorded, now.
+               (d.status != 'published' ||
+                  (d.publishedBy == uid() && d.publishedAt == request.time)) &&
+               existsAfter(historyDoc(d.version));
+      }
 
-    // ──────────────────────────────────────────────────────────────
-    // Logs & Manuals
-    // ──────────────────────────────────────────────────────────────
-    match /admin_logs/{id} { allow read, write: if isAdmin(); }
-    match /User_logs/{id} { allow create: if request.auth != null; allow read, write: if isAdmin(); }
-    match /Manuals/{id} { allow read: if true; allow write: if isAdmin(); }
-    match /ManualRequests/{userId} {
-      allow create: if request.auth.uid == userId;
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow update: if isAdmin();
-      match /messages/{messageId} {
-        allow create: if request.auth.uid == userId || isAdmin();
-        allow read: if request.auth.uid == userId || isAdmin();
-        allow update: if isAdmin();
+      // Farmers: published, non-test only (queries must filter testOnly == false).
+      allow read: if signedIn() &&
+                     ((resource.data.status == 'published' &&
+                       resource.data.testOnly == false) ||
+                      isAgronomist());
+      allow create: if isAgronomist() && validAdvisory() &&
+                       request.resource.data.version == 1 &&
+                       request.resource.data.createdBy == uid() &&
+                       request.resource.data.createdAt == request.time;
+      allow update: if isAgronomist() && validAdvisory() &&
+                       request.resource.data.version == resource.data.version + 1 &&
+                       request.resource.data.createdBy == resource.data.createdBy &&
+                       request.resource.data.createdByName == resource.data.createdByName &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       // Verifier fields only change by publishing.
+                       (request.resource.data.status == 'published' ||
+                        request.resource.data.get('publishedBy', null) ==
+                          resource.data.get('publishedBy', null));
+      // Only never-published drafts can be deleted; published advice is archived.
+      allow delete: if isAgronomist() &&
+                       resource.data.status == 'draft' &&
+                       resource.data.get('publishedAt', null) == null;
+
+      match /history/{entryId} {
+        allow read: if isAgronomist();
+        allow create: if isAgronomist() &&
+                         request.resource.data.byUid == uid() &&
+                         request.resource.data.at == request.time &&
+                         entryId == 'v' + string(request.resource.data.version) &&
+                         getAfter(/databases/$(database)/documents/agronomic_advisories/$(advisoryId))
+                           .data.version == request.resource.data.version;
       }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Schools → Grades
-    // ──────────────────────────────────────────────────────────────
-    match /schools/{schoolId}/grades/{gradeId} {
-      allow read: if isAdmin() || ownsGrade(schoolId, gradeId) || inGrade(schoolId, gradeId);
-      allow create: if isAdmin();
-      allow update: if isAdmin() || canUpdateCounters(schoolId, gradeId);
+    // ════════════════════════════════════════════════════════════════
+    //  Push notifications
+    //   deviceTokens/{fcmToken} {uid}  — one doc per device; a new sign-in
+    //     on a shared phone moves the device to the new user.
+    //   userNotifications/{uid}/items  — in-app inbox, written by Cloud
+    //     Functions only; owners can read, mark read, and delete.
+    //   alertState/*                   — server-only (default deny).
+    // ════════════════════════════════════════════════════════════════
+    match /deviceTokens/{token} {
+      allow create, update: if signedIn() &&
+                               request.resource.data.uid == uid() &&
+                               request.resource.data.keys().hasOnly(['uid', 'platform', 'updatedAt']);
+      allow get, delete: if signedIn() && resource.data.uid == uid();
+    }
+    match /userNotifications/{ownerId}/items/{itemId} {
+      allow read, delete: if signedIn() && uid() == ownerId;
+      allow update: if signedIn() && uid() == ownerId &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Content: All 7 modules (quizzes + simulations)
-    // ──────────────────────────────────────────────────────────────
-    match /schools/{schoolId}/grades/{gradeId}/{contentType}/{docId} {
-      allow read: if isAdmin() || ownsGrade(schoolId, gradeId) || inGrade(schoolId, gradeId);
-      allow create, update, delete: if isAdmin() || canCreateContent(schoolId, gradeId);
-      allow list: if isAdmin() || ownsGrade(schoolId, gradeId) || canListContent(schoolId, gradeId);
+    // ════════════════════════════════════════════════════════════════
+    //  Users (farmers) — isDisabled is admin-only.
+    // ════════════════════════════════════════════════════════════════
+    match /Users/{userId} {
+      allow get: if signedIn() && uid() == userId;
+      allow create: if signedIn() && uid() == userId &&
+                       request.resource.data.get('isDisabled', false) == false;
+      // Full .set() of the profile is fine as long as isDisabled is unchanged.
+      allow update: if signedIn() && uid() == userId &&
+                       request.resource.data.get('isDisabled', false) ==
+                         resource.data.get('isDisabled', false);
+      allow delete: if signedIn() && uid() == userId;
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Class Feed (Questions & Answers)
-    // ──────────────────────────────────────────────────────────────
-    match /schools/{schoolId}/grades/{gradeId}/feed/{msgId} {
-      allow read: if isAdmin() || ownsGrade(schoolId, gradeId) || inGrade(schoolId, gradeId);
-      allow create: if canCreateFeed(schoolId, gradeId);
+    // ════════════════════════════════════════════════════════════════
+    //  EducationUsers — approval chain + self-service profile.
+    // ════════════════════════════════════════════════════════════════
+    match /EducationUsers/{userId} {
+
+      function lockedKeys() {
+        return ['role', 'approvalStatus', 'approvedBy', 'approvedAt',
+                'isDisabled', 'requestedRole', 'schoolName', 'uid'];
+      }
+
+      // Self sign-up: always pending, no role, own school's classes only.
+      function selfCreateOk() {
+        let d = request.resource.data;
+        let cur = d.get('currentClassId', null);
+        let ids = d.get('classIds', []);
+        return uid() == userId &&
+               d.get('uid', userId) == userId &&
+               d.get('role', null) == null &&
+               d.get('approvalStatus', 'pending') == 'pending' &&
+               d.get('isDisabled', false) == false &&
+               d.get('requestedRole', '') in ['student', 'teacher', 'headteacher'] &&
+               d.get('schoolName', '') is string && d.get('schoolName', '').size() > 0 &&
+               !d.keys().hasAny(['approvedBy', 'approvedAt']) &&
+               ids is list &&
+               (cur == null || isClassOfSchool(cur, d.schoolName)) &&
+               (ids.size() == 0 || (cur != null && ids.hasOnly([cur])));
+      }
+
+      // Newly added classIds may only be the (validated) currentClassId.
+      function addedClassIdsOk(before, after) {
+        let added = after.get('classIds', []).toSet()
+                      .difference(before.get('classIds', []).toSet());
+        return added.size() == 0 ||
+               (added.hasOnly([after.get('currentClassId', '')]) &&
+                isClassOfSchool(after.get('currentClassId', ''), before.get('schoolName', '')));
+      }
+
+      function selfUpdateOk() {
+        let before  = resource.data;
+        let after   = request.resource.data;
+        let changed = after.diff(before).affectedKeys();
+        return uid() == userId &&
+               !changed.hasAny(lockedKeys()) &&
+               // schoolCode may only be back-filled, never switched.
+               (!changed.hasAny(['schoolCode']) || before.get('schoolCode', null) == null) &&
+               (!changed.hasAny(['currentClassId']) ||
+                  after.get('currentClassId', null) == null ||
+                  isClassOfSchool(after.currentClassId, before.get('schoolName', ''))) &&
+               (!changed.hasAny(['classIds']) || addedClassIdsOk(before, after));
+      }
+
+      // Who may approve/deny/remove this user.
+      function canApprove(target) {
+        let rr = target.get('requestedRole', '');
+        let sameSchool = target.get('schoolName', '') == mySchoolName();
+        return isMainAdmin() ||
+               (isHeadteacher() && sameSchool && rr in ['teacher', 'student']) ||
+               (isTeacher()     && sameSchool && rr == 'student');
+      }
+
+      function approverUpdateOk() {
+        let before  = resource.data;
+        let after   = request.resource.data;
+        let changed = after.diff(before).affectedKeys();
+        return canApprove(before) &&
+               changed.hasOnly(['approvalStatus', 'role', 'approvedBy', 'approvedAt']) &&
+               after.get('approvedBy', '') == uid() &&
+               ((after.get('approvalStatus', '') == 'approved' &&
+                 after.get('role', '') == before.get('requestedRole', '')) ||
+                (after.get('approvalStatus', '') == 'denied' &&
+                 after.get('role', null) == before.get('role', null)));
+      }
+
+      // Visibility (besides self, handled in `get`): main admin; staff see
+      // their school; students see their school's teachers and classmates.
+      // No doc-id check here — list queries can't constrain the doc id.
+      function canSee(d) {
+        return isMainAdmin() ||
+               (isStaff() && d.get('schoolName', '') == mySchoolName()) ||
+               (isStudent() && d.get('schoolName', '') == mySchoolName() &&
+                  (d.get('role', '') in ['teacher', 'headteacher'] ||
+                   d.get('currentClassId', '') == myCurrentClass()));
+      }
+
+      allow get:    if signedIn() && (uid() == userId || canSee(resource.data));
+      allow list:   if signedIn() && canSee(resource.data);
+      allow create: if signedIn() && selfCreateOk();
+      allow update: if signedIn() && (selfUpdateOk() || approverUpdateOk());
+      allow delete: if signedIn() && (uid() == userId || canApprove(resource.data));
+
+      // AI tutor history — owner, plus staff of the same school may read.
+      match /tutorSessions/{sessionId} {
+        allow read, write: if signedIn() && uid() == userId;
+        allow read: if isStaff() &&
+                       get(eduDoc(userId)).data.get('schoolName', '') == mySchoolName();
+      }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Submissions (Quiz & Simulation Results)
-    // ──────────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════
+    //  Schools directory (capital S) — keyed by school code.
+    //  Registration looks a code up BEFORE sign-in, hence public get.
+    // ════════════════════════════════════════════════════════════════
+    match /Schools/{code} {
+      allow get:  if true;
+      allow list: if signedIn();
+      allow create: if signedIn() &&
+                       request.resource.data.get('headteacherUID', '') == uid();
+      allow update: if isMainAdmin() ||
+                       (signedIn() &&
+                        resource.data.get('headteacherUID', '') == uid() &&
+                        request.resource.data.get('headteacherUID', '') == uid());
+      allow delete: if isMainAdmin();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  School content tree:
+    //    schools/{school}/systems/{sys}/grades/{grade}/{module}/...
+    //  plus the legacy  schools/{school}/grades/{grade}/...
+    // ════════════════════════════════════════════════════════════════
+    match /schools/{school} {
+      allow read:   if isMainAdmin() || schoolMember(school);
+      allow create: if schoolMember(school);           // ensureGradeExists bootstrap
+      allow update, delete: if isMainAdmin() || (isHeadteacher() && mySchoolKey() == school);
+
+      match /systems/{sys} {
+        allow read:   if isMainAdmin() || schoolMember(school);
+        allow create: if schoolMember(school);
+        allow update, delete: if isMainAdmin() || (isHeadteacher() && mySchoolKey() == school);
+
+        match /grades/{grade} {
+          allow read:   if isMainAdmin() || inClass(school, classIdOf(school, sys, grade)) ||
+                           classStaff(school, classIdOf(school, sys, grade));
+          allow create: if inClass(school, classIdOf(school, sys, grade)) ||
+                           classStaff(school, classIdOf(school, sys, grade));
+          allow update, delete: if isMainAdmin() ||
+                                   classStaff(school, classIdOf(school, sys, grade));
+
+          // Module data: class members read and submit; staff moderate/delete.
+          match /{module}/{document=**} {
+            allow read: if isMainAdmin() ||
+                           inClass(school, classIdOf(school, sys, grade)) ||
+                           classStaff(school, classIdOf(school, sys, grade));
+            allow create, update: if inClass(school, classIdOf(school, sys, grade)) ||
+                                     classStaff(school, classIdOf(school, sys, grade));
+            allow delete: if isMainAdmin() ||
+                             classStaff(school, classIdOf(school, sys, grade));
+          }
+        }
+      }
+
+      // Legacy layout without the system segment — the grade may belong to
+      // any system, so membership is checked against all four.
+      match /grades/{grade} {
+        function legacyMember() {
+          return inClass(school, classIdOf(school, 'primary', grade)) ||
+                 inClass(school, classIdOf(school, 'junior', grade)) ||
+                 inClass(school, classIdOf(school, 'senior', grade)) ||
+                 inClass(school, classIdOf(school, 'eightfourfour', grade));
+        }
+        function legacyStaff() {
+          return (isTeacher() && legacyMember()) ||
+                 (isHeadteacher() && mySchoolKey() == school);
+        }
+
+        allow read: if isMainAdmin() || legacyMember() || legacyStaff();
+        allow create, update: if legacyStaff();
+
+        match /{module}/{document=**} {
+          allow read: if isMainAdmin() || legacyMember() || legacyStaff();
+          allow create, update: if legacyMember() || legacyStaff();
+          allow delete: if isMainAdmin() || legacyStaff();
+        }
+      }
+    }
+
+    // ── Quiz / simulation results ──────────────────────────────────
     match /submissions/{subId} {
-      allow create: if canCreateSubmission();
-      allow get: if canReadSubmission();
-      allow list: if canListSubmissions();
-      allow update: if canUpdateSubmission();
+      allow create: if isStudent() &&
+                       request.resource.data.get('studentId', '') == uid() &&
+                       request.resource.data.get('gradeId', '') == myCurrentClass();
+      // Queries must filter by studentId (students) or gradeId (teachers).
+      allow read: if signedIn() &&
+                     (resource.data.get('studentId', '') == uid() ||
+                      isMainAdmin() ||
+                      (isStaff() && resource.data.get('gradeId', '') in myClassIds()));
+      allow update: if isStaff() &&
+                       resource.data.get('gradeId', '') in myClassIds() &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['score', 'gradedBy', 'gradedAt', 'feedback']);
+    }
+
+    // ── Per-class shared data keyed by full class id ───────────────
+    match /dailyChallenge/{classId}/{document=**} {
+      allow read, write: if isMainAdmin() || inClassId(classId);
+    }
+
+    match /ClassChats/{classId} {
+      allow read, create, update: if isMainAdmin() || inClassId(classId);
+      match /messages/{msgId} {
+        allow read: if isMainAdmin() || inClassId(classId);
+        allow create: if inClassId(classId) &&
+                         request.resource.data.get('userId', '') == uid();
+        allow update, delete: if isMainAdmin() ||
+                                 (signedIn() && resource.data.get('userId', '') == uid());
+      }
+    }
+
+    // Plot-analysis reads a per-class root collection "ClassSubmissions_<classId>".
+    match /{coll}/{docId} {
+      allow read: if coll.matches('ClassSubmissions_.+') &&
+                     inClassId(coll.split('ClassSubmissions_')[1]);
+    }
+
+    // Deliberately-empty collection used as a no-data fallback.
+    match /_empty/{docId} {
+      allow read: if signedIn();
+    }
+
+    // ── Direct messages: conversation id = "<uidA>_<uidB>" (sorted) ─
+    match /Conversations/{convId} {
+      allow get, create, update: if signedIn() && uid() in convId.split('_');
+      allow list: if signedIn() && uid() in resource.data.get('participants', []);
+    }
+    match /DirectMessages/{convId}/messages/{msgId} {
+      allow read:   if signedIn() && uid() in convId.split('_');
+      allow create: if signedIn() && uid() in convId.split('_') &&
+                       request.resource.data.get('userId', '') == uid();
+    }
+
+    // ── School-scoped libraries (queries filter by schoolName) ─────
+    match /EducationResources/{docId} {
+      allow read:  if isMainAdmin() ||
+                      (approved() && resource.data.get('schoolName', '') == mySchoolName());
+      allow create: if isMainAdmin() ||
+                       (isStaff() && request.resource.data.get('schoolName', '') == mySchoolName());
+      allow update, delete: if isMainAdmin() ||
+                               (isStaff() && resource.data.get('schoolName', '') == mySchoolName());
+    }
+    match /PrimaryContent/{docId} {
+      allow read:  if isMainAdmin() ||
+                      (approved() && resource.data.get('schoolName', '') == mySchoolName());
+      allow create: if isMainAdmin() ||
+                       (isStaff() && request.resource.data.get('schoolName', '') == mySchoolName());
+      allow update, delete: if isMainAdmin() ||
+                               (isStaff() && resource.data.get('schoolName', '') == mySchoolName());
+    }
+
+    // ── Primary learner progress — owner writes; school staff read ─
+    match /primaryProgress/{studentId}/{document=**} {
+      allow read, write: if signedIn() && uid() == studentId;
+      allow read: if isStaff() &&
+                     get(eduDoc(studentId)).data.get('schoolName', '') == mySchoolName();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Farmer data
+    // ════════════════════════════════════════════════════════════════
+
+    // Root collections owned via a `userId` field.
+    match /fielddata/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
+    match /marketdata/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
+    // Soft-delete model: owners can't read or hard-delete deleted records.
+    match /pestinterventiondata/{docId} {
+      allow read:   if signedIn() && (resource == null ||
+                       (ownsExisting() && resource.data.get('isDeleted', false) == false));
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+    }
+    match /diseaseinterventiondata/{docId} {
+      allow read:   if signedIn() && (resource == null ||
+                       (ownsExisting() && resource.data.get('isDeleted', false) == false));
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+    }
+    match /field_costs/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
+    match /pest_costs/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
+    match /disease_costs/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
+    match /field_reminders/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
+
+    // Trees owned via the {uid} document id.
+    match /farmer_diagnoses/{ownerId}/{document=**} {
+      allow read, write: if signedIn() && uid() == ownerId;
+    }
+    match /farmer_issues/{ownerId}/{document=**} {
+      allow read, write: if signedIn() && uid() == ownerId;
+    }
+    match /farmer_plot_analyses/{ownerId}/{document=**} {
+      allow read, write: if signedIn() && uid() == ownerId;
+    }
+    match /farm_alerts/{ownerId}/{document=**} {
+      allow read, write: if signedIn() && uid() == ownerId;
+    }
+    match /farmer_farm_management/{ownerId}/{document=**} {
+      allow read, write: if signedIn() && uid() == ownerId;
+    }
+    match /farm_management_data/{ownerId} {
+      // Also queried as root docs filtered by userId.
+      allow read:  if signedIn() && (uid() == ownerId || resource == null || ownsExisting());
+      allow write: if signedIn() && uid() == ownerId;
+      match /{document=**} {
+        allow read, write: if signedIn() && uid() == ownerId;
+      }
+    }
+
+    // ── Community ─────────────────────────────────────────────────
+    match /Chats/{channelId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['createdAt']);
+      allow update: if signedIn() &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['createdAt']);
+      match /Messages/{msgId} {
+        allow read: if signedIn();
+        // 'bot' = the client-posted channel welcome message.
+        allow create: if signedIn() &&
+                         request.resource.data.get('senderId', '') in [uid(), 'bot'];
+        allow update, delete: if signedIn() && resource.data.get('senderId', '') == uid();
+      }
+    }
+
+    // ── Read-only reference data (written by admins / backend) ─────
+    match /PestAlerts/{docId}                { allow read: if signedIn(); }
+    match /agronomist_notes/{docId}          { allow read: if signedIn(); }
+    match /iot_nodes/{nodeId}/{document=**}  { allow read: if signedIn(); }
+    match /Manuals/{docId}                   { allow read: if true; }
+
+    match /stationAssignments/{docId} {
+      allow read: if signedIn() && resource.data.get('uid', '') == uid();
+    }
+
+    // ── Logs & manual requests ────────────────────────────────────
+    match /User_logs/{docId} {
+      allow create: if signedIn();
+    }
+    match /ManualRequests/{userId} {
+      allow create: if signedIn() && uid() == userId;
+      allow read:   if signedIn() && uid() == userId;
+      match /messages/{messageId} {
+        allow create, read: if signedIn() && uid() == userId;
+      }
     }
   }
 }

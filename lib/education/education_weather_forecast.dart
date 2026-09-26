@@ -4,13 +4,12 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 
 import '../../utils/class_id_notifier.dart';
 import '../../models/education_user.dart';
-import '../../config.dart';
+import 'package:kilimomkononi/services/open_weather_proxy.dart';
 import 'simulations/weather_prediction_simulation.dart';
 import 'quiz/shared_quiz_widgets.dart';
 
@@ -245,9 +244,7 @@ class _EducationWeatherForecastState
 
   Future<Map<String, double>?> _getCoordinates(
       String loc) async {
-    final url =
-        'https://api.openweathermap.org/geo/1.0/direct?q=$loc&limit=1&appid=${Config.weatherApiKey}';
-    final res = await http.get(Uri.parse(url));
+    final res = await OpenWeatherProxy.geocode(loc);
     if (res.statusCode == 200 && res.body.isNotEmpty) {
       final data = jsonDecode(res.body)[0];
       return {
@@ -260,9 +257,7 @@ class _EducationWeatherForecastState
 
   Future<WeatherCurrent> _fetchCurrentWeather(
       Map<String, double> coords) async {
-    final url =
-        'https://api.openweathermap.org/data/2.5/weather?lat=${coords['lat']}&lon=${coords['lon']}&appid=${Config.weatherApiKey}&units=metric';
-    final res = await http.get(Uri.parse(url));
+    final res = await OpenWeatherProxy.current(coords['lat']!, coords['lon']!);
     if (res.statusCode == 200) {
       return WeatherCurrent.fromJson(jsonDecode(res.body));
     }
@@ -271,9 +266,7 @@ class _EducationWeatherForecastState
 
   Future<List<dynamic>> _fetchForecast(
       Map<String, double> coords) async {
-    final url =
-        'https://api.openweathermap.org/data/2.5/forecast?lat=${coords['lat']}&lon=${coords['lon']}&appid=${Config.weatherApiKey}&units=metric';
-    final res = await http.get(Uri.parse(url));
+    final res = await OpenWeatherProxy.forecast(coords['lat']!, coords['lon']!);
     if (res.statusCode == 200) {
       return jsonDecode(res.body)['list'];
     }

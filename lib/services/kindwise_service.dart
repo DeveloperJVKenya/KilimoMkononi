@@ -1,14 +1,13 @@
 // lib/services/kindwise_service.dart
 
 import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/services/diagnosis_service.dart';
 
-const String _kCropHealthKey = '***REMOVED***';
-const String _kPlantIdKey    = '***REMOVED***';
-// ── Your new insect.id API key ─────────────────────────────────────
-const String _kInsectIdKey   = '***REMOVED***';
+// API keys live server-side in the `kindwiseProxy` Cloud Function
+// (Secret Manager) — they used to be embedded here and shipped in the app.
 
 const Set<String> _kCropHealthCrops = {
   'Maize', 'Tomatoes', 'Onions', 'Irish Potatoes',
@@ -181,15 +180,7 @@ class KindwiseService {
     };
 
     debugPrint('[insect.id] POSTing...');
-    final response = await http
-        .post(
-          Uri.parse('https://insect.kindwise.com/api/v1/identification'),
-          headers: {
-            'Api-Key': _kInsectIdKey,
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
+    final response = await _proxy('insect', body)
         .timeout(const Duration(seconds: 60));
 
     debugPrint('[insect.id] Status: ${response.statusCode}');
@@ -238,15 +229,7 @@ class KindwiseService {
     if (datetime != null)  body['datetime']  = datetime;
 
     debugPrint('[crop.health] POSTing...');
-    final response = await http
-        .post(
-          Uri.parse('https://crop.kindwise.com/api/v1/identification'),
-          headers: {
-            'Api-Key': _kCropHealthKey,
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
+    final response = await _proxy('crop', body)
         .timeout(const Duration(seconds: 60));
 
     debugPrint('[crop.health] Status: ${response.statusCode}');
@@ -310,15 +293,7 @@ class KindwiseService {
     if (longitude != null) body['longitude'] = longitude;
 
     debugPrint('[plant.id] POSTing...');
-    final response = await http
-        .post(
-          Uri.parse('https://plant.id/api/v3/health_assessment'),
-          headers: {
-            'Api-Key': _kPlantIdKey,
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
+    final response = await _proxy('plant', body)
         .timeout(const Duration(seconds: 60));
 
     debugPrint('[plant.id] Status: ${response.statusCode}');
@@ -352,14 +327,29 @@ class KindwiseService {
   }
 
   static Future<Map<String, dynamic>> getUsageInfo() async {
-    final res = await http.get(
-      Uri.parse('https://crop.kindwise.com/api/v1/usage_info'),
-      headers: {'Api-Key': _kCropHealthKey},
-    );
+    final res = await _proxy('usage', null);
     return {
       'crop.health': res.statusCode == 200
           ? jsonDecode(res.body)
           : {'error': res.statusCode},
     };
+  }
+
+  /// Calls the `kindwiseProxy` Cloud Function, which adds the API key
+  /// server-side. Returns Kindwise's own status code and JSON body so the
+  /// callers' status checks and jsonDecode(response.body) are unchanged.
+  static Future<http.Response> _proxy(
+      String service, Map<String, dynamic>? body) async {
+    final fn = FirebaseFunctions.instance.httpsCallable(
+      'kindwiseProxy',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 90)),
+    );
+    final res = await fn.call({'service': service, 'body': body});
+    final data = Map<String, dynamic>.from(res.data as Map);
+    return http.Response(
+      jsonEncode(data['data']),
+      (data['status'] as num?)?.toInt() ?? 500,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
   }
 }

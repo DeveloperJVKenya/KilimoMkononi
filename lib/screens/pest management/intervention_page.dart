@@ -20,6 +20,8 @@ import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/screens/pest%20management/view_interventions_page.dart';
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -65,8 +67,6 @@ class _T {
 }
 
 const _kAskGeminiUrl    = 'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision';
-const _kNotifChannel    = 'pest_reminders_v2';
-const _kNotifChanName   = 'Pest Activity Reminders';
 
 class InterventionPage extends StatefulWidget {
   final PestData pestData;
@@ -132,7 +132,7 @@ class _InterventionPageState extends State<InterventionPage> {
     if (_tzReady) return;
     try {
       tz_data.initializeTimeZones();
-      tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()) as String));
+      tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()).identifier));
       _tzReady = true;
     } catch (_) {}
   }
@@ -179,7 +179,7 @@ If none: INTERVENTIONS_JSON: []
 
     try {
       final resp = await http.post(Uri.parse(_kAskGeminiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 35));
 
@@ -331,16 +331,8 @@ Future<void> _scheduleReminder({
         title: title,
         body: body,
         scheduledDate: tzDate,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _kNotifChannel,
-            _kNotifChanName,
-            channelDescription: 'Pest activity reminders',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        notificationDetails: NotificationService.details(KmChannel.reminders),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (_) {}
   }

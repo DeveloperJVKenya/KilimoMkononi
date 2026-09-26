@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:kilimomkononi/services/function_auth.dart';
 
 // ─── Secure backend (same as GeminiQuizService) ─────────────────────────────
 const String _baseUrl = "https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini";
@@ -450,7 +451,7 @@ Return ONLY this JSON (no markdown, no extra text):
     try {
       final res = await http.post(
         Uri.parse(_baseUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 60));
 

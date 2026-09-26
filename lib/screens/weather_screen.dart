@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:logger/logger.dart';
-import 'package:kilimomkononi/config.dart'; 
+import 'package:kilimomkononi/services/open_weather_proxy.dart';
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
@@ -19,10 +18,8 @@ class WeatherScreenState extends State<WeatherScreen> {
   final logger = Logger(printer: PrettyPrinter());
 
   Future<Map<String, double>?> _getCoordinates(String location) async {
-    final geoUrl = Uri.parse(
-        'https://api.openweathermap.org/geo/1.0/direct?q=$location&limit=1&appid=${Config.weatherApiKey}');
     try {
-      final response = await http.get(geoUrl);
+      final response = await OpenWeatherProxy.geocode(location);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is List && data.isNotEmpty && data[0]['lat'] != null && data[0]['lon'] != null) {
@@ -55,10 +52,9 @@ class WeatherScreenState extends State<WeatherScreen> {
       return;
     }
 
-    final url = Uri.parse(
-        'https://api.openweathermap.org/data/2.5/forecast?lat=${coordinates['lat']}&lon=${coordinates['lon']}&appid=${Config.weatherApiKey}&units=metric');
     try {
-      final response = await http.get(url);
+      final response =
+          await OpenWeatherProxy.forecast(coordinates['lat']!, coordinates['lon']!);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['list'] != null && data['list'] is List) {

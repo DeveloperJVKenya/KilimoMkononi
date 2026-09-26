@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// Kilimo Mkononi — Cloud Storage security rules.
+// Referenced by firebase.json; deny by default.
+//
+// Paths used by the app:
+//   manuals/{file}                    — farmer + education PDF manuals
+//   chat_images/{channelId}/{file}    — community chat photos
+//   ai_diagnoses/{uid}/{file}         — photo-diagnosis uploads
+//
+// Admin / role checks read Firestore (cross-service rules).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+
+    function isAdmin() {
+      return signedIn() &&
+             firestore.exists(/databases/(default)/documents/Admins/$(request.auth.uid));
+    }
+
+    // Approved, enabled education staff (teachers upload education manuals).
+    function isEduStaff() {
+      let path = /databases/(default)/documents/EducationUsers/$(request.auth.uid);
+      return signedIn() &&
+             firestore.exists(path) &&
+             firestore.get(path).data.get('approvalStatus', '') == 'approved' &&
+             firestore.get(path).data.get('isDisabled', false) != true &&
+             firestore.get(path).data.get('role', '') in ['teacher', 'headteacher', 'mainadmin'];
+    }
+
+    // Content type OR extension: uploads without metadata (e.g. putData on
+    // web) arrive as application/octet-stream.
+    function isImageUnder(fileName, mb) {
+      return (request.resource.contentType.matches('image/.*') ||
+              fileName.matches('(?i).*[.](jpe?g|png|webp|heic)')) &&
+             request.resource.size < mb * 1024 * 1024;
+    }
+
+    // ── Manuals (PDF) ───────────────────────────────────────────────
+    match /manuals/{fileName} {
+      allow read: if signedIn();                      // includes listAll()
+      allow create, update: if (isAdmin() || isEduStaff()) &&
+                               (request.resource.contentType == 'application/pdf' ||
+                                fileName.matches('(?i).*[.]pdf')) &&
+                               request.resource.size < 50 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+
+    // ── Community chat photos ───────────────────────────────────────
+    match /chat_images/{channelId}/{fileName} {
+      allow read: if signedIn();
+      allow create: if signedIn() && isImageUnder(fileName, 10);
+      allow delete: if isAdmin();
+    }
+
+    // ── Photo-diagnosis uploads: private to the farmer ─────────────
+    match /ai_diagnoses/{ownerId}/{fileName} {
+      allow read, delete: if signedIn() && request.auth.uid == ownerId;
+      allow create: if signedIn() && request.auth.uid == ownerId && isImageUnder(fileName, 10);
+    }
+  }
+}

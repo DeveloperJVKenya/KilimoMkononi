@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:kilimomkononi/services/function_auth.dart';
 
 // Reuse the same secure backend as GeminiQuizService
 const String _baseUrl = "https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini";
@@ -128,7 +129,7 @@ Kenya agriculture context. Keep it very simple${isPrimary ? ' for a primary pupi
       final res = await http.post(
         Uri.parse(_baseUrl),
         headers: {
-          'Content-Type': 'application/json',
+          ...await authJsonHeaders(),
           'Accept': 'application/json',
         },
         body: jsonEncode({'prompt': prompt}),

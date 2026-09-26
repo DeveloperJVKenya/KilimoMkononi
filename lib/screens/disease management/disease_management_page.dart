@@ -21,6 +21,7 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen
 import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
 //
 
 // ── Step-progress AppBar for disease subpages ─────────────────────────────────
@@ -4392,7 +4393,7 @@ dosage per litre and timing in "how".
     try {
       final resp = await http.post(
         Uri.parse('https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 35));
 

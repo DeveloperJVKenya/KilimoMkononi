@@ -166,14 +166,15 @@ class _EducationManualsState extends State<EducationManuals> {
       return;
     }
 
-    final result = await FilePicker.platform.pickFiles(
+    // file_picker 13: single-file picks use the static FilePicker.pickFile().
+    final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
 
-    if (result == null || result.files.isEmpty) return;
+    if (picked == null || picked.path == null) return;
 
-    final file = File(result.files.single.path!);
+    final file = File(picked.path!);
     final fileName = '${_selectedCrop}_${DateTime.now().millisecondsSinceEpoch}.pdf';
     final ref = FirebaseStorage.instance.ref('manuals/$fileName');
 

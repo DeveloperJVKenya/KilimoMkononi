@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -240,6 +241,9 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
   List<PestCostEntry>    _pestCosts    = [];
   // ── Disease costs streamed from disease_costs (DiseaseCostService) ───────────
   List<DiseaseCostEntry> _diseaseCosts = [];
+  // Cost stream listeners — cancelled in dispose() so each visit to this
+  // screen doesn't leave three live Firestore listeners behind.
+  final List<StreamSubscription<dynamic>> _costSubs = [];
 
   @override
   void initState() {
@@ -250,6 +254,9 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
 
   @override
   void dispose() {
+    for (final sub in _costSubs) {
+      sub.cancel();
+    }
     _tab.dispose();
     super.dispose();
   }
@@ -264,6 +271,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
     _resolvedUid =
         user?.uid ?? 'anonymous_${DateTime.now().millisecondsSinceEpoch}';
     await _loadAll();
+    if (!mounted) return;
     _loadFieldCosts();
     _checkDisclaimer();
   }
@@ -277,23 +285,23 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
     if (_resolvedUid.startsWith('anonymous')) return;
 
     // Field data costs (field_costs collection, field_data source only)
-    FieldCostService.streamForUser().listen((entries) {
+    _costSubs.add(FieldCostService.streamForUser().listen((entries) {
       if (mounted) {
         setState(() {
           _fieldCosts = entries.where((e) => e.source == 'field_data').toList();
         });
       }
-    });
+    }));
 
     // Pest management costs (pest_costs collection)
-    PestCostService.streamForUser().listen((entries) {
+    _costSubs.add(PestCostService.streamForUser().listen((entries) {
       if (mounted) setState(() => _pestCosts = entries);
-    });
+    }));
 
     // Disease management costs (disease_costs collection)
-    DiseaseCostService.streamForUser().listen((entries) {
+    _costSubs.add(DiseaseCostService.streamForUser().listen((entries) {
       if (mounted) setState(() => _diseaseCosts = entries);
-    });
+    }));
   }
 
   // ── Persistence ───────────────────────────────────────────────────────────

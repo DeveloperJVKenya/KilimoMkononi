@@ -649,13 +649,9 @@ class _MethodSheet extends StatelessWidget {
       left: 0, right: 0,
       child: Material(
         elevation: 12,
+        color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
             // Drag handle + close
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
@@ -685,7 +681,6 @@ class _MethodSheet extends StatelessWidget {
               child: _buildContent(),
             ),
           ]),
-        ),
       ),
     );
   }

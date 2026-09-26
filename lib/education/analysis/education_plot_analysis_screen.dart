@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/models/education_user.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
 
 const Color _appGreen = Color(0xFF003900);
 
@@ -70,7 +71,7 @@ class _EducationPlotAnalysisScreenState
     try {
       final res = await http.post(
         Uri.parse(_geminiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 90));
 

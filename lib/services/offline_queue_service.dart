@@ -52,6 +52,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
 
 // ── Queue item model ──────────────────────────────────────────────────────
 
@@ -110,7 +111,6 @@ class OfflineQueueService {
   static const _countKey = 'ofq_pending_count';
   static const _itemKey  = 'ofq_item_';
   static const _maxRetries = 5;
-  static const _notifChannel = 'offline_sync';
 
   static bool _syncing = false;
   static StreamSubscription? _connectivitySub;
@@ -331,45 +331,26 @@ class OfflineQueueService {
   // ── Local notifications ────────────────────────────────────────────────────
 
   static Future<void> _notifyPending(int count) async {
-    final n = _notifs;
-    if (n == null) return;
+    final n = _notifs ?? NotificationService.plugin;
     try {
       await n.show(
         id: 9901,
         title: 'Data saved offline',
         body: '$count record${count == 1 ? '' : 's'} will sync automatically when connected.',
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _notifChannel,
-            'Offline sync',
-            channelDescription: 'Notifies when records are saved offline',
-            importance: Importance.defaultImportance,
-            priority: Priority.defaultPriority,
-            ongoing: false,
-          ),
-        ),
+        notificationDetails: NotificationService.details(KmChannel.sync),
       );
     } catch (_) {}
   }
 
   static Future<void> _notifyComplete(int count) async {
-    final n = _notifs;
-    if (n == null) return;
+    final n = _notifs ?? NotificationService.plugin;
     try {
       await n.cancel(id: 9901);
       await n.show(
         id: 9902,
         title: 'Sync complete ✓',
         body: '$count record${count == 1 ? '' : 's'} synced to your account.',
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _notifChannel,
-            'Offline sync',
-            channelDescription: 'Notifies when records are synced',
-            importance: Importance.low,
-            priority: Priority.low,
-          ),
-        ),
+        notificationDetails: NotificationService.details(KmChannel.sync),
       );
     } catch (_) {}
   }

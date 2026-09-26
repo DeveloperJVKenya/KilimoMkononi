@@ -36,27 +36,31 @@ npm run shell    # firebase functions:shell
 npm run deploy   # firebase deploy --only functions
 npm run logs     # firebase functions:log
 ```
-Note: `functions/package.json`'s `lint` script is currently stubbed to `echo 'Skipping lint'` — it does
-not actually run ESLint despite `.eslintrc.js` existing and being wired as a `predeploy` step in
-`firebase.json`.
+`npm run lint` runs ESLint 10 (flat config in `functions/eslint.config.js`) and is a `predeploy` step in
+`firebase.json` — a lint error blocks `firebase deploy`. Functions need Node 22 (`firebase-admin` 14).
 
 ## Architecture
 
 ### Services layer wraps all external integrations
 - `lib/services/` (farmer) and `lib/education/services/` (education) wrap Firestore/Auth/Storage plus
   third-party APIs. Screens should go through these rather than calling APIs directly.
+- **No third-party API keys in the client.** Every keyed API goes through a Cloud Function with the
+  key in Secret Manager (`firebase functions:secrets:set <NAME>`; names listed at the top of
+  `functions/index.js`). Never add a key to Dart code.
 - **AI diagnosis (photo → pest/disease)**: `kindwise_service.dart` calls Kindwise's crop.health /
-  plant.id / insect.id endpoints directly from the client (API keys are embedded in that file, not
-  proxied — different pattern from the Gemini/NuaSense functions below).
+  plant.id / insect.id via the `kindwiseProxy` callable function.
 - **AI tutor/quiz/vision (Gemini)**: `gemini_tutor_service.dart`, `gemini_quiz_service.dart`,
   `gemini_vision_helper.dart`, `education_plot_analysis_screen.dart` all call the `askGemini` /
   `askGeminiVision` Cloud Functions (`functions/index.js`) rather than hitting the Gemini API directly,
-  so the key stays server-side. **The functions must return the full Gemini response body** (not just
+  so the key stays server-side. These are HTTP functions that **require a Firebase ID token** — send
+  `headers: await authJsonHeaders()` (`lib/services/function_auth.dart`) or the call gets a 401. **The functions must return the full Gemini response body** (not just
   `{ text }`) — callers read `candidates[0].content.parts[0].text`, and trimming the response breaks
   three of the four callers silently.
 - **IoT weather stations (NuaSense)**: `nuasense_service.dart` calls the `getNuaSenseData` callable
   function, which whitelists endpoints and requires an authenticated Firebase user.
-- **Climate data**: `nasa_power_service.dart` hits NASA POWER directly.
+- **Weather**: OpenWeatherMap goes through the `getOpenWeather` callable via
+  `lib/services/open_weather_proxy.dart`.
+- **Climate data**: `nasa_power_service.dart` hits NASA POWER directly (no key).
 
 ### Offline-first writes
 - `offline_queue_service.dart` is the shared offline queue for farmer data writes (field data, pest/
@@ -77,6 +81,22 @@ Education Firestore documents key off a school "classId" that appears in two inc
 formats into `(schoolName, system, grade)`; `class_id_parser.dart` / `class_id_notifier.dart` build on
 top of it. Don't hand-roll classId parsing elsewhere.
 
+### Notifications (local + push)
+- `lib/services/notification_service.dart` is the only notification setup, initialised once in
+  `main.dart`. Every notification uses a `KmChannel` (`NotificationService.details(...)` /
+  `.show(...)`) so local reminders and pushes share the icon (`@drawable/ic_stat_km`), colour and
+  channels. Don't create `AndroidNotificationDetails` or new channels in screens.
+- Push = FCM. `functions/notifications.js`: hourly `weatherAlertSweep` (server-side NuaSense alerts
+  per assigned station, with the matching verified advisory), `onAdvisoryPublished` (station farmers
+  or crop topics; admin TEST advisories → the admin only), education approval pushes. Every
+  per-user push is also written to `userNotifications/{uid}/items` (Notifications → Inbox tab).
+- Devices: `deviceTokens/{fcmToken} {uid}`; farmers subscribe to `km_farmers` + `km_crop_<slug>`.
+  Channel ids, routes and topic slugs must match between Dart and JS —
+  `test/notification_contract_test.dart` checks this.
+- Local reminders use `AndroidScheduleMode.inexactAllowWhileIdle` (no exact-alarm permission).
+- Tests: `cd functions && npm test` (emulator; FCM is faked) or `npm run test:unit`.
+- IoT soil data is intentionally simulated (`IotDataSource.simulated` in iot_sensor_service.dart).
+
 ### State / DI
 `provider` is used app-wide via `MultiProvider` in `lib/main.dart`, wiring `AuthStateService`,
 `UserProfile` (`lib/settings/providers/user_profile_provider.dart`) and `ConnectivityService`.
@@ -87,9 +107,29 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   `functions` codebase (`functions/`, predeploy lint).
 - `lib/firebase_options.dart` is FlutterFire-generated per-platform config for `kilimomkononi-e1031`
   — regenerate with `flutterfire configure`, don't hand-edit.
-- `lib/config.dart` holds the (non-Firebase) OpenWeatherMap key used directly by the client.
+- `firestore.rules` / `storage.rules` deny by default. A new collection or Storage path needs a rule,
+  or the app gets permission-denied. Locked fields: `Users.isDisabled` and
+  `EducationUsers.{role, approvalStatus, approvedBy, approvedAt, isDisabled, requestedRole,
+  schoolName}` — roles only change through the approval chain (mainadmin → headteacher → teacher →
+  student). List queries must filter by what the rules check (`userId`, `schoolName`, `gradeId`, …).
+- Rules tests: `cd rules-tests && npm install && npm test` (local emulators, demo project; needs Java).
+  Update them whenever you change the rules.
 
 ## Notes for future changes
 - `test/widget_test.dart` is still the unmodified Flutter counter-app template — it does not test this
   app and will fail if run as-is (`MyApp` has no counter). Don't assume it reflects test coverage.
-- `lib/enterprise/` currently contains no Dart files — it's a placeholder namespace, not active code.
+- `lib/enterprise/features/weather/` — **Field Agronomist** role + verified weather advisories.
+  - Role: `Agronomists/{uid}` doc, granted by an admin (Admin panel → "Assign Field Agronomist").
+    Checked with `AgronomicAdvisoryService.isFieldAgronomist()`; enforced by `isAgronomist()` in the
+    rules. Agronomists can read live conditions for every KM station (`getNuaSenseData`).
+  - `agronomic_advisories/{id}`: MAIN/DO/AVOID/WHY targeted by crop(s) + weather-condition key
+    (`advisory_conditions.dart` — keys are also listed in firestore.rules; add, never rename).
+    Status draft → published (= verified; publisher recorded) → archived.
+  - Every write goes through `AgronomicAdvisoryService.save`, which writes the advisory and its
+    immutable `history/v{version}` audit entry in one transaction — the rules reject one without
+    the other.
+  - Farmers see published advisories matching their crops (from `fielddata.crops[].type`) and the
+    station's live conditions in the Weather Station screen's "Verified advice" section; the AI
+    Farm Advisor card below it is labelled "AI-generated · not verified".
+  - Tests: `test/advisory_test.dart`, `test/advisory_widgets_test.dart` (layout at 360px),
+    advisory cases in `rules-tests/`.

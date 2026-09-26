@@ -1,0 +1,12 @@
+{
+  "name": "kilimomkononi-rules-tests",
+  "private": true,
+  "description": "Security-rules tests for firestore.rules / storage.rules, run against the local emulators (demo project — never touches production).",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore,storage --project demo-kilimomkononi \"node --test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0"
+  }
+}

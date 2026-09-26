@@ -9,6 +9,7 @@ import 'package:kilimomkononi/screens/disease%20management/disease_model.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:kilimomkononi/services/notification_service.dart';
 
 // ── Theme ─────────────────────────────────────────────────────────────────
 const _kDark    = Color.fromARGB(255, 3, 39, 4);
@@ -455,15 +456,8 @@ class _RecordCardState extends State<_RecordCard> {
           title: 'Follow-up: ${widget.record.issueName}',
           body: 'Evaluate intervention on ${widget.record.cropName}.',
           scheduledDate: tzDate,
-          notificationDetails: const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'pest_followup_v2',
-              'Pest Follow-Up Reminders',
-              importance: Importance.high,
-              priority: Priority.high,
-            ),
-          ),
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          notificationDetails: NotificationService.details(KmChannel.reminders),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         );
 
         if (mounted) {

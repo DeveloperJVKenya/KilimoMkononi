@@ -446,7 +446,10 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
     final width = type == _ScreenType.desktop ? 280.0 : 240.0;
     return Container(
       width: width, color: const Color(0xFF003900),
-      child: Column(children: [
+      child: Material(
+        // Tiles draw ink/ripples on the nearest Material; it must sit above the colour.
+        type: MaterialType.transparency,
+        child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
           child: GestureDetector(onTap: _editProfile, child: Column(children: [
             CircleAvatar(radius: 40,
@@ -470,6 +473,7 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
           const SizedBox(height: 16),
         ])),
       ]),
+      ),
     );
   }
 

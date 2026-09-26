@@ -22,6 +22,8 @@ import 'package:logger/logger.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -43,6 +45,12 @@ class _HomePageState extends State<HomePage> {
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // Live listeners — cancelled in dispose() and before sign-out so they don't
+  // outlive the page (leaked Firestore listeners + permission errors after
+  // sign-out) or trigger a second navigation to LoginScreen.
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  bool _navigatedToLogin = false;
+
   final List<String> _carouselImages = [
     'assets/weather_forecast.jpg',
     'assets/field_data_collection.jpg',
@@ -59,6 +67,33 @@ class _HomePageState extends State<HomePage> {
     _fetchUserData();
     _listenToUserAndAdminStatus();
     _listenToAuthState();
+  }
+
+  @override
+  void dispose() {
+    _cancelSubscriptions();
+    super.dispose();
+  }
+
+  void _cancelSubscriptions() {
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
+  }
+
+  /// Single exit point to the login screen. Several paths (logout button,
+  /// auth-state listener, disabled-account checks) can fire for the same
+  /// sign-out; without the guard each one pushed its own LoginScreen.
+  void _goToLogin({String? message}) {
+    if (!mounted || _navigatedToLogin) return;
+    _navigatedToLogin = true;
+    _cancelSubscriptions();
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+    if (message != null) {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   ScreenType _getScreenType(BuildContext context) {
@@ -95,27 +130,22 @@ class _HomePageState extends State<HomePage> {
           .get();
 
       if (!userSnapshot.exists) {
+        _cancelSubscriptions();
         await FarmLocationService.clear();
         IotSensorService.clearCache();
         await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-        }
+        _goToLogin();
         return;
       }
 
       final appUser = AppUser.fromFirestore(userSnapshot, null);
 
       if (appUser.isDisabled == true) {
+        _cancelSubscriptions();
         await FarmLocationService.clear();
         IotSensorService.clearCache();
         await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Your account has been disabled by admin.')),
-          );
-        }
+        _goToLogin(message: 'Your account has been disabled by admin.');
         return;
       }
 
@@ -139,6 +169,11 @@ class _HomePageState extends State<HomePage> {
           _profileImageBytes = decodedImage;
           _isMainAdmin = adminSnapshot.exists;
         });
+        // Verified-advice pushes go to crop topics; then open whatever
+        // notification launched the app, now that the user is signed in.
+        NotificationService.syncFarmerTopics(user.uid);
+        WidgetsBinding.instance.addPostFrameCallback(
+            (_) => NotificationService.consumePendingRoute());
       }
     } catch (e) {
       logger.e('Error fetching user data: $e');
@@ -149,17 +184,12 @@ class _HomePageState extends State<HomePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    FirebaseFirestore.instance.collection('Users').doc(user.uid).snapshots().listen((snapshot) {
+    _subscriptions.add(FirebaseFirestore.instance.collection('Users').doc(user.uid).snapshots().listen((snapshot) {
       if (!snapshot.exists || !mounted) return;
       final appUser = AppUser.fromFirestore(snapshot, null);
       if (appUser.isDisabled == true) {
+        _goToLogin(message: 'Account disabled by admin.');
         FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account disabled by admin.')),
-          );
-        }
       } else {
         // Also refresh the profile photo — previously only the name/data
         // map was updated here, so a new photo saved in UserProfileScreen
@@ -181,32 +211,30 @@ class _HomePageState extends State<HomePage> {
           });
         }
       }
-    });
+    }, onError: (Object e) => logger.e('User doc listener error: $e')));
 
-    FirebaseFirestore.instance.collection('Admins').doc(user.uid).snapshots().listen((snapshot) {
+    _subscriptions.add(FirebaseFirestore.instance.collection('Admins').doc(user.uid).snapshots().listen((snapshot) {
       if (mounted) setState(() => _isMainAdmin = snapshot.exists);
-    });
+    }, onError: (Object e) => logger.e('Admin doc listener error: $e')));
   }
 
   void _listenToAuthState() {
-    FirebaseAuth.instance.authStateChanges().listen((user) {
-      if (user == null && mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-      }
-    });
+    _subscriptions.add(FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user == null) _goToLogin();
+    }));
   }
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   Future<void> _handleLogout() async {
+    // Stop listeners first so they don't hit permission errors after sign-out
+    _cancelSubscriptions();
     // Clear farm location and IoT cache so the next user gets their own data
     await FarmLocationService.clear();
     IotSensorService.clearCache();
 
     await FirebaseAuth.instance.signOut();
-    if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-    }
+    _goToLogin();
   }
 
   // ── Navigate to Season Analysis with top-level defaults ──────────────
@@ -489,10 +517,11 @@ class _HomePageState extends State<HomePage> {
 
   // ── Drawer ────────────────────────────────────────────────────────────
   Widget _buildDrawer(String fullName) {
+    // White comes from the Drawer's own Material. A coloured Container here
+    // hid the menu items' tap ripples (and raised a ListTile assertion).
     return Drawer(
-      child: Container(
-        color: Colors.white,
-        child: ListView(
+      backgroundColor: Colors.white,
+      child: ListView(
           padding: EdgeInsets.zero,
           children: [
             GestureDetector(
@@ -537,7 +566,6 @@ class _HomePageState extends State<HomePage> {
             const Divider(),
             _drawerItem(Icons.logout, 'Logout', _handleLogout),
           ],
-        ),
       ),
     );
   }

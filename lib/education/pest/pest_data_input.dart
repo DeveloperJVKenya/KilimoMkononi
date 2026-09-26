@@ -12,6 +12,7 @@ import 'package:kilimomkononi/services/plot_analysis_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/widgets/plot_history_card.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
 
 const Color primaryGreen = Color(0xFF388E3C);
 
@@ -25,7 +26,7 @@ Future<String> _callGemini(String systemPrompt, String userMessage) async {
     final combinedPrompt = '$systemPrompt\n\n$userMessage';
     final response = await http.post(
       Uri.parse(_kGeminiUrl),
-      headers: {'Content-Type': 'application/json'},
+      headers: await authJsonHeaders(),
       body: jsonEncode({'prompt': combinedPrompt}),
     ).timeout(const Duration(seconds: 60));
 
@@ -1591,7 +1592,11 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                clipBehavior: Clip.antiAlias, // keep ripples inside the rounded corners
+      child: Material(
+        // Tiles draw ink/ripples on the nearest Material; it must sit above the colour.
+        type: MaterialType.transparency,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Unlock for student:',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
                   const SizedBox(height: 4),
@@ -1612,6 +1617,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                     activeColor: Colors.green.shade700,
                   ),
                 ]),
+      ),
               ),
             ]),
           ),

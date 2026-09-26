@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Security-rules test harness (rules-tests/)
+rules-tests/node_modules/
+*-debug.log
+# Local function secrets for the emulator — never commit
+functions/.secret.local
+# Firebase service-account keys (used by functions/scripts/grant-admin.js) — never commit
+*service-account*.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json

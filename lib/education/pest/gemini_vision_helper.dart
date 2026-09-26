@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:http/http.dart' as http;
+import 'package:kilimomkononi/services/function_auth.dart';
 
 const String kGeminiVisionUrl =
     'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision';
@@ -261,9 +262,9 @@ HARD RULES:
 ''';
 
   // Retry with exponential backoff: 0s → 5s → 12s
-  Future<http.Response> doPost() => http.post(
+  Future<http.Response> doPost() async => http.post(
     Uri.parse(kGeminiVisionUrl),
-    headers: {'Content-Type': 'application/json'},
+    headers: await authJsonHeaders(),
     body: jsonEncode({'imageBase64': base64Image, 'prompt': prompt}),
   ).timeout(const Duration(seconds: 90));
 

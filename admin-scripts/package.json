@@ -1,0 +1,15 @@
+{
+  "name": "admin-scripts",
+  "version": "1.0.0",
+  "main": "assign_station.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "firebase-admin": "^14.3.0"
+  }
+}

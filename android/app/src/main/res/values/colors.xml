@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accent for notification icons (matches the app's mid green, 0xFF2A6B2A). -->
+    <color name="km_notification_color">#2A6B2A</color>
+</resources>

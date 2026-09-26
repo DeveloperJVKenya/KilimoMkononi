@@ -15,6 +15,7 @@ import 'package:kilimomkononi/services/plot_analysis_service.dart';
 import 'package:kilimomkononi/widgets/plot_history_card.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/education/widgets/school_conditions_widget.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
 
 const String baseUrl = "https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini";
 
@@ -80,7 +81,7 @@ Future<String> _callAI(String prompt) async {
   try {
     final response = await http.post(
       Uri.parse("https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini"),
-      headers: {'Content-Type': 'application/json'},
+      headers: await authJsonHeaders(),
       body: jsonEncode({'prompt': prompt}),
     ).timeout(const Duration(seconds: 60));
 

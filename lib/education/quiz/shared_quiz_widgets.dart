@@ -482,15 +482,16 @@ class _EduQuizBuilderState extends State<EduQuizBuilder> {
                     : ReorderableListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: _questions.length,
-                        onReorder: (oldIndex, newIndex) {
+                        // onReorderItem already adjusts newIndex for the
+                        // removed item — no manual `newIndex--` needed.
+                        onReorderItem: (oldIndex, newIndex) {
                           setState(() {
-                            if (newIndex > oldIndex) newIndex--;
                             final item = _questions.removeAt(oldIndex);
                             _questions.insert(newIndex, item);
                           });
                         },
                         itemBuilder: (_, i) => _QuestionCard(
-                          key: ValueKey(i),
+                          key: ObjectKey(_questions[i]),
                           index: i,
                           question: _questions[i],
                           onDelete: () => setState(() => _questions.removeAt(i)),

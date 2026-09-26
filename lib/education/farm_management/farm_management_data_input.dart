@@ -1917,7 +1917,11 @@ class _EntryTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: ListTile(
+      clipBehavior: Clip.antiAlias, // keep ripples inside the rounded corners
+      child: Material(
+        // Tiles draw ink/ripples on the nearest Material; it must sit above the colour.
+        type: MaterialType.transparency,
+        child: ListTile(
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         leading: Container(
@@ -1984,6 +1988,7 @@ class _EntryTile extends StatelessWidget {
             ),
           ],
         ]),
+      ),
       ),
     );
   }

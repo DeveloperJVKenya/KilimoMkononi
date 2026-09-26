@@ -16,6 +16,7 @@ class GradeWorkScreen extends StatefulWidget {
 class _GradeWorkScreenState extends State<GradeWorkScreen> {
   final Map<String, Map<String, dynamic>> _contentCache = {};
   String? _currentSchoolName;
+  String? _selectedClassId;
 
   @override
   void initState() {
@@ -50,10 +51,13 @@ class _GradeWorkScreenState extends State<GradeWorkScreen> {
       .doc(user.uid)
       .get();
 
-  final schoolName = userDoc['schoolName'] as String?;
+  final schoolName = userDoc.data()?['schoolName'] as String?;
   if (schoolName == null) return;
 
-  setState(() => _currentSchoolName = schoolName);
+  setState(() {
+    _currentSchoolName = schoolName;
+    _selectedClassId = classId;
+  });
 
   await _loadContentCache(parsedSchoolId, parsedGradeId);
 }
@@ -140,8 +144,12 @@ class _GradeWorkScreenState extends State<GradeWorkScreen> {
       body: _contentCache.isEmpty
           ? const Center(child: Text('Select a class to view submissions'))
           : StreamBuilder<QuerySnapshot>(
+              // Filtered to the selected class: without it this streamed every
+              // school's submissions, and the security rules only allow
+              // teachers to read their own classes.
               stream: FirebaseFirestore.instance
                   .collection('submissions')
+                  .where('gradeId', isEqualTo: _selectedClassId)
                   .where('module', whereIn: [
                     'farming_content',
                     'market_content',

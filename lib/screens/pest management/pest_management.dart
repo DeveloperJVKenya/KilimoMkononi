@@ -22,6 +22,8 @@ import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field Data Input/weather_station_screen.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
 
 // ── Auto-category inference (used by PestInterventionPage) ─────────────────
 String inferCostCategory(String desc) {
@@ -86,8 +88,6 @@ class _T {
 }
 
 const _kAskGeminiUrl = 'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision';
-const _kNotifChannel  = 'pest_reminders_v2';
-const _kNotifChanName = 'Pest Activity Reminders';
 
 // ── Shared step-progress AppBar ──────────────────────────────────────────────
 PreferredSizeWidget _stepHeader(String title, int current, int total) {
@@ -1151,7 +1151,7 @@ Include pre-harvest interval in warnings.
 
     try {
       final resp = await http.post(Uri.parse(_kAskGeminiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 35));
 
@@ -1313,16 +1313,8 @@ Include pre-harvest interval in warnings.
         title: title,
         body: body,
         scheduledDate: tz.TZDateTime.from(date, tz.local),
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _kNotifChannel,
-            _kNotifChanName,
-            channelDescription: 'Pest activity reminders',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        notificationDetails: NotificationService.details(KmChannel.reminders),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (_) {}
   }

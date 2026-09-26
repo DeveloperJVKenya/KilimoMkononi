@@ -24,6 +24,7 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen
     show computeConditionRisk, ConditionRisk;
 
 import 'package:kilimomkononi/settings/notifications_settings_screen.dart';
+import 'package:kilimomkononi/widgets/notification_inbox.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   late final TabController _tab;
 
+  // Inbox (pushed notifications)
+  int _unreadCount = 0;
   // Tab 1
   bool _loadingAlerts = true;
   List<_AlertItem> _alertItems = [];
@@ -61,7 +64,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
     _loadAlerts();
     _loadFarmTasks();
   }
@@ -573,6 +576,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         backgroundColor: _green,
         elevation: 0,
         automaticallyImplyLeading: false,
+        // Back arrow only when opened on its own (e.g. from a notification tap).
+        leading: Navigator.canPop(context)
+            ? const BackButton(color: Colors.white)
+            : null,
         actions: [
           IconButton(
             icon: const Icon(Icons.tune, color: Colors.white),
@@ -589,7 +596,16 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: [
+            Tab(
+              icon: const Icon(Icons.inbox_outlined),
+              child: Text(
+                _unreadCount == 0 ? 'Inbox' : 'Inbox ($_unreadCount new)',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
             Tab(
               icon: Icon(Icons.satellite_alt_outlined),
               child: Text(
@@ -625,6 +641,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       body: TabBarView(
         controller: _tab,
         children: [
+          NotificationInbox(
+            onUnreadCount: (n) {
+              if (mounted && n != _unreadCount) setState(() => _unreadCount = n);
+            },
+          ),
           _buildAlertsTab(),
           _buildRemindersTab(),
           _buildFarmTasksTab(),

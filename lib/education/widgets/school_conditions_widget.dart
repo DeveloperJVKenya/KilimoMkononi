@@ -28,6 +28,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/education/services/edu_school_conditions_service.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
 
 // ── Colour tokens ──────────────────────────────────────────────────────────
 const _kGreen      = Color(0xFF1B5E20);
@@ -228,7 +229,7 @@ Return only the question text — no preamble, no numbering, no markdown.
       final resp = await http.post(
         Uri.parse(
             'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini'),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 30));
       final data = jsonDecode(resp.body);

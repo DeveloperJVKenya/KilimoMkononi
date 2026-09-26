@@ -27,8 +27,10 @@ class _AskTeacherScreenState extends State<AskTeacherScreen> {
         .doc(user.uid)
         .get();
 
-    final fullName = userDoc['fullName'] ?? 'Student';
-    final classId = userDoc['currentClassId'] as String?;
+    // data()?[...] — indexing the snapshot directly throws on a missing field.
+    final userData = userDoc.data();
+    final fullName = userData?['fullName'] ?? 'Student';
+    final classId = userData?['currentClassId'] as String?;
     if (classId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("No class selected")),

@@ -23,6 +23,8 @@ import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -66,8 +68,6 @@ class _T {
 }
 
 const _kAskGeminiUrl  = 'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGeminiVision';
-const _kNotifChannel  = 'disease_reminders_v2';
-const _kNotifChanName = 'Disease Activity Reminders';
 
 // ── Step-progress AppBar — shows step number, name, and progress bar ──────────
 PreferredSizeWidget _diseaseStepHeader(int current, int total) {
@@ -227,7 +227,7 @@ class _InterventionPageState extends State<InterventionPage> {
     if (_tzReady) return;
     try {
       tz_data.initializeTimeZones();
-      tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()) as String));
+      tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()).identifier));
       _tzReady = true;
     } catch (_) {}
   }
@@ -274,7 +274,7 @@ active ingredient in "why", dosage per litre and timing in "how".
 
     try {
       final resp = await http.post(Uri.parse(_kAskGeminiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 35));
 
@@ -360,7 +360,10 @@ active ingredient in "why", dosage per litre and timing in "how".
       } catch (_) {
         await OfflineQueueService.enqueue(
           id:         'disease_${user.uid}_${now.millisecondsSinceEpoch}',
-          collection: 'farmer_issue_records',
+          // Same place FarmerIssueService.saveRecord writes — the old
+          // root 'farmer_issue_records' collection was never read, so
+          // offline-saved disease records silently disappeared.
+          collection: 'farmer_issues/${user.uid}/records',
           payload:    record.toMap(),
         );
       }
@@ -512,16 +515,8 @@ active ingredient in "why", dosage per litre and timing in "how".
         title: title,
         body: body,
         scheduledDate: tzDate,
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _kNotifChannel,
-            _kNotifChanName,
-            channelDescription: 'Pest activity reminders',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        notificationDetails: NotificationService.details(KmChannel.reminders),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (_) {}
   }

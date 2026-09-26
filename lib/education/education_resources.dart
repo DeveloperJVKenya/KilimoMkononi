@@ -95,7 +95,10 @@ class _EducationResourcesState extends State<EducationResources> {
     return Container(
       width: 240,
       color: Colors.grey[100],
-      child: Column(
+      child: Material(
+        // Tiles draw ink/ripples on the nearest Material; it must sit above the colour.
+        type: MaterialType.transparency,
+        child: Column(
         children: [
           const Padding(
             padding: EdgeInsets.all(16.0),
@@ -129,6 +132,7 @@ class _EducationResourcesState extends State<EducationResources> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

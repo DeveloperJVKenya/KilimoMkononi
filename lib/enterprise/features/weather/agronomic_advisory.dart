@@ -1,0 +1,193 @@
+// lib/enterprise/features/weather/agronomic_advisory.dart
+//
+// A weather-and-crop advisory written or verified by a Field Agronomist.
+//
+// Firestore: agronomic_advisories/{id}
+//   title, main, doList, avoidList, why      — the advice (StructuredAdvice)
+//   crops: [..] ('All crops' allowed)        — who it's for
+//   condition: key from kAdvisoryConditions  — when it's shown
+//   gatewayId / stationName                  — null = all stations
+//   platform: 'km'
+//   status: draft | published | archived     — farmers only ever see published
+//   source: manual | ai_assisted, aiDraft    — original AI text kept for audit
+//   version, created*/updated*/published*    — who did what, when
+//   testOnly                                 — created by an admin in test
+//                                              mode; never shown to farmers
+//
+// agronomic_advisories/{id}/history/v{version} — immutable audit trail; one
+// entry per version, enforced by firestore.rules.
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
+
+enum AdvisoryStatus { draft, published, archived }
+
+AdvisoryStatus _statusFrom(String? s) => AdvisoryStatus.values.firstWhere(
+  (v) => v.name == s,
+  orElse: () => AdvisoryStatus.draft,
+);
+
+DateTime? _date(dynamic v) => v is Timestamp ? v.toDate() : null;
+
+List<String> _strings(dynamic v) =>
+    (v as List?)?.map((e) => e.toString()).toList() ?? const [];
+
+class AgronomicAdvisory {
+  final String id;
+  final String title;
+  final StructuredAdvice advice;
+  final List<String> crops;
+  final String condition;
+  final String? gatewayId;
+  final String? stationName;
+  final AdvisoryStatus status;
+  final String source;
+  final String? aiDraft;
+  final int version;
+  final String createdByName;
+  final DateTime? createdAt;
+  final String updatedByName;
+  final DateTime? updatedAt;
+  final String? publishedByName;
+  final DateTime? publishedAt;
+  final bool testOnly;
+
+  const AgronomicAdvisory({
+    required this.id,
+    required this.title,
+    required this.advice,
+    required this.crops,
+    required this.condition,
+    this.gatewayId,
+    this.stationName,
+    required this.status,
+    this.source = 'manual',
+    this.aiDraft,
+    required this.version,
+    this.createdByName = '',
+    this.createdAt,
+    this.updatedByName = '',
+    this.updatedAt,
+    this.publishedByName,
+    this.publishedAt,
+    this.testOnly = false,
+  });
+
+  bool get isStationScoped => gatewayId != null && gatewayId!.isNotEmpty;
+  bool get wasEverPublished => publishedAt != null;
+
+  factory AgronomicAdvisory.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final d = doc.data() ?? {};
+    return AgronomicAdvisory(
+      id: doc.id,
+      title: (d['title'] as String?) ?? '',
+      advice: StructuredAdvice(
+        main: (d['main'] as String?) ?? '',
+        doList: _strings(d['doList']),
+        avoidList: _strings(d['avoidList']),
+        why: (d['why'] as String?) ?? '',
+      ),
+      crops: _strings(d['crops']),
+      condition: (d['condition'] as String?) ?? 'general',
+      gatewayId: d['gatewayId'] as String?,
+      stationName: d['stationName'] as String?,
+      status: _statusFrom(d['status'] as String?),
+      source: (d['source'] as String?) ?? 'manual',
+      aiDraft: d['aiDraft'] as String?,
+      version: (d['version'] as num?)?.toInt() ?? 1,
+      createdByName: (d['createdByName'] as String?) ?? '',
+      createdAt: _date(d['createdAt']),
+      updatedByName: (d['updatedByName'] as String?) ?? '',
+      updatedAt: _date(d['updatedAt']),
+      publishedByName: d['publishedByName'] as String?,
+      publishedAt: _date(d['publishedAt']),
+      testOnly: d['testOnly'] == true,
+    );
+  }
+}
+
+/// What an agronomist edits — the content part of an advisory.
+class AdvisoryContent {
+  final String title;
+  final StructuredAdvice advice;
+  final List<String> crops;
+  final String condition;
+  final String? gatewayId;
+  final String? stationName;
+  final String source;
+  final String? aiDraft;
+  final bool testOnly;
+
+  const AdvisoryContent({
+    required this.title,
+    required this.advice,
+    required this.crops,
+    required this.condition,
+    this.gatewayId,
+    this.stationName,
+    this.source = 'manual',
+    this.aiDraft,
+    this.testOnly = false,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'title': title.trim(),
+    'main': advice.main.trim(),
+    'doList': advice.doList,
+    'avoidList': advice.avoidList,
+    'why': advice.why.trim(),
+    'crops': crops,
+    'condition': condition,
+    'gatewayId': (gatewayId == null || gatewayId!.isEmpty) ? null : gatewayId,
+    'stationName': stationName,
+    'source': source,
+    'aiDraft': aiDraft,
+    'testOnly': testOnly,
+  };
+}
+
+/// One immutable audit entry (history/v{version}).
+class AdvisoryHistoryEntry {
+  final int version;
+  final String action;
+  final String byName;
+  final DateTime? at;
+  final String status;
+  final Map<String, dynamic> snapshot;
+
+  const AdvisoryHistoryEntry({
+    required this.version,
+    required this.action,
+    required this.byName,
+    this.at,
+    required this.status,
+    this.snapshot = const {},
+  });
+
+  factory AdvisoryHistoryEntry.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final d = doc.data() ?? {};
+    return AdvisoryHistoryEntry(
+      version: (d['version'] as num?)?.toInt() ?? 0,
+      action: (d['action'] as String?) ?? '',
+      byName: (d['byName'] as String?) ?? '',
+      at: _date(d['at']),
+      status: (d['status'] as String?) ?? '',
+      snapshot: Map<String, dynamic>.from((d['snapshot'] as Map?) ?? const {}),
+    );
+  }
+
+  String get actionLabel => switch (action) {
+    'created' => 'Created draft',
+    'edited' => 'Edited draft',
+    'published' => 'Verified & published',
+    'republished' => 'Updated published advice',
+    'unpublished' => 'Unpublished',
+    'archived' => 'Archived',
+    'restored' => 'Restored to draft',
+    _ => action,
+  };
+}

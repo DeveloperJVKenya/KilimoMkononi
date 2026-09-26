@@ -1,0 +1,8 @@
+rules_version = '2';
+// Placeholder so the Storage emulator can boot. The tests upload the real
+// ../storage.rules and ../firestore.rules via initializeTestEnvironment().
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

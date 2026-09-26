@@ -49,7 +49,9 @@ class StorageManual {
 class _ManualsScreenState extends State<ManualsScreen> {
   final logger = Logger(printer: PrettyPrinter());
   final TextEditingController _titleController = TextEditingController();
-  double? _uploadProgress;
+  // Drives the upload dialog directly — the dialog is a separate route, so
+  // setState on this screen never rebuilt it and the bar stayed frozen.
+  final ValueNotifier<double?> _uploadProgress = ValueNotifier<double?>(null);
   String _selectedCategory = 'All Crops';
   bool _isAdmin = false;
   bool _isLoading = false;
@@ -75,6 +77,7 @@ class _ManualsScreenState extends State<ManualsScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _uploadProgress.dispose();
     super.dispose();
   }
 
@@ -193,18 +196,21 @@ class _ManualsScreenState extends State<ManualsScreen> {
   }
 
   Future<void> _uploadManual() async {
+    // Only pop in the catch block if the progress dialog is actually open —
+    // otherwise an early failure (e.g. file picker) popped this screen.
+    bool progressDialogOpen = false;
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null || !_isAdmin) return;
 
-      final result = await FilePicker.platform.pickFiles(
+      // file_picker 13: static pickFile(); bytes are read on demand below
+      // (the old withData/bytes API was removed).
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        withData: kIsWeb,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (file == null) return;
 
-      final file = result.files.single;
       final fileName = file.name;
       final title = _titleController.text.trim().isEmpty ? fileName : _titleController.text.trim();
 
@@ -223,18 +229,23 @@ class _ManualsScreenState extends State<ManualsScreen> {
       if (confirm != true) return;
 
       if (!mounted) return;
+      if (mounted) _uploadProgress.value = null;
+      progressDialogOpen = true;
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
           title: const Text('Uploading...', style: TextStyle(color: appPrimaryColor)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(value: _uploadProgress),
-              const SizedBox(height: 8),
-              Text(_uploadProgress != null ? '${(_uploadProgress! * 100).toStringAsFixed(0)}%' : 'Starting...'),
-            ],
+          content: ValueListenableBuilder<double?>(
+            valueListenable: _uploadProgress,
+            builder: (_, progress, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: progress),
+                const SizedBox(height: 8),
+                Text(progress != null ? '${(progress * 100).toStringAsFixed(0)}%' : 'Starting...'),
+              ],
+            ),
           ),
         ),
       );
@@ -243,9 +254,17 @@ class _ManualsScreenState extends State<ManualsScreen> {
           .ref()
           .child('manuals/${DateTime.now().millisecondsSinceEpoch}_$fileName');
 
-      final task = kIsWeb ? storageRef.putData(file.bytes!) : storageRef.putFile(File(file.path!));
-      task.snapshotEvents.listen((s) => setState(() => _uploadProgress = s.bytesTransferred / s.totalBytes));
-      await task;
+      final task = kIsWeb
+          ? storageRef.putData(await file.readAsBytes())
+          : storageRef.putFile(File(file.path!));
+      final progressSub = task.snapshotEvents.listen((s) {
+        if (s.totalBytes > 0) _uploadProgress.value = s.bytesTransferred / s.totalBytes;
+      }, onError: (_) {});
+      try {
+        await task;
+      } finally {
+        await progressSub.cancel();
+      }
       final url = await storageRef.getDownloadURL();
 
       await FirebaseFirestore.instance.collection('Manuals').add({
@@ -262,16 +281,17 @@ class _ManualsScreenState extends State<ManualsScreen> {
 
       if (mounted) {
         Navigator.pop(context);
+        progressDialogOpen = false;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uploaded successfully!')));
         _titleController.clear();
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context);
+        if (progressDialogOpen) Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
-      setState(() => _uploadProgress = null);
+      if (mounted) _uploadProgress.value = null;
     }
   }
 

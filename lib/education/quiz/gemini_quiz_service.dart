@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:kilimomkononi/services/function_auth.dart';
 
 // ─── Firebase Function URL ───────────────────────────────────────────────
 // ─── Firebase Function URL ───────────────────────────────────────────────
@@ -242,7 +243,7 @@ Explain briefly (1 sentence).
     try {
       final res = await http.post(
         Uri.parse(_baseUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 60));
 

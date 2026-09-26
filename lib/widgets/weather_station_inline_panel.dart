@@ -73,6 +73,12 @@ class WeatherStationInlinePanel extends StatefulWidget {
 
 class _WeatherStationInlinePanelState
     extends State<WeatherStationInlinePanel> {
+  // Spray window / leaf wetness / VPD / fertiliser / degree-day / wind cards
+  // are temporarily hidden for office station testing. While false,
+  // showDegreeDays, showFertiliser and cropNames have no visible effect.
+  // Flip to true to restore them.
+  static const bool _showAdvancedCards = false;
+
   bool _loading = true;
   String? _error;
   NuaSenseReading? _r;
@@ -236,6 +242,7 @@ class _WeatherStationInlinePanelState
       ]),
       const SizedBox(height: 8),
 
+      if (_showAdvancedCards) ...[
       // ── Spray window alert ──────────────────────────────────────────────
       // This is the single most actionable card for pest & disease Step 2.
       _sprayWindowCard(r),
@@ -263,6 +270,7 @@ class _WeatherStationInlinePanelState
       // ── Wind detail row ─────────────────────────────────────────────────
       const SizedBox(height: 6),
       _windRow(r),
+      ],
     ]);
   }
 

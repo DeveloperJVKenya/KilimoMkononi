@@ -1,24 +1,19 @@
 // lib/widgets/farm_alerts_home_widget.dart
 //
-// Displays active farm alerts on field_data_input_home_page.dart.
-// Placed between "Start recording" and "Your plots this season" sections.
-//
-// Shows:
-//   - A green card when all is well
-//   - Amber/red cards for active warnings/critical alerts
-//   - Each card has an action button that deep-links to the relevant screen
-//
-// Usage in field_data_input_home_page.dart:
-//
-//   // In the ListView children, after _sectionLabel('Start recording')
-//   // and the three structure cards, add:
-//
-//   _sectionLabel('Farm alerts'),
-//   const FarmAlertsHomeWidget(),
+// Farm Alerts on Home + Field Data home.
+// Shows the SAME advice stack as Weather Station:
+//   1) Today's plan from buildKmDayPlan (station parameters → Do/Avoid)
+//   2) Latest published Field Agronomist note (Firestore)
+// Does NOT use FarmAlertService pest degree-day / NuaSense catalogue alerts.
+// Tap → full Weather Station screen (plan + AI + agronomist).
 
 import 'package:flutter/material.dart';
-import 'package:kilimomkononi/services/farm_alert_service.dart';
+import 'package:kilimomkononi/models/agronomist_note.dart';
+import 'package:kilimomkononi/services/agronomist_note_service.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/services/weather_day_plan.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 
 class FarmAlertsHomeWidget extends StatefulWidget {
   const FarmAlertsHomeWidget({super.key});
@@ -29,11 +24,17 @@ class FarmAlertsHomeWidget extends StatefulWidget {
 
 class _FarmAlertsHomeWidgetState extends State<FarmAlertsHomeWidget> {
   static const _accentGreen = Color(0xFF2A6B2A);
-  static const _green       = Color(0xFF1B5E20);
+  static const _green = Color(0xFF1B5E20);
+  static const _amber = Color(0xFFE65100);
+  static const _red = Color(0xFFB71C1C);
+  static const _purple = Color(0xFF6A1B9A);
 
   bool _loading = true;
-  List<FarmAlert> _alerts = [];
   String _county = '';
+  bool _provisioned = false;
+  WeatherDayPlan? _plan;
+  AgronomistNote? _note;
+  String? _error;
 
   @override
   void initState() {
@@ -42,19 +43,46 @@ class _FarmAlertsHomeWidgetState extends State<FarmAlertsHomeWidget> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final location = await FarmLocationService.getLocation();
-      final alerts   = await FarmAlertService.evaluateAlerts();
+      final reading = await NuaSenseService.getLatestReading();
+      final provisioned = reading.isProvisioned;
+
+      WeatherDayPlan? plan;
+      AgronomistNote? note;
+      if (provisioned) {
+        plan = buildKmDayPlan(reading);
+        note = await AgronomistNoteService.getLatestForStation(
+          platform: 'km',
+        );
+      }
+
       if (!mounted) return;
       setState(() {
-        _county  = location.county;
-        _alerts  = alerts;
+        _county = location.county;
+        _provisioned = provisioned;
+        _plan = plan;
+        _note = note;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
     }
+  }
+
+  void _openWeatherStation() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const WeatherStationScreen()),
+    );
   }
 
   @override
@@ -69,139 +97,342 @@ class _FarmAlertsHomeWidgetState extends State<FarmAlertsHomeWidget> {
         ),
         child: const Center(
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(width: 12, height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2,
-                    color: Color(0xFF2A6B2A))),
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFF2A6B2A),
+              ),
+            ),
             SizedBox(width: 8),
-            Text('Checking farm conditions…',
-                style: TextStyle(fontSize: 12, color: Colors.black45)),
+            Text(
+              'Loading farm advice…',
+              style: TextStyle(fontSize: 12, color: Colors.black45),
+            ),
           ]),
         ),
       );
     }
 
-    final critical = _alerts.where(
-      (a) => a.severity == AlertSeverity.critical || a.severity == AlertSeverity.high,
-    ).toList();
-    final warnings = _alerts.where(
-      (a) => a.severity == AlertSeverity.warning,
-    ).toList();
-    final spray = _alerts.where(
-      (a) => a.category == AlertCategory.spray,
-    ).toList();
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ── Location line ──────────────────────────────────────────────────────
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(children: [
-          const Icon(Icons.location_on_outlined, size: 12, color: Colors.black38),
-          const SizedBox(width: 4),
-          Text('Farm: $_county',
-              style: const TextStyle(fontSize: 11, color: Colors.black45)),
-          const Spacer(),
-          GestureDetector(
-            onTap: () { setState(() => _loading = true); _load(); },
-            child: const Row(children: [
-              Icon(Icons.refresh, size: 11, color: Colors.black38),
-              SizedBox(width: 2),
-              Text('Refresh', style: TextStyle(fontSize: 11, color: Colors.black38)),
-            ]),
-          ),
-        ]),
-      ),
-
-      // ── All clear ─────────────────────────────────────────────────────────
-      if (critical.isEmpty && warnings.isEmpty)
-        _allClearCard(spray.isNotEmpty ? spray.first : null),
-
-      // ── Critical / high alerts ─────────────────────────────────────────────
-      ...critical.map((a) => _alertTile(a, context)),
-
-      // ── Warnings (collapsed under an "N more" chip if > 2) ────────────────
-      if (warnings.isNotEmpty)
-        ...warnings.take(2).map((a) => _alertTile(a, context)),
-      if (warnings.length > 2)
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('+ ${warnings.length - 2} more warnings',
-              style: const TextStyle(fontSize: 12, color: Colors.black45)),
+          child: Row(
+            children: [
+              const Icon(Icons.location_on_outlined,
+                  size: 12, color: Colors.black38),
+              const SizedBox(width: 4),
+              Text(
+                _county.isEmpty ? 'Your farm' : 'Farm: $_county',
+                style: const TextStyle(fontSize: 11, color: Colors.black45),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _load,
+                child: const Row(
+                  children: [
+                    Icon(Icons.refresh, size: 11, color: Colors.black38),
+                    SizedBox(width: 2),
+                    Text('Refresh',
+                        style: TextStyle(fontSize: 11, color: Colors.black38)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-
-      // ── Spray window (positive) ────────────────────────────────────────────
-      if (spray.isNotEmpty && critical.isNotEmpty)
-        _alertTile(spray.first, context),
-    ]);
+        if (_error != null) _errorCard(),
+        if (_error == null && !_provisioned) _noStationCard(),
+        if (_error == null && _provisioned && _plan != null) ...[
+          _planCard(_plan!),
+          if (_plan!.doToday.isNotEmpty || _plan!.avoidToday.isNotEmpty)
+            _doAvoidCard(_plan!),
+        ],
+        if (_error == null && _note != null && _note!.body.trim().isNotEmpty)
+          _agronomistCard(_note!),
+        if (_error == null &&
+            _provisioned &&
+            _plan != null &&
+            (_note == null || _note!.body.trim().isEmpty))
+          _noAgronomistHint(),
+      ],
+    );
   }
 
-  Widget _allClearCard(FarmAlert? sprayAlert) => Card(
-    elevation: 0,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: Colors.grey.shade200),
-    ),
-    color: const Color(0xFFEDF7ED),
-    margin: const EdgeInsets.only(bottom: 8),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(children: [
-        const Icon(Icons.check_circle_outline_rounded, color: _accentGreen, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('All clear — no alerts on your farm today',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                  color: Color(0xFF1B5E20))),
-          if (sprayAlert != null) ...[
-            const SizedBox(height: 2),
-            Text(sprayAlert.message,
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF2E7D32))),
-          ],
-        ])),
-      ]),
-    ),
-  );
+  Widget _errorCard() {
+    return _baseCard(
+      bg: const Color(0xFFFFEBEE),
+      border: _red.withValues(alpha: 0.3),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off_rounded, color: _red, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Could not load advice. Pull to refresh or open Weather Station.',
+              style: TextStyle(fontSize: 12.5, color: _red.withValues(alpha: 0.9)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _alertTile(FarmAlert alert, BuildContext context) {
-    final Color bg, border, iconColor;
-    IconData icon;
-    switch (alert.severity) {
-      case AlertSeverity.critical:
-        bg = const Color(0xFFFFEBEE); border = const Color(0xFFB71C1C);
-        iconColor = const Color(0xFFB71C1C); icon = Icons.dangerous_rounded;
-      case AlertSeverity.high:
-        bg = const Color(0xFFFFF3E0); border = const Color(0xFFE65100);
-        iconColor = const Color(0xFFE65100); icon = Icons.warning_rounded;
-      case AlertSeverity.warning:
-        bg = const Color(0xFFFFF8E1); border = const Color(0xFFF57F17);
-        iconColor = const Color(0xFFF57F17); icon = Icons.info_outline_rounded;
-      case AlertSeverity.info:
-        bg = const Color(0xFFEDF7ED); border = _green;
-        iconColor = _green; icon = Icons.check_circle_outline_rounded;
+  Widget _noStationCard() {
+    return InkWell(
+      onTap: _openWeatherStation,
+      borderRadius: BorderRadius.circular(12),
+      child: _baseCard(
+        bg: const Color(0xFFF7F8F6),
+        border: Colors.grey.shade300,
+        child: const Row(
+          children: [
+            Icon(Icons.sensors_off_rounded, color: Colors.black45, size: 18),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'No weather station data yet. Open Weather Station when a station is assigned.',
+                style: TextStyle(fontSize: 12.5, color: Colors.black54, height: 1.35),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.black26, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _planCard(WeatherDayPlan plan) {
+    final Color bg;
+    final Color border;
+    final Color iconColor;
+    final IconData icon;
+    switch (plan.mood) {
+      case DayMood.good:
+        bg = const Color(0xFFEDF7ED);
+        border = _green.withValues(alpha: 0.35);
+        iconColor = _accentGreen;
+        icon = Icons.check_circle_outline_rounded;
+        break;
+      case DayMood.caution:
+        bg = const Color(0xFFFFF8E1);
+        border = _amber.withValues(alpha: 0.35);
+        iconColor = _amber;
+        icon = Icons.warning_amber_rounded;
+        break;
+      case DayMood.hold:
+        bg = const Color(0xFFFFEBEE);
+        border = _red.withValues(alpha: 0.3);
+        iconColor = _red;
+        icon = Icons.pause_circle_outline_rounded;
+        break;
     }
 
+    return InkWell(
+      onTap: _openWeatherStation,
+      borderRadius: BorderRadius.circular(12),
+      child: _baseCard(
+        bg: bg,
+        border: border,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: iconColor, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "TODAY'S ADVICE",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: iconColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    plan.mainAdvice,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Open Weather Station for AI & full plan',
+                    style: TextStyle(fontSize: 11, color: iconColor),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: iconColor.withValues(alpha: 0.5), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _doAvoidCard(WeatherDayPlan plan) {
+    return _baseCard(
+      bg: Colors.white,
+      border: Colors.grey.shade200,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (plan.doToday.isNotEmpty) ...[
+            const Text(
+              'DO TODAY',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: _accentGreen,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...plan.doToday.take(3).map(
+                  (t) => Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• ',
+                            style: TextStyle(color: _accentGreen, fontSize: 12)),
+                        Expanded(
+                          child: Text(t,
+                              style: const TextStyle(
+                                  fontSize: 12.5, color: Colors.black87, height: 1.3)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+          if (plan.avoidToday.isNotEmpty) ...[
+            if (plan.doToday.isNotEmpty) const SizedBox(height: 8),
+            const Text(
+              'AVOID',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: _red,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...plan.avoidToday.take(3).map(
+                  (t) => Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• ',
+                            style: TextStyle(color: _red, fontSize: 12)),
+                        Expanded(
+                          child: Text(t,
+                              style: const TextStyle(
+                                  fontSize: 12.5, color: Colors.black87, height: 1.3)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _agronomistCard(AgronomistNote note) {
+    return InkWell(
+      onTap: _openWeatherStation,
+      borderRadius: BorderRadius.circular(12),
+      child: _baseCard(
+        bg: const Color(0xFFF3E5F5),
+        border: const Color(0xFFCE93D8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.support_agent_rounded, size: 16, color: _purple),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    note.title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4A148C),
+                    ),
+                  ),
+                ),
+                Text(
+                  note.timeLabel,
+                  style: const TextStyle(fontSize: 10, color: Colors.black45),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              note.body,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${note.authorName} · ${note.authorOrg}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _purple,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _noAgronomistHint() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4, top: 2),
+      child: Text(
+        'No field agronomist note published yet. AI detail is on Weather Station.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3),
+      ),
+    );
+  }
+
+  Widget _baseCard({
+    required Color bg,
+    required Color border,
+    required Widget child,
+  }) {
     return Card(
       elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      color: bg,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: border.withValues(alpha: 0.3)),
+        side: BorderSide(color: border),
       ),
-      color: bg,
-      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, color: iconColor, size: 18),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(alert.title,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: iconColor)),
-            const SizedBox(height: 3),
-            Text(alert.message,
-                style: const TextStyle(fontSize: 12, color: Colors.black54,
-                    height: 1.4)),
-          ])),
-        ]),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: child,
       ),
     );
   }

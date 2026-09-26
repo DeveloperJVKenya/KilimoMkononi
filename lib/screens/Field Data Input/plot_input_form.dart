@@ -9,16 +9,18 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/models/field_data_model.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
-import 'package:kilimomkononi/services/iot_sensor_service.dart';
-import 'package:kilimomkononi/services/nasa_power_service.dart';
+//import 'package:kilimomkononi/services/iot_sensor_service.dart';
+//import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/widgets/farm_location_picker.dart';
-import 'package:kilimomkononi/widgets/farm_environment_card.dart';
+//import 'package:kilimomkononi/widgets/farm_environment_card.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public widget classes — unchanged API, drop-in replacement
@@ -88,8 +90,6 @@ const _kAccentGreen = Color(0xFF2A6B2A);
 const _kAskGeminiFunctionUrl =
     'https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini';
 
-const _kNotifChannelId   = 'field_reminders_v2';
-const _kNotifChannelName = 'Field Activity Reminders';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FieldTheme — outdoor-readable colour & text system
@@ -397,8 +397,11 @@ class _PlotInputFormState<T extends PlotInputForm> extends State<T> {
 
   // Cached environmental readings — populated by FarmEnvironmentCard callback,
   // then reused to enrich the Gemini AI prompt without extra network calls.
-  IotSensorReading? _latestIot;
-  SatelliteReading? _latestSat;
+  // Commented out along with the IoT/satellite integration below — not
+  // deleted, in case we re-enable IotSensorService/NasaPowerService/
+  // FarmEnvironmentCard later.
+  // IotSensorReading? _latestIot;
+  // SatelliteReading? _latestSat;
 
   // Step 3 — Confirm & save
   final List<Map<String, dynamic>> _reminders = [];
@@ -571,23 +574,28 @@ Future<void> _loadFarmPlots() async {
     final areaLabel = _areaInAcres > 0 ? '${_areaInAcres.toStringAsFixed(2)} acres' : 'unknown area';
 
     // ── Environmental context (IoT + satellite) ────────────────────────────
-    IotSensorReading? iot = _latestIot;
-    SatelliteReading? sat = _latestSat;
-    if (iot == null) {
-      try { iot = await IotSensorService.getReadingForFarm(); _latestIot = iot; } catch (_) {}
-    }
-    if (sat == null) {
-      try { sat = await NasaPowerService.getToday(); _latestSat = sat; } catch (_) {}
-    }
-    List<SatelliteReading> hist = [];
-    try { hist = await NasaPowerService.getHistory(days: 7); } catch (_) {}
-    final rain7d = SatelliteReading.totalPrecipitation(hist);
-
-    final iotBlock = iot == null ? '' :
-        'Farm sensor: temp ${iot.temperature}°C, humidity ${iot.humidity}%, pH ${iot.ph}, EC ${iot.ec} µs/cm.';
-    final satBlock = sat == null ? '' :
-        'Satellite: root zone moisture ${(sat.rootZoneMoisture * 100).toStringAsFixed(0)}%, '
-        '7-day rain ${rain7d.toStringAsFixed(1)} mm, soil temp ${sat.soilTempLayer1}°C.';
+    // IotSensorReading? iot = _latestIot;
+    // SatelliteReading? sat = _latestSat;
+    // if (iot == null) {
+    // try { iot = await IotSensorService.getReadingForFarm(); _latestIot = iot; } catch (_) {}
+    // }
+    // if (sat == null) {
+    // try { sat = await NasaPowerService.getToday(); _latestSat = sat; } catch (_) {}
+    // }
+    // List<SatelliteReading> hist = [];
+    // try { hist = await NasaPowerService.getHistory(days: 7); } catch (_) {}
+    // final rain7d = SatelliteReading.totalPrecipitation(hist);
+    //
+    // final iotBlock = iot == null ? '' :
+    // 'Farm sensor: temp ${iot.temperature}°C, humidity ${iot.humidity}%, pH ${iot.ph}, EC ${iot.ec} µs/cm.';
+    // final satBlock = sat == null ? '' :
+    // 'Satellite: root zone moisture ${(sat.rootZoneMoisture * 100).toStringAsFixed(0)}%, '
+    // '7-day rain ${rain7d.toStringAsFixed(1)} mm, soil temp ${sat.soilTempLayer1}°C.';
+    //
+    // Empty placeholders so the prompt string below still compiles
+    // while the IoT/satellite block above is disabled.
+    const iotBlock = '';
+    const satBlock = '';
 
     final prompt = buildAiAdvicePrompt(
       roleContext: 'an agronomist',
@@ -610,7 +618,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
     try {
       final resp = await http.post(
         Uri.parse(_kAskGeminiFunctionUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 50));
 
@@ -720,8 +728,10 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
       try {
         final map = fieldData.toMap();
         // Attach environmental snapshots for historical analysis
-        if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
-        if (_latestSat != null) map['satelliteSnapshot'] = _latestSat!.toMap();
+        // Commented out along with the IoT/satellite integration —
+        // not deleted, re-enable if the feature comes back.
+        // if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
+        // if (_latestSat != null) map['satelliteSnapshot'] = _latestSat!.toMap();
         // Attach plot GPS so satellite/weather screens use the correct farm location
         if (_plotLatLng != null) {
           map['latitude']  = _plotLatLng!.latitude;
@@ -742,8 +752,10 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
       } catch (_) {
         // Firestore unavailable — save to offline queue
         final map = fieldData.toMap();
-        if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
-        if (_latestSat != null) map['satelliteSnapshot'] = _latestSat!.toMap();
+        // Commented out along with the IoT/satellite integration —
+        // not deleted, re-enable if the feature comes back.
+        // if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
+        // if (_latestSat != null) map['satelliteSnapshot'] = _latestSat!.toMap();
         if (_plotLatLng != null) {
           map['latitude']  = _plotLatLng!.latitude;
           map['longitude'] = _plotLatLng!.longitude;
@@ -865,16 +877,8 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
         title: title,                       // ← named
         body: body,                         // ← named
         scheduledDate: tzDate,              // ← named
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _kNotifChannelId,
-            _kNotifChannelName,
-            channelDescription: 'Reminders for field activities',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        notificationDetails: NotificationService.details(KmChannel.reminders),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (_) {
       // Notification persisted in Firestore — reboot receiver will re-schedule
@@ -1639,21 +1643,34 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
         // ── Farm conditions (weather + satellite) ──────────────────
         // Shows live weather station and satellite data for context.
         // NPK values below must be entered manually from a soil test.
-        FarmEnvironmentCard(
-          mode: FarmEnvironmentCardMode.soilSummary,
-          onIotLoaded: (IotSensorReading reading) {
-            // Cache for Firestore snapshot (ambient farm conditions only).
-            // NPK fields are NOT auto-filled — soil test numbers must be
-            // entered manually by the farmer or field officer.
-            _latestIot = reading;
-          },
-        ),
-        const SizedBox(height: 12),
+        // Commented out along with IotSensorService/NasaPowerService —
+        // not deleted, re-enable if the feature comes back.
+        // FarmEnvironmentCard(
+        //   mode: FarmEnvironmentCardMode.soilSummary,
+        //   onIotLoaded: (IotSensorReading reading) {
+        //     // Cache for Firestore snapshot (ambient farm conditions only).
+        //     // NPK fields are NOT auto-filled — soil test numbers must be
+        //     // entered manually by the farmer or field officer.
+        //     _latestIot = reading;
+        //   },
+        // ),
+        // const SizedBox(height: 12),
 
         // ── Weather station inline panel ────────────────────────────
+        // Advice cards (spray window / leaf wetness / VPD / pest pressure)
+        // are turned off here on purpose — they're live decision tools that
+        // already live on the dedicated Weather Station screen. Showing
+        // them here too would duplicate that screen and burn extra
+        // NuaSense API calls on a form whose job is just recording data
+        // (crop, stage, NPK, interventions), not deciding "can I spray
+        // today?". Only the compact status/mini-grid/wind-row context and
+        // the "Full station data →" link remain.
         WeatherStationInlinePanel(
-          showFertiliser: true,
+          //showFertiliser: false,
           showDegreeDays: false,
+          //showSprayWindow: false,
+          //showLeafWetness: false,
+          //showVpd: false,
           cropNames: _crops
               .map((c) => (c['type'] ?? ''))
               .where((t) => t.isNotEmpty)

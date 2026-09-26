@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kilimomkononi/services/function_auth.dart';
 
 // ─── Gemini Firebase Function URL ────────────────────────────────────────────
 const String _geminiUrl =
@@ -62,7 +63,7 @@ class _FarmerPlotAnalysisScreenState extends State<FarmerPlotAnalysisScreen> {
     try {
       final res = await http.post(
         Uri.parse(_geminiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: await authJsonHeaders(),
         body: jsonEncode({'prompt': prompt}),
       ).timeout(const Duration(seconds: 90));
 

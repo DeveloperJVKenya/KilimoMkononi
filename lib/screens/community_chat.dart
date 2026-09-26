@@ -32,12 +32,21 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     _postWelcomeMessage();
   }
 
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchUserName() async {
     final user = _auth.currentUser;
     if (user != null) {
       final userDoc = await _firestore.collection('Users').doc(user.uid).get();
+      if (!mounted) return;
       setState(() {
-        _userName = userDoc['fullName'] ?? 'Anonymous';
+        // data()?[...] rather than userDoc['fullName'], which throws when the
+        // doc or field is missing instead of falling back.
+        _userName = userDoc.data()?['fullName'] as String? ?? 'Anonymous';
         _logger.i('Fetched username: $_userName');
       });
     } else {
