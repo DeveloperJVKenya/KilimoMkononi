@@ -1,473 +1,431 @@
-import 'package:flutter/material.dart';
+// lib/settings/notifications_settings_screen.dart
+//
+// Notification Settings. Every switch is saved to the user's account
+// (notificationPrefs/{uid}, see lib/services/notification_prefs.dart) and
+// takes effect for real:
+//   • Alerts & advice — the Cloud Functions check these before pushing to
+//     the user's phones; the Inbox still keeps a dated record.
+//   • Activity reminders — reminders already scheduled on this device are
+//     cancelled / restored straight away (ReminderService.applyPrefs).
+//   • Farm task reminder time — when Farm Management task reminders ring on
+//     the due date.
+// The phone's own notification permission is shown too: if it's blocked,
+// nothing can appear whatever the settings say.
 
-class NotificationsSettingsScreen extends StatefulWidget {
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kilimomkononi/services/notification_prefs.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
+import 'package:kilimomkononi/settings/notifications/notification_style.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+/// The phone's notification permission (null = unknown on this platform).
+final notificationPermissionProvider = FutureProvider.autoDispose<PermissionStatus?>((ref) async {
+  try {
+    return await Permission.notification.status;
+  } catch (_) {
+    return null;
+  }
+});
+
+class NotificationsSettingsScreen extends ConsumerWidget {
   final bool isEducation;
   const NotificationsSettingsScreen({super.key, this.isEducation = false});
 
   @override
-  State<NotificationsSettingsScreen> createState() => _NotificationsSettingsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(notificationPrefsProvider);
+    return Scaffold(
+      backgroundColor: KmColors.page,
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton(color: Colors.white) : null,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: Container(decoration: const BoxDecoration(gradient: KmColors.appBarGradient)),
+        title: const Text('Notification Settings',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+      ),
+      body: async.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
+        error: (e, _) => KmEmptyState(
+            icon: Icons.error_outline_rounded, title: 'Could not load settings', message: '$e', color: KmColors.red),
+        data: (p) => _SettingsBody(prefs: p, isEducation: isEducation),
+      ),
+    );
+  }
 }
 
-class _NotificationsSettingsScreenState extends State<NotificationsSettingsScreen> {
-  // State variables for notification toggles
-  bool _pushNotifications = true;
-  bool _weatherAlerts = true;
-  bool _fieldReminderActivities = true;
-  bool _fieldRemindMeAt = false;
-  bool _pestReminderActivities = true;
-  bool _pestRemindMeAt = false;
-  bool _farmReminderActivities = true;
-  bool _farmRemindMeAt = false;
+class _SettingsBody extends ConsumerWidget {
+  final NotificationPrefs prefs;
+  final bool isEducation;
+  const _SettingsBody({required this.prefs, required this.isEducation});
 
-  // Placeholder DateTime variables for "Remind Me At"
-  DateTime? _fieldReminderTime;
-  DateTime? _pestReminderTime;
-  DateTime? _farmReminderTime;
-
-  // Define custom green color
-  final Color customGreen = const Color(0xFF003900);
-
-  // Helper method to create a green circle with an icon
-  Widget _buildIcon(IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: customGreen,
-      ),
-      child: Icon(
-        icon,
-        color: Colors.white,
-        size: 20,
-      ),
-    );
-  }
-
-  // Method to show a custom dialog for picking date and time
-  Future<DateTime?> _showDateTimePickerDialog(BuildContext context) async {
-    DateTime? selectedDate;
-    TimeOfDay? selectedTime;
-
-    return await showDialog<DateTime>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Select Date and Time'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton(
-                onPressed: () async {
-                  final DateTime? pickedDate = await showDatePicker(
-                    context: dialogContext,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime(2100),
-                  );
-                  if (pickedDate != null) {
-                    setState(() {
-                      selectedDate = pickedDate;
-                    });
-                  }
-                },
-                child: const Text('Pick Date'),
-              ),
-              if (selectedDate != null)
-                Text('Selected Date: ${selectedDate.toString().substring(0, 10)}'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: selectedDate != null
-                    ? () async {
-                        final TimeOfDay? pickedTime = await showTimePicker(
-                          context: dialogContext,
-                          initialTime: TimeOfDay.now(),
-                        );
-                        if (pickedTime != null) {
-                          setState(() {
-                            selectedTime = pickedTime;
-                          });
-                        }
-                      }
-                    : null,
-                child: const Text('Pick Time'),
-              ),
-              if (selectedTime != null)
-                Text('Selected Time: ${selectedTime!.format(context)}'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, null),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: (selectedDate != null && selectedTime != null)
-                  ? () {
-                      final DateTime combinedDateTime = DateTime(
-                        selectedDate!.year,
-                        selectedDate!.month,
-                        selectedDate!.day,
-                        selectedTime!.hour,
-                        selectedTime!.minute,
-                      );
-                      Navigator.pop(dialogContext, combinedDateTime);
-                    }
-                  : null,
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Placeholder method to simulate getting reminder time from another section
-  DateTime? _getReminderTimeFromSection(String section) {
-    switch (section) {
-      case 'field':
-        return _fieldReminderActivities ? DateTime.now().add(const Duration(hours: 1)) : null;
-      case 'pest':
-        return _pestReminderActivities ? DateTime.now().add(const Duration(hours: 2)) : null;
-      case 'farm':
-        return _farmReminderActivities ? DateTime.now().add(const Duration(hours: 3)) : null;
-      default:
-        return null;
+  Future<void> _save(BuildContext context, WidgetRef ref, NotificationPrefs next, String what) async {
+    try {
+      await ref.read(notificationPrefsProvider.notifier).save(next);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text('$what — saved to your account'),
+            backgroundColor: KmColors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not save: $e'),
+          backgroundColor: KmColors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double cardWidth = screenWidth - 32.0;
+  Future<void> _pickTime(BuildContext context, WidgetRef ref) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: prefs.taskReminderHour, minute: prefs.taskReminderMinute),
+      helpText: 'Farm task reminder time',
+    );
+    if (picked == null || !context.mounted) return;
+    await _save(
+      context,
+      ref,
+      prefs.copyWith(taskReminderHour: picked.hour, taskReminderMinute: picked.minute),
+      'Task reminders at ${picked.format(context)}',
+    );
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Notification Settings',
-          style: TextStyle(color: Colors.white),
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = prefs;
+    String onOff(bool v) => v ? 'on' : 'off';
+    final time = TimeOfDay(hour: p.taskReminderHour, minute: p.taskReminderMinute);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        const _PermissionCard(),
+        const SizedBox(height: 16),
+        _Section(
+          title: 'Alerts & advice',
+          subtitle: 'Sent by Kilimo Mkononi to your phone. Turning one off stops the phone alert — '
+              'your Inbox still keeps a dated record.',
+          color: KmColors.blue,
+          icon: Icons.campaign_rounded,
+          children: [
+            _SwitchRow(
+              icon: Icons.notifications_active_rounded,
+              color: KmColors.green,
+              title: 'Phone notifications',
+              subtitle: 'Master switch for everything sent to your phone',
+              value: p.push,
+              onChanged: (v) => _save(context, ref, p.copyWith(push: v), 'Phone notifications ${onOff(v)}'),
+            ),
+            if (!isEducation) ...[
+              _SwitchRow(
+                icon: Icons.thunderstorm_rounded,
+                color: KmColors.orange,
+                title: 'Weather alerts',
+                subtitle: 'Heavy rain, strong wind, heat, frost and disease risk from your station',
+                value: p.weatherAlerts,
+                enabled: p.push,
+                onChanged: (v) => _save(context, ref, p.copyWith(weatherAlerts: v), 'Weather alerts ${onOff(v)}'),
+              ),
+              _SwitchRow(
+                icon: Icons.verified_rounded,
+                color: KmColors.greenMid,
+                title: 'Verified advice',
+                subtitle: 'New advice from Field Agronomists for your crops and conditions',
+                value: p.advisories,
+                enabled: p.push,
+                onChanged: (v) => _save(context, ref, p.copyWith(advisories: v), 'Verified advice ${onOff(v)}'),
+              ),
+            ],
+            _SwitchRow(
+              icon: Icons.how_to_reg_rounded,
+              color: KmColors.blue,
+              title: 'Account approvals',
+              subtitle: isEducation
+                  ? 'Requests waiting for your approval, and decisions on your account'
+                  : 'Decisions on education accounts you requested',
+              value: p.approvals,
+              enabled: p.push,
+              onChanged: (v) => _save(context, ref, p.copyWith(approvals: v), 'Approval notifications ${onOff(v)}'),
+            ),
+          ],
         ),
-        backgroundColor: customGreen,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        if (!isEducation) ...[
+          const SizedBox(height: 16),
+          _Section(
+            title: 'Activity reminders',
+            subtitle: kIsWeb
+                ? 'Reminders you set ring in the phone app. Changes here apply on your phone next time it opens.'
+                : 'Reminders you set ring on this phone. Turning a section off silences its reminders '
+                    'straight away; turning it back on restores them.',
+            color: KmColors.purple,
+            icon: Icons.alarm_rounded,
             children: [
-              Card(
-                elevation: 4,
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'General Notification',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: customGreen,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SwitchListTile(
-                          secondary: _buildIcon(Icons.notifications),
-                          title: Text(
-                            'Send Me Push Notifications',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          value: _pushNotifications,
-                          activeThumbColor: customGreen,
-                          onChanged: (bool value) {
-                            setState(() {
-                              _pushNotifications = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              _SwitchRow(
+                icon: Icons.grass_rounded,
+                color: KmColors.green,
+                title: 'Field Data Input',
+                subtitle: 'Fertiliser, irrigation and field follow-ups',
+                value: p.fieldReminders,
+                onChanged: (v) => _save(context, ref, p.copyWith(fieldReminders: v), 'Field reminders ${onOff(v)}'),
               ),
-              const SizedBox(height: 16),
-              Card(
-                elevation: 4,
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Field Data Input Notifications',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: customGreen,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SwitchListTile(
-                          secondary: _buildIcon(Icons.cloud),
-                          title: Text(
-                            'Weather Alerts',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          value: _weatherAlerts,
-                          activeThumbColor: customGreen,
-                          onChanged: (bool value) {
-                            setState(() {
-                              _weatherAlerts = value;
-                            });
-                          },
-                        ),
-                        const Divider(height: 1, thickness: 1, indent: 50),
-                        SwitchListTile(
-                          secondary: _buildIcon(Icons.event),
-                          title: Text(
-                            'Remind Me About Activities Set on Reminder',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          value: _fieldReminderActivities,
-                          activeThumbColor: customGreen,
-                          onChanged: (bool value) {
-                            setState(() {
-                              _fieldReminderActivities = value;
-                              if (!value) _fieldRemindMeAt = false;
-                            });
-                          },
-                        ),
-                        const Divider(height: 1, thickness: 1, indent: 50),
-                        ListTile(
-                          leading: _buildIcon(Icons.access_time),
-                          title: Text(
-                            'Remind Me At${_fieldRemindMeAt && _fieldReminderTime != null ? ' ($_fieldReminderTime)' : ''}',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          trailing: Switch(
-                            value: _fieldRemindMeAt,
-                            activeThumbColor: customGreen,
-                            onChanged: _fieldReminderActivities
-                                ? (bool value) async {
-                                    setState(() {
-                                      _fieldRemindMeAt = value;
-                                    });
-                                    if (value) {
-                                      if (_fieldReminderActivities) {
-                                        final autoTime = _getReminderTimeFromSection('field');
-                                        if (autoTime != null) {
-                                          setState(() {
-                                            _fieldReminderTime = autoTime;
-                                          });
-                                        } else if (mounted) {
-                                          final time = await _showDateTimePickerDialog(context);
-                                          if (time != null) {
-                                            setState(() {
-                                              _fieldReminderTime = time;
-                                            });
-                                          }
-                                        }
-                                      } else if (mounted) {
-                                        final time = await _showDateTimePickerDialog(context);
-                                        if (time != null) {
-                                          setState(() {
-                                            _fieldReminderTime = time;
-                                          });
-                                        }
-                                      }
-                                    } else {
-                                      setState(() {
-                                        _fieldReminderTime = null;
-                                      });
-                                    }
-                                  }
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              _SwitchRow(
+                icon: Icons.bug_report_rounded,
+                color: KmColors.orange,
+                title: 'Pest Management',
+                subtitle: 'Re-spray, scouting, weeding and follow-up checks',
+                value: p.pestReminders,
+                onChanged: (v) => _save(context, ref, p.copyWith(pestReminders: v), 'Pest reminders ${onOff(v)}'),
               ),
-              const SizedBox(height: 16),
-              Card(
-                elevation: 4,
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Pest Management Notifications',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: customGreen,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SwitchListTile(
-                          secondary: _buildIcon(Icons.bug_report),
-                          title: Text(
-                            'Remind Me About Activities Set on Reminder',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          value: _pestReminderActivities,
-                          activeThumbColor: customGreen,
-                          onChanged: (bool value) {
-                            setState(() {
-                              _pestReminderActivities = value;
-                              if (!value) _pestRemindMeAt = false;
-                            });
-                          },
-                        ),
-                        const Divider(height: 1, thickness: 1, indent: 50),
-                        ListTile(
-                          leading: _buildIcon(Icons.access_time),
-                          title: Text(
-                            'Remind Me At${_pestRemindMeAt && _pestReminderTime != null ? ' ($_pestReminderTime)' : ''}',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          trailing: Switch(
-                            value: _pestRemindMeAt,
-                            activeThumbColor: customGreen,
-                            onChanged: _pestReminderActivities
-                                ? (bool value) async {
-                                    setState(() {
-                                      _pestRemindMeAt = value;
-                                    });
-                                    if (value) {
-                                      if (_pestReminderActivities) {
-                                        final autoTime = _getReminderTimeFromSection('pest');
-                                        if (autoTime != null) {
-                                          setState(() {
-                                            _pestReminderTime = autoTime;
-                                          });
-                                        } else if (mounted) {
-                                          final time = await _showDateTimePickerDialog(context);
-                                          if (time != null) {
-                                            setState(() {
-                                              _pestReminderTime = time;
-                                            });
-                                          }
-                                        }
-                                      } else if (mounted) {
-                                        final time = await _showDateTimePickerDialog(context);
-                                        if (time != null) {
-                                          setState(() {
-                                            _pestReminderTime = time;
-                                          });
-                                        }
-                                      }
-                                    } else {
-                                      setState(() {
-                                        _pestReminderTime = null;
-                                      });
-                                    }
-                                  }
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              _SwitchRow(
+                icon: Icons.coronavirus_rounded,
+                color: KmColors.red,
+                title: 'Disease Management',
+                subtitle: 'Treatment follow-ups and repeat applications',
+                value: p.diseaseReminders,
+                onChanged: (v) =>
+                    _save(context, ref, p.copyWith(diseaseReminders: v), 'Disease reminders ${onOff(v)}'),
               ),
-              const SizedBox(height: 16),
-              Card(
-                elevation: 4,
-                child: SizedBox(
-                  width: cardWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Farm Management Notifications',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: customGreen,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SwitchListTile(
-                          secondary: _buildIcon(Icons.agriculture),
-                          title: Text(
-                            'Remind Me About Activities Set on Reminder',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          value: _farmReminderActivities,
-                          activeThumbColor: customGreen,
-                          onChanged: (bool value) {
-                            setState(() {
-                              _farmReminderActivities = value;
-                              if (!value) _farmRemindMeAt = false;
-                            });
-                          },
-                        ),
-                        const Divider(height: 1, thickness: 1, indent: 50),
-                        ListTile(
-                          leading: _buildIcon(Icons.access_time),
-                          title: Text(
-                            'Remind Me At${_farmRemindMeAt && _farmReminderTime != null ? ' ($_farmReminderTime)' : ''}',
-                            style: TextStyle(color: customGreen),
-                          ),
-                          trailing: Switch(
-                            value: _farmRemindMeAt,
-                            activeThumbColor: customGreen,
-                            onChanged: _farmReminderActivities
-                                ? (bool value) async {
-                                    setState(() {
-                                      _farmRemindMeAt = value;
-                                    });
-                                    if (value) {
-                                      if (_farmReminderActivities) {
-                                        final autoTime = _getReminderTimeFromSection('farm');
-                                        if (autoTime != null) {
-                                          setState(() {
-                                            _farmReminderTime = autoTime;
-                                          });
-                                        } else if (mounted) {
-                                          final time = await _showDateTimePickerDialog(context);
-                                          if (time != null) {
-                                            setState(() {
-                                              _farmReminderTime = time;
-                                            });
-                                          }
-                                        }
-                                      } else if (mounted) {
-                                        final time = await _showDateTimePickerDialog(context);
-                                        if (time != null) {
-                                          setState(() {
-                                            _farmReminderTime = time;
-                                          });
-                                        }
-                                      }
-                                    } else {
-                                      setState(() {
-                                        _farmReminderTime = null;
-                                      });
-                                    }
-                                  }
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              _SwitchRow(
+                icon: Icons.agriculture_rounded,
+                color: KmColors.teal,
+                title: 'Farm Management tasks',
+                subtitle: 'A reminder on each task\'s due date',
+                value: p.taskReminders,
+                onChanged: (v) => _save(context, ref, p.copyWith(taskReminders: v), 'Farm task reminders ${onOff(v)}'),
+              ),
+              _TapRow(
+                icon: Icons.schedule_rounded,
+                color: KmColors.teal,
+                title: 'Farm task reminder time',
+                subtitle: 'Tasks have a due date only — this is when they ring',
+                value: time.format(context),
+                enabled: p.taskReminders,
+                onTap: () => _pickTime(context, ref),
               ),
             ],
           ),
-        ),
-      ),
+        ],
+        const SizedBox(height: 18),
+        const Row(children: [
+          Icon(Icons.cloud_done_rounded, size: 16, color: KmColors.green),
+          SizedBox(width: 6),
+          Expanded(
+            child: Text('Saved to your account — applies on all your devices.',
+                style: TextStyle(fontSize: 12, color: KmColors.muted)),
+          ),
+        ]),
+      ],
     );
   }
+}
+
+class _PermissionCard extends ConsumerWidget {
+  const _PermissionCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(notificationPermissionProvider).value;
+    final allowed = status == null || status.isGranted || status.isProvisional;
+    final unknown = status == null;
+    final color = allowed ? KmColors.green : KmColors.orange;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: allowed
+              ? [KmColors.greenTint, const Color(0xFFF1F8E9)]
+              : [KmColors.orangeTint, KmColors.amberTint],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Icon(allowed ? Icons.notifications_active_rounded : Icons.notifications_off_rounded,
+              color: Colors.white, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              unknown
+                  ? 'Notifications on this device'
+                  : allowed
+                      ? 'Notifications are allowed on this device'
+                      : 'Notifications are blocked on this device',
+              style: TextStyle(fontWeight: FontWeight.w800, color: color, fontSize: 14),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              allowed
+                  ? 'Alerts and reminders can appear here, following your settings below.'
+                  : 'Nothing can appear until you allow notifications for Kilimo Mkononi.',
+              style: const TextStyle(fontSize: 12, height: 1.35),
+            ),
+          ]),
+        ),
+        if (!allowed)
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: KmColors.orange),
+            onPressed: () async {
+              await NotificationService.requestPermission();
+              if (!kIsWeb && (await Permission.notification.status).isPermanentlyDenied) {
+                await openAppSettings();
+              }
+              ref.invalidate(notificationPermissionProvider);
+            },
+            child: const Text('Allow'),
+          ),
+      ]),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Color color;
+  final IconData icon;
+  final List<Widget> children;
+  const _Section(
+      {required this.title, required this.subtitle, required this.color, required this.icon, required this.children});
+
+  @override
+  // Material (not a coloured Container) so the rows' ink ripples show.
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        elevation: 1,
+        shadowColor: const Color(0x33000000),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: KmColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.07),
+              border: Border(left: BorderSide(color: color, width: 4)),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: const TextStyle(fontSize: 11.5, color: KmColors.muted, height: 1.35)),
+                ]),
+              ),
+            ]),
+          ),
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const Divider(height: 1, indent: 62),
+            children[i],
+          ],
+        ]),
+      );
+}
+
+class _RowIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final bool enabled;
+  const _RowIcon(this.icon, this.color, this.enabled);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: (enabled ? color : Colors.grey).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: enabled ? color : Colors.grey, size: 20),
+      );
+}
+
+class _SwitchRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+  const _SwitchRow({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        secondary: _RowIcon(icon, color, enabled),
+        title: Text(title,
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: enabled ? Colors.black87 : Colors.grey)),
+        subtitle: Text(enabled ? subtitle : '$subtitle\n(Turn on phone notifications first)',
+            style: const TextStyle(fontSize: 11.5, color: KmColors.muted, height: 1.3)),
+        value: value && enabled,
+        activeThumbColor: Colors.white,
+        activeTrackColor: color,
+        onChanged: enabled ? onChanged : null,
+      );
+}
+
+class _TapRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String value;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _TapRow({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        enabled: enabled,
+        leading: _RowIcon(icon, color, enabled),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11.5, color: KmColors.muted)),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: (enabled ? color : Colors.grey).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(value,
+              style: TextStyle(fontWeight: FontWeight.w800, color: enabled ? color : Colors.grey, fontSize: 13)),
+        ),
+        onTap: enabled ? onTap : null,
+      );
 }

@@ -4,9 +4,10 @@
 // background (foreground pushes are handled in-app by NotificationService).
 // Config mirrors DefaultFirebaseOptions.web in lib/firebase_options.dart —
 // regenerate if that changes. (Firebase web config values are public.)
+// Keep the SDK version in step with firebase_core_web's supported JS SDK.
 
-importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
   apiKey: 'AIzaSyAKBGxVcKrjjC-ZpmgzLltUOlpe8cUciC8',

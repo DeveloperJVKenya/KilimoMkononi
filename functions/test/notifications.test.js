@@ -201,6 +201,19 @@ describe("delivery rules: expiry, collapsing, web links", () => {
   });
 });
 
+describe("notification settings", () => {
+  test("master switch and per-type switches; missing prefs = everything on", () => {
+    assert.equal(n.wantsPush(null, "weather_alert"), true);
+    assert.equal(n.wantsPush({ push: false }, "general"), false);
+    assert.equal(n.wantsPush({ weatherAlerts: false }, "weather_alert"), false);
+    assert.equal(n.wantsPush({ weatherAlerts: false }, "advisory"), true);
+    assert.equal(n.wantsPush({ advisories: false }, "advisory"), false);
+    assert.equal(n.wantsPush({ approvals: false }, "approval_request"), false);
+    assert.equal(n.wantsPush({ approvals: false }, "approval_decision"), false);
+    assert.equal(n.wantsPush({ approvals: false }, "general"), true);
+  });
+});
+
 describe("web topics", () => {
   test("diff and validation", () => {
     assert.deepEqual(n.topicDiff(["km_farmers", "km_crop_maize"], ["km_farmers", "km_crop_beans"]),
@@ -246,7 +259,8 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
   beforeEach(async () => {
     sent = [];
     const cols = ["deviceTokens", "stationAssignments", "EducationUsers", "userNotifications",
-      "fielddata", "agronomic_advisories", "advisoryDelivery", "alertState", "webTopicState"];
+      "fielddata", "agronomic_advisories", "advisoryDelivery", "alertState", "webTopicState",
+      "notificationPrefs"];
     for (const c of cols) {
       const docs = await db.collection(c).listDocuments();
       await Promise.all(docs.map((d) => db.recursiveDelete(d)));
@@ -420,6 +434,25 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
     // The alert covered "windy" — no second wind push in the same run.
     assert.equal(sent.length, 1);
     assert.ok(!sent.some((m) => /TEST/.test(m.notification.body)));
+  });
+
+  test("settings: pushes skip users who turned them off, but the inbox keeps the record", async () => {
+    await db.doc("notificationPrefs/farmer1").set({ push: true, weatherAlerts: false });
+    await n.deliverToUsers(["farmer1", "admin1"], {
+      title: "Heavy rain", body: "b", channel: n.CHANNEL.weather, type: "weather_alert",
+      data: { category: "heavy_rain", gatewayId: "gw1" },
+    });
+    // Only admin1's device is pushed…
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].tokens, ["tok-admin"]);
+    // …but both inboxes have it.
+    assert.equal((await db.collection("userNotifications/farmer1/items").get()).size, 1);
+    assert.equal((await db.collection("userNotifications/admin1/items").get()).size, 1);
+
+    sent = [];
+    await db.doc("notificationPrefs/farmer1").set({ push: false });
+    await n.deliverToUsers(["farmer1"], { title: "t", body: "b", channel: n.CHANNEL.approvals, type: "approval_decision" });
+    assert.equal(sent.length, 0);
   });
 
   test("web topics: only the token's owner can subscribe it; changes are diffed", async () => {

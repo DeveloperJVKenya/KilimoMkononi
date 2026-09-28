@@ -233,6 +233,25 @@ service cloud.firestore {
                                request.resource.data.keys().hasOnly(['uid', 'platform', 'updatedAt']);
       allow get, delete: if signedIn() && resource.data.uid == uid();
     }
+    // Notification Settings (lib/services/notification_prefs.dart) — the
+    // owner's own; also read by the Cloud Functions before pushing.
+    match /notificationPrefs/{ownerId} {
+      function validPrefs() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['push', 'weatherAlerts', 'advisories', 'approvals',
+                                 'fieldReminders', 'pestReminders', 'diseaseReminders',
+                                 'taskReminders', 'taskReminderHour', 'taskReminderMinute',
+                                 'updatedAt']) &&
+               d.push is bool && d.weatherAlerts is bool && d.advisories is bool &&
+               d.approvals is bool && d.fieldReminders is bool && d.pestReminders is bool &&
+               d.diseaseReminders is bool && d.taskReminders is bool &&
+               d.taskReminderHour is int && d.taskReminderHour >= 0 && d.taskReminderHour <= 23 &&
+               d.taskReminderMinute is int && d.taskReminderMinute >= 0 && d.taskReminderMinute <= 59;
+      }
+      allow read:   if signedIn() && uid() == ownerId;
+      allow create, update: if signedIn() && uid() == ownerId && validPrefs();
+      allow delete: if signedIn() && uid() == ownerId;
+    }
     match /userNotifications/{ownerId}/items/{itemId} {
       allow read, delete: if signedIn() && uid() == ownerId;
       allow update: if signedIn() && uid() == ownerId &&

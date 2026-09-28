@@ -480,7 +480,47 @@ async function tokensFor(uids) {
   return tokens;
 }
 
-/** Inbox item + push for each user. Removes tokens FCM says are dead. */
+/**
+ * Which Notification Settings switch controls a push of this type
+ * (mirrors lib/services/notification_prefs.dart). null = only the master
+ * "push" switch applies.
+ */
+function prefKeyFor(type) {
+  switch (type) {
+    case "weather_alert": return "weatherAlerts";
+    case "advisory": return "advisories";
+    case "approval_request":
+    case "approval_decision": return "approvals";
+    default: return null;
+  }
+}
+
+/** Does this user want a phone push of `type`? Missing prefs = defaults (on). */
+function wantsPush(prefs, type) {
+  if (!prefs) return true;
+  if (prefs.push === false) return false;
+  const key = prefKeyFor(type);
+  return !key || prefs[key] !== false;
+}
+
+/** Users (of `uids`) whose settings allow a push of `type`. */
+async function usersWantingPush(uids, type) {
+  const db = getFirestore();
+  const out = [];
+  for (const part of chunk(uids, 100)) {
+    const snaps = await db.getAll(...part.map((u) => db.collection("notificationPrefs").doc(u)));
+    snaps.forEach((s, i) => {
+      if (wantsPush(s.exists ? s.data() : null, type)) out.push(part[i]);
+    });
+  }
+  return out;
+}
+
+/**
+ * Inbox item for each user, and a push to the devices of those whose
+ * Notification Settings allow it (the inbox keeps a dated record either
+ * way). Removes tokens FCM says are dead.
+ */
 async function deliverToUsers(uids, n) {
   const db = getFirestore();
   const unique = [...new Set(uids.filter(Boolean))];
@@ -504,7 +544,8 @@ async function deliverToUsers(uids, n) {
     await batch.commit();
   }
 
-  const tokens = await tokensFor(unique);
+  const pushTo = await usersWantingPush(unique, n.type || "general");
+  const tokens = pushTo.length ? await tokensFor(pushTo) : [];
   let sent = 0;
   for (const part of chunk(tokens, 500)) {
     const res = await messaging().sendEachForMulticast({ ...buildMessage(n), tokens: part });
@@ -518,7 +559,7 @@ async function deliverToUsers(uids, n) {
     });
     await Promise.all(dead.map((t) => db.collection("deviceTokens").doc(t).delete()));
   }
-  return { users: unique.length, sent };
+  return { users: unique.length, pushed: pushTo.length, sent };
 }
 
 async function deliverToTopics(topics, n) {
@@ -827,6 +868,7 @@ module.exports = {
   // exported for tests
   createWeatherSweep,
   collapseKeyFor,
+  wantsPush,
   webLink,
   topicDiff,
   validateWebTopics,

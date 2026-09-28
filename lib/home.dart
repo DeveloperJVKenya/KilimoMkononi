@@ -22,6 +22,8 @@ import 'package:logger/logger.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
+import 'package:kilimomkononi/services/notification_prefs.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -171,7 +173,12 @@ class _HomePageState extends State<HomePage> {
         });
         // Verified-advice pushes go to crop topics; then open whatever
         // notification launched the app, now that the user is signed in.
-        NotificationService.syncFarmerTopics(user.uid);
+        // Notification Settings may have changed on another device: load
+        // them, then apply to scheduled reminders and advice topics.
+        NotificationPrefsRepository.load(user.uid).then((p) {
+          ReminderService.applyPrefs(user.uid, p);
+          NotificationService.syncFarmerTopics(user.uid);
+        });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           NotificationService.consumePendingRoute();
           if (mounted) NotificationService.maybeShowBackgroundTip(context);

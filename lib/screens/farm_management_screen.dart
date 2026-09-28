@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 import 'package:kilimomkononi/services/pest_disease_cost_bridge.dart';
 
 // ---------------------------------------------------------------------------
@@ -367,6 +368,10 @@ class _FarmManagementScreenState extends State<FarmManagementScreen>
     await _prefs.setString(_key('v2_expenses'), jsonEncode(_expenses.map((e) => e.toJson()).toList()));
     await _prefs.setString(_key('v2_harvests'), jsonEncode(_harvests.map((e) => e.toJson()).toList()));
     await _prefs.setString(_key('v2_loans'),    jsonEncode(_loans.map((e) => e.toJson()).toList()));
+    // Task due-date reminders follow the saved tasks (and Notification Settings).
+    if (!_resolvedUid.startsWith('anonymous') && _resolvedUid.isNotEmpty) {
+      unawaited(ReminderService.syncFarmTaskReminders(_resolvedUid));
+    }
   }
 
   Future<void> _writeFirestoreBackup() async {

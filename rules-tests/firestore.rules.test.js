@@ -420,6 +420,21 @@ test("admin test mode: test advisories never reach farmers", async () => {
   assert.equal(adminView.size, 1);
 });
 
+test("notification settings: owner only, valid fields only", async () => {
+  const prefs = {
+    push: true, weatherAlerts: false, advisories: true, approvals: true,
+    fieldReminders: true, pestReminders: false, diseaseReminders: true, taskReminders: true,
+    taskReminderHour: 7, taskReminderMinute: 30, updatedAt: serverTimestamp(),
+  };
+  await assertSucceeds(setDoc(doc(as("farmer"), "notificationPrefs/farmer"), prefs));
+  await assertSucceeds(getDoc(doc(as("farmer"), "notificationPrefs/farmer")));
+  await assertFails(getDoc(doc(as("stranger"), "notificationPrefs/farmer")));
+  await assertFails(setDoc(doc(as("stranger"), "notificationPrefs/farmer"), prefs));
+  await assertFails(setDoc(doc(as("farmer"), "notificationPrefs/farmer"), { ...prefs, taskReminderHour: 24 }));
+  await assertFails(setDoc(doc(as("farmer"), "notificationPrefs/farmer"), { ...prefs, push: "yes" }));
+  await assertFails(setDoc(doc(as("farmer"), "notificationPrefs/farmer"), { ...prefs, isAdmin: true }));
+});
+
 test("push: device tokens and inbox are private to their owner", async () => {
   await assertSucceeds(setDoc(doc(as("farmer"), "deviceTokens/tokA"), { uid: "farmer", platform: "android", updatedAt: serverTimestamp() }));
   await assertFails(setDoc(doc(as("farmer"), "deviceTokens/tokB"), { uid: "someoneElse", platform: "android" }));

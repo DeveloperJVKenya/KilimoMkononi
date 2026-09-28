@@ -42,6 +42,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:kilimomkononi/config/push_config.dart';
+import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -322,6 +323,11 @@ class NotificationService {
           final type = (c is Map ? c['type'] : null)?.toString() ?? '';
           if (type.trim().isNotEmpty) wanted.add(cropTopic(type));
         }
+      }
+      // Topic pushes can't be filtered per person on the server, so honour
+      // Notification Settings here: advice or push off → no advice topics.
+      if (!(await NotificationPrefsRepository.cached(uid)).wantsAdvicePushes) {
+        wanted.clear();
       }
       if (kIsWeb) {
         final token = _token ??

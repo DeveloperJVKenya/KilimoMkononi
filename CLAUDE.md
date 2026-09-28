@@ -111,6 +111,15 @@ top of it. Don't hand-roll classId parsing elsewhere.
   Channel ids, routes and topic slugs must match between Dart and JS —
   `test/notification_contract_test.dart` checks this.
 - Local reminders use `AndroidScheduleMode.inexactAllowWhileIdle` (no exact-alarm permission).
+  Schedule them ONLY through `ReminderService.schedule` (`lib/services/reminder_service.dart`):
+  it stores `field_reminders/{id}` with its `section` and `createdAt`, and honours settings.
+  Farm Management tasks get due-date reminders via `ReminderService.syncFarmTaskReminders`.
+- Notification Settings are real: `notificationPrefs/{uid}` (`lib/services/notification_prefs.dart`,
+  validated in the rules). The server's `deliverToUsers` skips the phone push for users who turned
+  a type off (the inbox still records it); the app unsubscribes advice topics and
+  `ReminderService.applyPrefs` cancels/restores a section's scheduled reminders.
+- Notifications screen + settings use Riverpod (`lib/settings/notifications/notification_providers.dart`);
+  colours / date-time helpers in `notification_style.dart` — every item shows its full date and time.
 - Tests: `cd functions && npm test` (emulator; FCM is faked) or `npm run test:unit`.
 - Deploy functions with `FUNCTIONS_DISCOVERY_TIMEOUT=120 firebase deploy --only functions` — the
   default 10 s code-analysis timeout often fails on a cold start ("An unexpected error").

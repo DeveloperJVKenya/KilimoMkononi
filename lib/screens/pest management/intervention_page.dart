@@ -21,7 +21,7 @@ import 'package:kilimomkononi/screens/pest%20management/view_interventions_page.
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
-import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -313,26 +313,15 @@ Future<void> _scheduleReminder({
     required DateTime date,
     required String userId,
   }) async {
-    if (date.isBefore(DateTime.now())) return;
+    // Stored + scheduled by ReminderService, which honours Notification Settings.
     try {
-      if (!_tzReady) await _initTz();
-      final tzDate = tz.TZDateTime.from(date, tz.local);
-
-      await FirebaseFirestore.instance.collection('field_reminders').doc(id).set({
-        'userId': userId,
-        'title': title,
-        'body': body,
-        'scheduledDate': Timestamp.fromDate(date),
-        'notifId': id.hashCode,
-      });
-
-      await widget.notificationsPlugin.zonedSchedule(
-        id: id.hashCode,
+      await ReminderService.schedule(
+        id: id,
+        section: ReminderSection.pest,
         title: title,
         body: body,
-        scheduledDate: tzDate,
-        notificationDetails: NotificationService.details(KmChannel.reminders),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        date: date,
+        userId: userId,
       );
     } catch (_) {}
   }

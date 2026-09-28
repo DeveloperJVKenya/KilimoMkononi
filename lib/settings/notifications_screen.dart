@@ -1,73 +1,43 @@
 // lib/settings/notifications_screen.dart
 //
-// Three-tab notifications inbox:
-//   Tab 1 — Farm Alerts   : live satellite + IoT condition alerts
-//   Tab 2 — Reminders     : user-set Firestore field_reminders
-//                           (pest mgmt, disease mgmt, field data input, farm mgmt)
-//   Tab 3 — Farm Tasks    : tasks from FarmManagementScreen SharedPrefs
+// Notifications — four tabs, all live via Riverpod
+// (lib/settings/notifications/notification_providers.dart):
+//   Inbox        every push the server sent (weather alerts, verified advice,
+//                approvals), filterable, with the exact time received
+//   Farm alerts  current condition alerts from the station, soil sensor and
+//                satellite, with when each reading was taken
+//   Reminders    activity reminders (Field, Pest, Disease…), with when they
+//                are due and when they were set; muted sections are marked
+//   Farm tasks   Farm Management tasks by due date, with their reminder time
 //
-// Index fix: Firestore query uses ONLY .where('userId') with NO .orderBy()
-//            so no composite index is needed. Sorting is done client-side.
-//
-import 'dart:convert';
+// Every item carries its full date and time ("Mon 28 Sep 2026 · 09:41") plus
+// a relative time, for traceability.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:kilimomkononi/services/iot_sensor_service.dart';
-import 'package:kilimomkononi/services/nuasense_service.dart';
-
-import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen.dart'
-    show computeConditionRisk, ConditionRisk;
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen.dart' show ConditionRisk;
+import 'package:kilimomkononi/services/notification_prefs.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/settings/notifications/farm_alerts.dart';
+import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
+import 'package:kilimomkononi/settings/notifications/notification_style.dart';
 import 'package:kilimomkononi/settings/notifications_settings_screen.dart';
-import 'package:kilimomkononi/widgets/notification_inbox.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen>
-    with SingleTickerProviderStateMixin {
-  static const Color _green    = Color(0xFF003900);
-  static const Color _critical = Color(0xFFB71C1C);
-  static const Color _high     = Color(0xFFE65100);
-  static const Color _moderate = Color(0xFFF9A825);
-
-  late final TabController _tab;
-
-  // Inbox (pushed notifications)
-  int _unreadCount = 0;
-  // Tab 1
-  bool _loadingAlerts = true;
-  List<_AlertItem> _alertItems = [];
-
-  // Tab 2
-  int _reminderCount = 0;   // upcoming reminders — updated by stream
-
-  // Tab 3
-  bool _loadingTasks = true;
-  List<_FarmTaskItem> _overdueTasks  = [];
-  List<_FarmTaskItem> _upcomingTasks = [];
-
-  // Plot id → name map (for task display)
-  Map<String, String> _plotNames = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 4, vsync: this);
-    _loadAlerts();
-    _loadFarmTasks();
-  }
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tab = TabController(length: 4, vsync: this)
+    ..addListener(() {
+      if (!_tab.indexIsChanging && mounted) setState(() {});
+    });
 
   @override
   void dispose() {
@@ -75,1163 +45,900 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     super.dispose();
   }
 
-  // ── Tab 1: Farm Alerts ────────────────────────────────────────────────
-  // Pulls from three sources: IoT sensor → satellite → NuaSense weather station.
-  // Each alert is labelled with its source so the farmer knows where it came from.
-
-  Future<void> _loadAlerts() async {
-    if (!mounted) return;
-    setState(() => _loadingAlerts = true);
-    try {
-      // ── Fetch all three sources concurrently ───────────────────────────
-      IotSensorReading?  iot;
-      NuaSenseReading?   ws;
-
-      await Future.wait([
-        IotSensorService.getReadingForFarm()
-            .then<IotSensorReading?>((r) => iot = r)
-            .catchError((_) => null),
-        NuaSenseService.getLatestReading()
-            .then((r) => ws = r)
-            .catchError((_) => NuaSenseReading.empty()),
-      ]);
-
-      final risk  = computeConditionRisk(sat: null, iot: iot, rain7d: 0);
-      final items = <_AlertItem>[];
-
-      // ──────────────────────────────────────────────────────────────────
-      // A) IoT-sensor alerts  (soil temperature, soil humidity)
-      // ──────────────────────────────────────────────────────────────────
-      if (iot != null) {
-        // Soil heat stress
-        if (iot!.temperature > 36) {
-          items.add(_AlertItem(
-            title:  'Soil Heat Stress — Critical',
-            body:   'Soil sensor reads ${iot!.temperature.toStringAsFixed(1)}°C — '
-                    'above 36°C root growth halts and fine roots begin to die. '
-                    'Irrigate immediately and mulch to cool the soil.',
-            risk:   ConditionRisk.critical,
-            icon:   Icons.thermostat_outlined,
-            source: _AlertSource.iotSensor,
-          ));
-        } else if (iot!.temperature > 32) {
-          items.add(_AlertItem(
-            title:  'Soil Temperature Elevated — High',
-            body:   'Soil at ${iot!.temperature.toStringAsFixed(1)}°C. '
-                    'Water in early morning to cool the root zone before peak heat.',
-            risk:   ConditionRisk.high,
-            icon:   Icons.thermostat_outlined,
-            source: _AlertSource.iotSensor,
-          ));
-        }
-
-        // Soil pH extreme — if available (some IoT models include pH)
-        final ph = iot!.ph;
-        if (ph > 0) {
-          if (ph < 5.0) {
-            items.add(_AlertItem(
-              title:  'Soil pH Too Acidic — pH ${ph.toStringAsFixed(1)}',
-              body:   'Soil pH ${ph.toStringAsFixed(1)} is below 5.0. '
-                      'Most crops struggle below 5.5 — lime application is recommended. '
-                      'Phosphorus and many micro-nutrients become unavailable at low pH.',
-              risk:   ConditionRisk.high,
-              icon:   Icons.science_outlined,
-              source: _AlertSource.iotSensor,
-            ));
-          } else if (ph > 8.0) {
-            items.add(_AlertItem(
-              title:  'Soil pH Too Alkaline — pH ${ph.toStringAsFixed(1)}',
-              body:   'Soil pH ${ph.toStringAsFixed(1)} is above 8.0. '
-                      'Iron, manganese and zinc deficiencies are common at high pH. '
-                      'Consider sulphur application or acidifying fertilisers.',
-              risk:   ConditionRisk.moderate,
-              icon:   Icons.science_outlined,
-              source: _AlertSource.iotSensor,
-            ));
-          }
-        }
-
-        // EC (electrical conductivity) — salinity / over-fertilisation risk
-        final ec = iot!.ec;
-        if (ec > 4.0) {
-          items.add(_AlertItem(
-            title:  'Soil Salinity High — EC ${ec.toStringAsFixed(1)} µS/cm',
-            body:   'High electrical conductivity suggests salt build-up or '
-                    'excess fertiliser residue. Flush with clean water and reduce '
-                    'fertiliser until EC drops below 2.0 µS/cm.',
-            risk:   ConditionRisk.high,
-            icon:   Icons.water_damage_outlined,
-            source: _AlertSource.iotSensor,
-          ));
-        }
-      }
-
-      // ──────────────────────────────────────────────────────────────────
-      // B) Satellite-derived / IoT-combo alerts (existing computeConditionRisk)
-      // ──────────────────────────────────────────────────────────────────
-      if (risk.fungalRisk != ConditionRisk.low) {
-        items.add(_AlertItem(
-          title:  'Fungal Disease Risk — ${_riskLabel(risk.fungalRisk)}',
-          body:   risk.fungalMessage,
-          risk:   risk.fungalRisk,
-          icon:   Icons.science_outlined,
-          source: _AlertSource.iotSensor,
-        ));
-      }
-      if (risk.droughtRisk != ConditionRisk.low) {
-        items.add(_AlertItem(
-          title:  'Drought / Dry Stress — ${_riskLabel(risk.droughtRisk)}',
-          body:   risk.droughtMessage,
-          risk:   risk.droughtRisk,
-          icon:   Icons.wb_sunny_outlined,
-          source: _AlertSource.iotSensor,
-        ));
-      }
-      if (risk.floodRisk != ConditionRisk.low) {
-        final msg = risk.floodRisk == ConditionRisk.critical
-            ? 'Severe waterlogging risk. Check drainage channels and raised beds immediately.'
-            : risk.floodRisk == ConditionRisk.high
-                ? 'High waterlogging likelihood. Ensure adequate field drainage.'
-                : 'Moderate flood / waterlogging risk. Monitor low-lying areas.';
-        items.add(_AlertItem(
-          title:  'Waterlogging / Flood Risk — ${_riskLabel(risk.floodRisk)}',
-          body:   msg,
-          risk:   risk.floodRisk,
-          icon:   Icons.water_outlined,
-          source: _AlertSource.satellite,
-        ));
-      }
-      if (risk.heatRisk != ConditionRisk.low) {
-        final msg = risk.heatRisk == ConditionRisk.high
-            ? 'Soil temperature above 36 °C. High risk of root damage — irrigate and mulch.'
-            : 'Elevated heat stress. Irrigate during cooler morning/evening hours.';
-        items.add(_AlertItem(
-          title:  'Heat Stress — ${_riskLabel(risk.heatRisk)}',
-          body:   msg,
-          risk:   risk.heatRisk,
-          icon:   Icons.thermostat_outlined,
-          source: _AlertSource.satellite,
-        ));
-      }
-
-      // ──────────────────────────────────────────────────────────────────
-      // C) NuaSense weather-station alerts
-      // ──────────────────────────────────────────────────────────────────
-      if (ws != null) {
-        // Spray window
-        final goodWind = ws!.goodSprayWind;
-        final noRain   = !ws!.rainingNow;
-        final hour     = DateTime.now().hour;
-        final inWindow = hour >= 6 && hour <= 17;
-        final canSpray = goodWind && noRain && inWindow;
-        if (!canSpray) {
-          final reason = !goodWind
-              ? 'Wind ${ws!.windSpeed.toStringAsFixed(1)} m/s — too high (need < 3 m/s). Drift will waste product and harm bees.'
-              : !noRain
-                  ? 'Currently raining — product washes off before it can work. Wait 2+ dry hours.'
-                  : 'Outside safe spray hours (6am–5pm). Spray early morning for best results.';
-          items.add(_AlertItem(
-            title:  'Spray Window — Do Not Spray Yet',
-            body:   reason,
-            risk:   ConditionRisk.moderate,
-            icon:   Icons.air_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        // Leaf wetness — disease trigger alert
-        if (ws!.leafIsWet) {
-          final wetReason = ws!.lwdReason.isNotEmpty
-              ? ws!.lwdReason.replaceAll('_', ' ')
-              : 'high humidity / dew';
-          items.add(_AlertItem(
-            title:  'Leaf Wetness Alert — Fungal Infection Risk',
-            body:   'Station reports wet leaves ($wetReason). '
-                    'Fungal spores germinate when leaves are wet for 4+ consecutive hours. '
-                    'Scout for blight, mildew, rust today. '
-                    'Do not spray foliar products while leaves are wet.',
-            risk:   ws!.dewPointDepression <= 2
-                ? ConditionRisk.critical
-                : ConditionRisk.high,
-            icon:   Icons.water_drop_rounded,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        // VPD / crop water stress
-        if (ws!.vpd > 2.5) {
-          items.add(_AlertItem(
-            title:  'Crop Water Stress — Severe (VPD ${ws!.vpd.toStringAsFixed(1)} kPa)',
-            body:   'Very high evaporation demand. Crops are losing water faster than '
-                    'roots can supply it — wilting, tip-burn and fruit drop likely. '
-                    'Irrigate immediately, preferably by drip or furrow to avoid wetting leaves.',
-            risk:   ConditionRisk.critical,
-            icon:   Icons.eco_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        } else if (ws!.vpd > 1.8) {
-          items.add(_AlertItem(
-            title:  'Crop Water Stress — Moderate (VPD ${ws!.vpd.toStringAsFixed(1)} kPa)',
-            body:   'High evaporation demand. Check soil moisture — if dry, '
-                    'irrigate within the next 12 hours.',
-            risk:   ConditionRisk.moderate,
-            icon:   Icons.eco_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        // High humidity + warm = disease alert
-        if (ws!.humidity > 85 && ws!.airTemp > 18 && ws!.airTemp < 30) {
-          items.add(_AlertItem(
-            title:  'High Fungal Disease Risk — Hot & Humid',
-            body:   'Humidity ${ws!.humidity.toStringAsFixed(0)}% at ${ws!.airTemp.toStringAsFixed(1)}°C '
-                    '— ideal conditions for late blight (tomatoes, potatoes), '
-                    'grey leaf spot (maize) and downy mildew (beans, kales). '
-                    'Apply preventive fungicide at next safe spray window.',
-            risk:   ConditionRisk.high,
-            icon:   Icons.coronavirus_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        // Pest pressure from degree-days
-        if (ws!.ddAphidHour >= 1.2) {
-          items.add(_AlertItem(
-            title:  'Aphid Pressure — High',
-            body:   'High temperature-based aphid development index today '
-                    '(base 4.3°C). Scout maize, beans, tomatoes and cabbages '
-                    'for colonies on growing tips and undersides of young leaves. '
-                    'Consider spraying if colonies found on >10% of plants.',
-            risk:   ConditionRisk.high,
-            icon:   Icons.bug_report_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        } else if (ws!.ddAphidHour >= 0.5) {
-          items.add(_AlertItem(
-            title:  'Aphid Pressure — Medium',
-            body:   'Moderate aphid development conditions. Scout crops '
-                    'and note populations — intervene if numbers are rising.',
-            risk:   ConditionRisk.moderate,
-            icon:   Icons.bug_report_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        if (ws!.ddWhiteflyHour >= 0.8) {
-          items.add(_AlertItem(
-            title:  'Whitefly Pressure — High',
-            body:   'Hot conditions are accelerating whitefly development '
-                    '(base 10°C). Check tomatoes, beans and kales for adults '
-                    'on leaf undersides and sticky honeydew residue. '
-                    'Yellow sticky traps help monitor populations.',
-            risk:   ConditionRisk.high,
-            icon:   Icons.pest_control_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        if (ws!.ddPtmHour >= 1.0) {
-          items.add(_AlertItem(
-            title:  'Potato Tuber Moth — High Pressure',
-            body:   'Warm temperatures are accelerating potato tuber moth '
-                    'development. Check potato and tomato plants for larvae '
-                    'mining leaves and tubers. Hill up potatoes to prevent '
-                    'egg-laying on exposed tubers.',
-            risk:   ConditionRisk.high,
-            icon:   Icons.pest_control_rodent_outlined,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-
-        // Heavy rain + fertiliser leaching risk
-        if (ws!.rainfall > 20) {
-          items.add(_AlertItem(
-            title:  'Heavy Rain — Fertiliser Leaching Risk',
-            body:   '${ws!.rainfall.toStringAsFixed(1)} mm of rain recorded. '
-                    'Nitrogen (especially urea) leaches quickly after heavy rain. '
-                    'Wait until soil drains before applying fertiliser again. '
-                    'Check for waterlogging in low-lying plots.',
-            risk:   ConditionRisk.moderate,
-            icon:   Icons.grain_rounded,
-            source: _AlertSource.weatherStation,
-          ));
-        }
-      }
-
-      // No alerts from spray-window satellite path (already handled by WS above)
-      // but keep for when WS is offline:
-      if (ws == null && !risk.goodSprayWindow) {
-        items.add(_AlertItem(
-          title:  'Spray Window — Poor Conditions',
-          body:   risk.sprayMessage,
-          risk:   ConditionRisk.moderate,
-          icon:   Icons.air_outlined,
-          source: _AlertSource.satellite,
-        ));
-      }
-
-      // Sort: critical → high → moderate; weather station alerts first within each tier
-      items.sort((a, b) {
-        final rc = b.risk.index.compareTo(a.risk.index);
-        if (rc != 0) return rc;
-        return a.source.index.compareTo(b.source.index);
-      });
-
-      if (mounted) setState(() { _alertItems = items; _loadingAlerts = false; });
-    } catch (_) {
-      if (mounted) setState(() => _loadingAlerts = false);
-    }
-  }
-
-  // ── Tab 3: Farm Tasks from SharedPreferences ──────────────────────────
-
-  Future<void> _loadFarmTasks() async {
-    if (!mounted) return;
-    setState(() => _loadingTasks = true);
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) { if (mounted) setState(() => _loadingTasks = false); return; }
-
-      final prefs = await SharedPreferences.getInstance();
-
-      // Load plot names so we can show "Maize Plot A" instead of a raw id
-      final plotsRaw = prefs.getString('${uid}_v2_plots');
-      final plots = <String, String>{};
-      if (plotsRaw != null && plotsRaw.isNotEmpty) {
-        try {
-          final list = jsonDecode(plotsRaw) as List<dynamic>;
-          for (final p in list) {
-            final m = p as Map<String, dynamic>;
-            final id   = (m['id']   as String?) ?? '';
-            final name = (m['name'] as String?) ?? id;
-            if (id.isNotEmpty) plots[id] = name;
-          }
-        } catch (_) {}
-      }
-
-      // Load tasks
-      final tasksRaw = prefs.getString('${uid}_v2_tasks');
-      if (tasksRaw == null || tasksRaw.isEmpty) {
-        if (mounted) setState(() { _plotNames = plots; _loadingTasks = false; });
-        return;
-      }
-
-      final List<dynamic> rawList = jsonDecode(tasksRaw) as List<dynamic>;
-      final tasks = rawList
-          .map((j) {
-            try {
-              return _FarmTaskItem.fromJson(j as Map<String, dynamic>);
-            } catch (_) {
-              return null;
-            }
-          })
-          .whereType<_FarmTaskItem>()
-          .toList();
-
-      final today    = _dateOnly(DateTime.now());
-      final _ = today.add(const Duration(days: 1));
-
-      final overdue  = tasks
-          .where((t) => !t.isDone && _dateOnly(t.dueDate).isBefore(today))
-          .toList()
-        ..sort((a, b) => b.dueDate.compareTo(a.dueDate));   // most overdue first
-
-      final upcoming = tasks
-          .where((t) => !t.isDone && !_dateOnly(t.dueDate).isBefore(today))
-          .toList()
-        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));   // soonest first
-
-      if (mounted) {
-        setState(() {
-          _plotNames     = plots;
-          _overdueTasks  = overdue;
-          _upcomingTasks = upcoming;
-          _loadingTasks  = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _loadingTasks = false);
-    }
-  }
-
-  // ── Shared helpers ────────────────────────────────────────────────────
-
-  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-
-  String _riskLabel(ConditionRisk r) {
-    switch (r) {
-      case ConditionRisk.critical: return 'Critical';
-      case ConditionRisk.high:     return 'High';
-      case ConditionRisk.moderate: return 'Moderate';
-      case ConditionRisk.low:      return 'Low';
-    }
-  }
-
-  Color _riskColor(ConditionRisk r) {
-    switch (r) {
-      case ConditionRisk.critical: return _critical;
-      case ConditionRisk.high:     return _high;
-      case ConditionRisk.moderate: return _moderate;
-      case ConditionRisk.low:      return const Color(0xFF2E7D32);
-    }
-  }
-
-  Color _reminderAccent(DateTime scheduled) {
-    final now = DateTime.now();
-    if (scheduled.isBefore(now))                    return Colors.grey;
-    if (scheduled.difference(now).inHours  < 24)   return _high;
-    if (scheduled.difference(now).inDays   < 3)    return _moderate;
-    return _green;
-  }
-
-  IconData _reminderIcon(String title) {
-    final t = title.toLowerCase();
-    if (t.contains('spray'))                            return Icons.opacity_outlined;
-    if (t.contains('weed'))                             return Icons.grass_outlined;
-    if (t.contains('scout'))                            return Icons.search_outlined;
-    if (t.contains('follow'))                           return Icons.check_circle_outline;
-    if (t.contains('disease'))                          return Icons.coronavirus_outlined;
-    if (t.contains('pest') || t.contains('bug'))        return Icons.bug_report_outlined;
-    if (t.contains('fertilise') || t.contains('fertilize')) return Icons.science_outlined;
-    return Icons.notifications_outlined;
-  }
-
-  String _reminderSource(String title) {
-    final t = title.toLowerCase();
-    if (t.contains('disease'))                          return 'Disease Management';
-    if (t.contains('pest') || t.contains('spray') ||
-        t.contains('scout') || t.contains('weed')) {
-      return 'Pest Management';
-    }
-    if (t.contains('field') || t.contains('fertilise') ||
-        t.contains('fertilize')) {
-      return 'Field Data Input';
-    }
-    if (t.contains('farm'))                             return 'Farm Management';
-    return 'Activity Reminder';
-  }
-
-  String _formatDateTime(DateTime dt) {
-    final now  = DateTime.now();
-    final diff = _dateOnly(dt).difference(_dateOnly(now)).inDays;
-    final hh   = dt.hour.toString().padLeft(2, '0');
-    final mm   = dt.minute.toString().padLeft(2, '0');
-    if (diff ==  0) return 'Today $hh:$mm';
-    if (diff ==  1) return 'Tomorrow $hh:$mm';
-    if (diff == -1) return 'Yesterday';
-    if (diff  <  0) return '${dt.day}/${dt.month}/${dt.year}  ·  Overdue';
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
-
-  String _formatDueDate(DateTime dt) {
-    final now  = DateTime.now();
-    final diff = _dateOnly(dt).difference(_dateOnly(now)).inDays;
-    if (diff ==  0) return 'Today';
-    if (diff ==  1) return 'Tomorrow';
-    if (diff == -1) return 'Yesterday  ·  Overdue';
-    if (diff  <  0) return '${dt.day}/${dt.month}/${dt.year}  ·  Overdue';
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
-
-  Future<void> _cancelReminder(BuildContext ctx, String docId, int? notifId) async {
-    final confirm = await showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        title: const Text('Remove reminder'),
-        content: const Text('This reminder will be cancelled and removed.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('No')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Yes, remove',
-                style: TextStyle(color: _critical)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !ctx.mounted) return;
-    if (notifId != null) {
-      try { await FlutterLocalNotificationsPlugin().cancel(id: notifId); } catch (_) {}
-    }
-    await FirebaseFirestore.instance
-        .collection('field_reminders')
-        .doc(docId)
-        .delete();
-    if (ctx.mounted) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(content: Text('Reminder removed')));
-    }
-  }
-
-  // ── Build ─────────────────────────────────────────────────────────────
+  void _openSettings() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const NotificationsSettingsScreen()));
 
   @override
   Widget build(BuildContext context) {
+    final unread = ref.watch(unreadCountProvider);
+    final upcoming = ref.watch(upcomingReminderCountProvider);
+    final alerts = ref.watch(farmAlertsProvider).value?.alerts.length ?? 0;
+    final tasks = ref.watch(farmTasksProvider).value;
+    final overdue = tasks?.overdue.length ?? 0;
+
     return Scaffold(
+      backgroundColor: KmColors.page,
       appBar: AppBar(
-        title: const Text('Notifications',
-            style: TextStyle(color: Colors.white)),
-        backgroundColor: _green,
-        elevation: 0,
         automaticallyImplyLeading: false,
-        // Back arrow only when opened on its own (e.g. from a notification tap).
-        leading: Navigator.canPop(context)
-            ? const BackButton(color: Colors.white)
-            : null,
+        leading: Navigator.canPop(context) ? const BackButton(color: Colors.white) : null,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: Container(decoration: const BoxDecoration(gradient: KmColors.appBarGradient)),
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Notifications',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 19)),
+          Text(
+            '${unread == 0 ? 'All caught up' : '$unread unread'} · $upcoming reminder${upcoming == 1 ? '' : 's'} coming up',
+            style: const TextStyle(color: Colors.white70, fontSize: 11.5),
+          ),
+        ]),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.tune, color: Colors.white),
-            tooltip: 'Notification Settings',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const NotificationsSettingsScreen()),
+          if (_tab.index == 0 && unread > 0)
+            IconButton(
+              icon: const Icon(Icons.done_all_rounded),
+              tooltip: 'Mark all as read',
+              onPressed: () => ref.read(inboxControllerProvider).markAllRead(),
             ),
+          IconButton(
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Notification settings',
+            onPressed: _openSettings,
           ),
         ],
         bottom: TabBar(
           controller: _tab,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
+          indicatorColor: KmColors.amber,
+          indicatorWeight: 3,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
           tabs: [
-            Tab(
-              icon: const Icon(Icons.inbox_outlined),
-              child: Text(
-                _unreadCount == 0 ? 'Inbox' : 'Inbox ($_unreadCount new)',
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
-            Tab(
-              icon: Icon(Icons.satellite_alt_outlined),
-              child: Text(
-                _alertItems.isEmpty
-                    ? 'Farm Alerts'
-                    : 'Farm Alerts (${_alertItems.length})',
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
-            Tab(
-              icon: Icon(Icons.alarm_outlined),
-              child: Text(
-                _reminderCount == 0
-                    ? 'Reminders'
-                    : 'Reminders ($_reminderCount)',
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
-            Tab(
-              icon: Icon(Icons.task_alt_outlined),
-              child: Text(
-                (_overdueTasks.length + _upcomingTasks.length) == 0
-                    ? 'Farm Tasks'
-                    : _overdueTasks.isNotEmpty
-                        ? 'Farm Tasks (${_overdueTasks.length} overdue)'
-                        : 'Farm Tasks (${_upcomingTasks.length})',
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
+            _TabLabel(Icons.inbox_rounded, 'Inbox', unread, KmColors.blue),
+            _TabLabel(Icons.warning_amber_rounded, 'Farm alerts', alerts, KmColors.orange),
+            _TabLabel(Icons.alarm_rounded, 'Reminders', upcoming, KmColors.purple),
+            _TabLabel(Icons.task_alt_rounded, 'Farm tasks', overdue > 0 ? overdue : (tasks?.openCount ?? 0),
+                overdue > 0 ? KmColors.red : KmColors.teal),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tab,
         children: [
-          NotificationInbox(
-            onUnreadCount: (n) {
-              if (mounted && n != _unreadCount) setState(() => _unreadCount = n);
-            },
-          ),
-          _buildAlertsTab(),
-          _buildRemindersTab(),
-          _buildFarmTasksTab(),
+          const _InboxTab(),
+          const _AlertsTab(),
+          _RemindersTab(onOpenSettings: _openSettings),
+          _TasksTab(onOpenSettings: _openSettings),
         ],
       ),
     );
   }
+}
 
-  // ── Tab 1: Farm Alerts ────────────────────────────────────────────────
+class _TabLabel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final int count;
+  final Color badge;
+  const _TabLabel(this.icon, this.text, this.count, this.badge);
 
-  Widget _buildAlertsTab() {
-    if (_loadingAlerts) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_alertItems.isEmpty) {
-      return _emptyState(
-        icon: Icons.check_circle_outline,
-        title: 'No active farm alerts',
-        subtitle:
-            'Satellite, IoT sensor and weather station data all look healthy right now.\nPull down to refresh.',
+  @override
+  Widget build(BuildContext context) => Tab(
+        height: 44,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 17),
+          const SizedBox(width: 6),
+          Text(text),
+          if (count > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(color: badge, borderRadius: BorderRadius.circular(10)),
+              child: Text(count > 99 ? '99+' : '$count',
+                  style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ]),
       );
-    }
-    return RefreshIndicator(
-      onRefresh: _loadAlerts,
-      child: ListView.builder(
-        padding:
-            const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        itemCount: _alertItems.length,
-        itemBuilder: (_, i) => _alertCard(_alertItems[i]),
+}
+
+// ── Shared pieces ────────────────────────────────────────────────────────────
+
+class _DayHeader extends StatelessWidget {
+  final String text;
+  final int count;
+  final Color color;
+  const _DayHeader(this.text, this.count, {this.color = KmColors.green});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+        child: Row(children: [
+          Container(width: 4, height: 16, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+          const SizedBox(width: 6),
+          Text('($count)', style: const TextStyle(fontSize: 12, color: KmColors.muted)),
+        ]),
+      );
+}
+
+/// White card with a coloured stripe on the left.
+class _StripeCard extends StatelessWidget {
+  final Color color;
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool faded;
+  const _StripeCard({required this.color, required this.child, this.onTap, this.faded = false});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: faded ? const Color(0xFFF9FAF9) : Colors.white,
+          elevation: faded ? 0 : 1,
+          shadowColor: Colors.black12,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: IntrinsicHeight(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Container(width: 5, color: faded ? Colors.grey.shade300 : color),
+                Expanded(child: Padding(padding: const EdgeInsets.fromLTRB(12, 12, 8, 12), child: child)),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+class _IconBubble extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  const _IconBubble(this.icon, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+        child: Icon(icon, size: 20, color: color),
+      );
+}
+
+Widget _chips<T>({
+  required List<T> values,
+  required T selected,
+  required String Function(T) label,
+  required Color Function(T) color,
+  required ValueChanged<T> onSelect,
+}) =>
+    SizedBox(
+      height: 46,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        children: [
+          for (final v in values)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(label(v)),
+                selected: v == selected,
+                onSelected: (_) => onSelect(v),
+                showCheckmark: false,
+                labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: v == selected ? Colors.white : color(v)),
+                selectedColor: color(v),
+                backgroundColor: Colors.white,
+                side: BorderSide(color: color(v).withValues(alpha: 0.35)),
+              ),
+            ),
+        ],
+      ),
+    );
+
+Widget _error(Object e) => KmEmptyState(
+    icon: Icons.error_outline_rounded, title: 'Could not load', message: '$e', color: KmColors.red);
+
+Future<bool> _confirm(BuildContext context, String title, String message, String action) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: KmColors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    ) ??
+    false;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Inbox
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _InboxTab extends ConsumerWidget {
+  const _InboxTab();
+
+  Color _filterColor(InboxFilter f) => switch (f) {
+        InboxFilter.all => KmColors.green,
+        InboxFilter.unread => KmColors.blue,
+        InboxFilter.weather => KmColors.orange,
+        InboxFilter.advice => KmColors.greenMid,
+        InboxFilter.approvals => KmColors.purple,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filter = ref.watch(inboxFilterProvider);
+    final items = ref.watch(filteredInboxProvider);
+    return Column(children: [
+      _chips<InboxFilter>(
+        values: InboxFilter.values,
+        selected: filter,
+        label: (f) => f.label,
+        color: _filterColor,
+        onSelect: ref.read(inboxFilterProvider.notifier).set,
+      ),
+      Expanded(
+        child: items.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
+          error: (e, _) => _error(e),
+          data: (list) {
+            if (list.isEmpty) {
+              return KmEmptyState(
+                icon: Icons.inbox_rounded,
+                color: KmColors.blue,
+                title: filter == InboxFilter.all ? 'Your inbox is empty' : 'Nothing under "${filter.label}"',
+                message: 'Weather alerts from your station, verified advice from Field Agronomists '
+                    'and account approvals appear here, with the exact time they arrived.',
+              );
+            }
+            final groups = groupByDay(list, (InboxItem i) => i.createdAt ?? DateTime.now());
+            return RefreshIndicator(
+              color: KmColors.green,
+              onRefresh: () async => ref.invalidate(inboxProvider),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                children: [
+                  for (final (day, dayItems) in groups) ...[
+                    _DayHeader(day, dayItems.length),
+                    for (final i in dayItems) _InboxCard(i),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ]);
+  }
+}
+
+class _InboxCard extends ConsumerWidget {
+  final InboxItem item;
+  const _InboxCard(this.item);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ctrl = ref.read(inboxControllerProvider);
+    final c = item.color;
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirm(context, 'Delete notification?',
+          'It will be removed from your inbox on all your devices.', 'Delete'),
+      onDismissed: (_) => ctrl.delete(item),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(color: KmColors.red, borderRadius: BorderRadius.circular(14)),
+        child: const Icon(Icons.delete_rounded, color: Colors.white),
+      ),
+      child: _StripeCard(
+        color: c,
+        onTap: () {
+          if (!item.read) ctrl.setRead(item, true);
+          final route = item.route;
+          if (route != null) NotificationService.routeHandler?.call(route, item.args);
+        },
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _IconBubble(item.kind.icon, c),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                KmTag(item.kind.label, c),
+                if (item.severity == 'critical') const KmTag('Critical', KmColors.red, filled: true),
+                if (item.severity == 'high') const KmTag('High', KmColors.orange, filled: true),
+                if (item.isTest) const KmTag('TEST', KmColors.purple),
+              ]),
+              const SizedBox(height: 6),
+              Text(item.title,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: item.read ? FontWeight.w600 : FontWeight.w800,
+                      color: Colors.black87)),
+              if (item.body.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(item.body, style: const TextStyle(fontSize: 12.5, height: 1.4, color: Color(0xFF374151))),
+              ],
+              const SizedBox(height: 8),
+              if (item.createdAt != null)
+                KmTimestamp(item.createdAt!, prefix: 'Received', color: item.read ? KmColors.muted : c),
+            ]),
+          ),
+          Column(children: [
+            if (!item.read)
+              Container(
+                width: 10,
+                height: 10,
+                margin: const EdgeInsets.only(top: 4, bottom: 4),
+                decoration: const BoxDecoration(color: KmColors.blue, shape: BoxShape.circle),
+              ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded, size: 18, color: KmColors.muted),
+              tooltip: 'More',
+              onSelected: (v) async {
+                if (v == 'read') ctrl.setRead(item, !item.read);
+                if (v == 'delete' &&
+                    await _confirm(context, 'Delete notification?',
+                        'It will be removed from your inbox on all your devices.', 'Delete')) {
+                  ctrl.delete(item);
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'read', child: Text(item.read ? 'Mark as unread' : 'Mark as read')),
+                const PopupMenuItem(value: 'delete', child: Text('Delete')),
+              ],
+            ),
+          ]),
+        ]),
       ),
     );
   }
+}
 
-  Widget _alertCard(_AlertItem item) {
-    final color = _riskColor(item.risk);
+// ═════════════════════════════════════════════════════════════════════════════
+//  Farm alerts
+// ═════════════════════════════════════════════════════════════════════════════
 
-    // Source label + icon
-    final (srcIcon, srcLabel) = switch (item.source) {
-      _AlertSource.weatherStation => (Icons.sensors_rounded,     'Weather Station · Live'),
-      _AlertSource.iotSensor      => (Icons.device_hub_outlined, 'IoT Sensor · Live'),
-      _AlertSource.satellite      => (Icons.satellite_alt_outlined, 'Satellite · Live'),
+Color riskColor(ConditionRisk r) => switch (r) {
+      ConditionRisk.critical => KmColors.red,
+      ConditionRisk.high => KmColors.orange,
+      ConditionRisk.moderate => KmColors.amber,
+      ConditionRisk.low => KmColors.green,
     };
 
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color.withValues(alpha: 0.35), width: 1.2),
-      ),
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            child: Row(
-              children: [
-                Icon(item.icon, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(item.title,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13)),
+Color _sourceColor(FarmAlertSource s) => switch (s) {
+      FarmAlertSource.weatherStation => KmColors.blue,
+      FarmAlertSource.iotSensor => KmColors.teal,
+      FarmAlertSource.satellite => KmColors.purple,
+    };
+
+class _AlertsTab extends ConsumerWidget {
+  const _AlertsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(farmAlertsProvider);
+    Future<void> refresh() async => ref.refresh(farmAlertsProvider.future);
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
+      error: (e, _) => _error(e),
+      data: (r) => RefreshIndicator(
+        color: KmColors.green,
+        onRefresh: refresh,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          children: [
+            _AlertsHeader(r, onRefresh: refresh),
+            if (r.alerts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 24),
+                child: KmEmptyState(
+                  icon: Icons.check_circle_rounded,
+                  title: 'No active farm alerts',
+                  message: 'Station, soil sensor and satellite readings all look healthy right now.',
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.body,
-                    style:
-                        const TextStyle(fontSize: 13, height: 1.45)),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Icon(srcIcon, size: 13, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(srcLabel,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.grey)),
-                ]),
-              ],
-            ),
-          ),
-        ],
+              )
+            else
+              for (final a in r.alerts) _AlertCard(a, r.readingTimeFor(a.source)),
+          ],
+        ),
       ),
     );
   }
+}
 
-  // ── Tab 2: Reminders ──────────────────────────────────────────────────
-  //
-  // IMPORTANT: No .orderBy() in this query — sorting is done client-side
-  // so no composite index is required. A simple single-field index on
-  // 'userId' is enough and Firestore creates that automatically.
+class _AlertsHeader extends StatelessWidget {
+  final FarmAlertsResult r;
+  final VoidCallback onRefresh;
+  const _AlertsHeader(this.r, {required this.onRefresh});
 
-  Widget _buildRemindersTab() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      return _emptyState(
-          icon: Icons.lock_outline,
-          title: 'Not signed in',
-          subtitle: 'Sign in to see your reminders.');
-    }
+  @override
+  Widget build(BuildContext context) {
+    int count(ConditionRisk k) => r.alerts.where((a) => a.risk == k).length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: KmColors.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const _IconBubble(Icons.radar_rounded, KmColors.green),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Live farm check', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+              Text('Checked ${fullStamp(r.checkedAt)}',
+                  style: const TextStyle(fontSize: 11.5, color: KmColors.muted)),
+            ]),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: KmColors.green),
+            tooltip: 'Check again',
+            onPressed: onRefresh,
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          KmTag('${count(ConditionRisk.critical)} critical', KmColors.red),
+          KmTag('${count(ConditionRisk.high)} high', KmColors.orange),
+          KmTag('${count(ConditionRisk.moderate)} moderate', KmColors.amber),
+        ]),
+        const Divider(height: 20),
+        for (final s in FarmAlertSource.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(children: [
+              Icon(s.icon, size: 14, color: _sourceColor(s)),
+              const SizedBox(width: 6),
+              Text('${s.label}: ', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(
+                  r.readingTimeFor(s) == null
+                      ? 'not available'
+                      : s == FarmAlertSource.satellite
+                          ? 'model estimate for today'
+                          : 'reading ${fullStamp(r.readingTimeFor(s)!)} · ${relativeTime(r.readingTimeFor(s)!)}',
+                  style: const TextStyle(fontSize: 11.5, color: KmColors.muted),
+                ),
+              ),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('field_reminders')
-          .where('userId', isEqualTo: uid)
-          // ↑ NO .orderBy() here — sort client-side to avoid index errors
-          .snapshots(),
-      builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          return _emptyState(
-              icon: Icons.error_outline,
-              title: 'Could not load reminders',
-              subtitle: snap.error.toString());
-        }
+class _AlertCard extends StatelessWidget {
+  final FarmAlert a;
+  final DateTime? readingAt;
+  const _AlertCard(this.a, this.readingAt);
 
-        final docs = snap.data?.docs ?? [];
+  @override
+  Widget build(BuildContext context) {
+    final c = riskColor(a.risk);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.withValues(alpha: 0.35)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          color: c,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(children: [
+            Icon(a.icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(a.title,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+            ),
+            KmTag(riskLabel(a.risk), Colors.white),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(a.body, style: const TextStyle(fontSize: 12.5, height: 1.45)),
+            const SizedBox(height: 10),
+            KmTag(a.source.label, _sourceColor(a.source), icon: a.source.icon),
+            if (readingAt != null && a.source != FarmAlertSource.satellite) ...[
+              const SizedBox(height: 6),
+              KmTimestamp(readingAt!, prefix: 'Reading taken', icon: Icons.sensors_rounded),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+}
 
-        if (docs.isEmpty) {
-          return _emptyState(
-            icon: Icons.alarm_off_outlined,
-            title: 'No reminders yet',
-            subtitle:
-                'Reminders you set in Pest Management, Disease Management, '
-                'and Field Data Input will appear here — spray schedules, '
-                'weeding reminders, scouting checks, and custom reminders.',
+// ═════════════════════════════════════════════════════════════════════════════
+//  Reminders
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _RemindersTab extends ConsumerWidget {
+  final VoidCallback onOpenSettings;
+  const _RemindersTab({required this.onOpenSettings});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(remindersProvider);
+    final section = ref.watch(reminderFilterProvider);
+    final prefs = ref.watch(notificationPrefsProvider).value ?? NotificationPrefs.defaults;
+    final sections = <ReminderSection?>[
+      null,
+      ReminderSection.field,
+      ReminderSection.pest,
+      ReminderSection.disease,
+      ReminderSection.other,
+    ];
+    return Column(children: [
+      _chips<ReminderSection?>(
+        values: sections,
+        selected: section,
+        label: (s) => s == null ? 'All' : s.label,
+        color: (s) => s == null ? KmColors.purple : sectionColor(s),
+        onSelect: ref.read(reminderFilterProvider.notifier).set,
+      ),
+      Expanded(
+        child: async.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
+          error: (e, _) => _error(e),
+          data: (all) {
+            final list = section == null ? all : all.where((r) => r.section == section).toList();
+            if (list.isEmpty) {
+              return const KmEmptyState(
+                icon: Icons.alarm_off_rounded,
+                color: KmColors.purple,
+                title: 'No reminders',
+                message: 'Reminders you set in Field Data Input, Pest and Disease Management '
+                    'appear here with the exact date and time they are due.',
+              );
+            }
+            final upcoming = list.where((r) => !r.isPast).toList();
+            final past = list.where((r) => r.isPast).toList().reversed.toList();
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+              children: [
+                if (kIsWeb)
+                  const _InfoBanner(
+                    'Reminders ring in the Kilimo Mkononi phone app. In the browser they are listed here.',
+                    KmColors.blue,
+                  ),
+                if (upcoming.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text('Nothing coming up.', style: TextStyle(color: KmColors.muted)),
+                  ),
+                for (final (day, items) in groupByDay(upcoming, (ReminderEntry r) => r.at)) ...[
+                  _DayHeader(day, items.length, color: KmColors.purple),
+                  for (final r in items)
+                    _ReminderCard(r, muted: !r.section.enabledIn(prefs), onOpenSettings: onOpenSettings),
+                ],
+                if (past.isNotEmpty)
+                  Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                      title: Text('Past reminders (${past.length})',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: KmColors.muted)),
+                      children: [for (final r in past) _ReminderCard(r, muted: false, onOpenSettings: onOpenSettings)],
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    ]);
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  final String text;
+  final Color color;
+  final VoidCallback? onTap;
+  const _InfoBanner(this.text, this.color, {this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Material(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Row(children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: color),
+                const SizedBox(width: 8),
+                Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: color, height: 1.35))),
+                if (onTap != null) Icon(Icons.chevron_right_rounded, size: 18, color: color),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+class _ReminderCard extends StatelessWidget {
+  final ReminderEntry r;
+  final bool muted;
+  final VoidCallback onOpenSettings;
+  const _ReminderCard(this.r, {required this.muted, required this.onOpenSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = sectionColor(r.section);
+    final soon = !r.isPast && r.at.difference(DateTime.now()).inHours < 24;
+    return _StripeCard(
+      color: c,
+      faded: r.isPast,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 58,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: (r.isPast ? Colors.grey : c).withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(children: [
+            Text(clockTime(r.at),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: r.isPast ? Colors.grey : c)),
+            Text(DateFormat('d MMM').format(r.at), style: const TextStyle(fontSize: 10.5, color: KmColors.muted)),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              KmTag(r.section.label, c, icon: sectionIcon(r.section)),
+              if (r.plotId != null) KmTag('Plot ${r.plotId}', KmColors.teal),
+              if (soon && !muted) const KmTag('Due soon', KmColors.orange, filled: true),
+              if (muted && !r.isPast)
+                GestureDetector(
+                  onTap: onOpenSettings,
+                  child: const KmTag('Muted in settings', KmColors.orange, icon: Icons.notifications_off_rounded),
+                ),
+            ]),
+            const SizedBox(height: 6),
+            Text(r.title,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: r.isPast ? KmColors.muted : Colors.black87)),
+            if (r.body.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(r.body, style: const TextStyle(fontSize: 12.5, height: 1.4, color: Color(0xFF374151))),
+            ],
+            const SizedBox(height: 8),
+            KmTimestamp(r.at, prefix: r.isPast ? 'Was due' : 'Due', color: r.isPast ? KmColors.muted : c),
+            if (r.createdAt != null) ...[
+              const SizedBox(height: 3),
+              Text('Set on ${fullStamp(r.createdAt!)}', style: const TextStyle(fontSize: 11, color: KmColors.muted)),
+            ],
+          ]),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close_rounded, size: 18, color: KmColors.muted),
+          tooltip: 'Remove reminder',
+          onPressed: () async {
+            if (await _confirm(context, 'Remove reminder?',
+                    '"${r.title}" will be cancelled on this phone and removed.', 'Remove') &&
+                context.mounted) {
+              await ReminderService.remove(r.id, r.notifId);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reminder removed')));
+              }
+            }
+          },
+        ),
+      ]),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Farm tasks
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _TasksTab extends ConsumerWidget {
+  final VoidCallback onOpenSettings;
+  const _TasksTab({required this.onOpenSettings});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(farmTasksProvider);
+    final prefs = ref.watch(notificationPrefsProvider).value ?? NotificationPrefs.defaults;
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
+      error: (e, _) => _error(e),
+      data: (t) {
+        if (t.openCount == 0) {
+          return RefreshIndicator(
+            color: KmColors.green,
+            onRefresh: () async => ref.invalidate(farmTasksProvider),
+            child: ListView(children: const [
+              SizedBox(height: 60),
+              KmEmptyState(
+                icon: Icons.task_alt_rounded,
+                color: KmColors.teal,
+                title: 'No open farm tasks',
+                message: 'Tasks you add in Farm Management — planting, weeding, spraying, '
+                    'harvesting — appear here by due date.',
+              ),
+            ]),
           );
         }
-
-        // Client-side sort by scheduledDate ascending
-        final sorted = [...docs];
-        sorted.sort((a, b) {
-          final aData = a.data() as Map<String, dynamic>;
-          final bData = b.data() as Map<String, dynamic>;
-
-          // Handle both 'scheduledDate' and legacy 'scheduleDate' field names
-          DateTime? aDate = _tsField(aData, 'scheduledDate') ??
-                            _tsField(aData, 'scheduleDate');
-          DateTime? bDate = _tsField(bData, 'scheduledDate') ??
-                            _tsField(bData, 'scheduleDate');
-          if (aDate == null && bDate == null) return 0;
-          if (aDate == null) return 1;
-          if (bDate == null) return -1;
-          return aDate.compareTo(bDate);
-        });
-
-        final now      = DateTime.now();
-        final upcoming = sorted.where((d) {
-          final dt = _reminderDate(d);
-          return dt != null && dt.isAfter(now);
-        }).toList();
-        final past = sorted.where((d) {
-          final dt = _reminderDate(d);
-          return dt != null && !dt.isAfter(now);
-        }).toList();
-
-        // Keep tab label count in sync without calling setState inside build
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _reminderCount != upcoming.length) {
-            setState(() => _reminderCount = upcoming.length);
-          }
-        });
-
-        return ListView(
-          padding:
-              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          children: [
-            if (upcoming.isNotEmpty) ...[
-              _sectionHeader(
-                  'Upcoming (${upcoming.length})',
-                  Icons.upcoming_outlined,
-                  _green),
-              ...upcoming.map((d) => _reminderCard(ctx, d, false)),
-              const SizedBox(height: 4),
+        final reminderAt = TimeOfDay(hour: prefs.taskReminderHour, minute: prefs.taskReminderMinute);
+        return RefreshIndicator(
+          color: KmColors.green,
+          onRefresh: () async => ref.invalidate(farmTasksProvider),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            children: [
+              Row(children: [
+                Expanded(child: _CountTile('Overdue', t.overdue.length, KmColors.red, Icons.warning_amber_rounded)),
+                const SizedBox(width: 8),
+                Expanded(child: _CountTile('Due today', t.today.length, KmColors.orange, Icons.today_rounded)),
+                const SizedBox(width: 8),
+                Expanded(child: _CountTile('Upcoming', t.upcoming.length, KmColors.teal, Icons.event_rounded)),
+              ]),
+              _InfoBanner(
+                prefs.taskReminders
+                    ? 'Reminders ring at ${reminderAt.format(context)} on each due date${kIsWeb ? ' (in the phone app)' : ''}. Tap to change.'
+                    : 'Farm task reminders are off. Tap to turn them on.',
+                prefs.taskReminders ? KmColors.teal : KmColors.orange,
+                onTap: onOpenSettings,
+              ),
+              if (t.overdue.isNotEmpty) ...[
+                _DayHeader('Overdue', t.overdue.length, color: KmColors.red),
+                for (final x in t.overdue) _TaskCard(x, t, prefs),
+              ],
+              if (t.today.isNotEmpty) ...[
+                _DayHeader('Due today', t.today.length, color: KmColors.orange),
+                for (final x in t.today) _TaskCard(x, t, prefs),
+              ],
+              if (t.upcoming.isNotEmpty) ...[
+                _DayHeader('Upcoming', t.upcoming.length, color: KmColors.teal),
+                for (final x in t.upcoming) _TaskCard(x, t, prefs),
+              ],
+              const SizedBox(height: 8),
+              Text('Loaded ${fullStamp(t.loadedAt)}',
+                  textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: KmColors.muted)),
             ],
-            if (past.isNotEmpty) ...[
-              _sectionHeader(
-                  'Past (${past.length})',
-                  Icons.history_outlined,
-                  Colors.grey),
-              ...past.map((d) => _reminderCard(ctx, d, true)),
-            ],
-          ],
+          ),
         );
       },
     );
   }
+}
 
-  /// Reads either 'scheduledDate' or the legacy 'scheduleDate' timestamp field.
-  DateTime? _tsField(Map<String, dynamic> data, String key) {
-    final val = data[key];
-    if (val is Timestamp) return val.toDate();
-    return null;
-  }
+class _CountTile extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  final IconData icon;
+  const _CountTile(this.label, this.count, this.color, this.icon);
 
-  DateTime? _reminderDate(QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return _tsField(data, 'scheduledDate') ?? _tsField(data, 'scheduleDate');
-  }
-
-  Widget _reminderCard(
-      BuildContext ctx, QueryDocumentSnapshot doc, bool isPast) {
-    final data    = doc.data()! as Map<String, dynamic>;
-    final title   = data['title']  as String? ?? 'Reminder';
-    final body    = data['body']   as String? ?? '';
-    final dt      = _reminderDate(doc) ?? DateTime.now();
-    final notifId = data['notifId'] as int?;
-    final plotId  = data['plotId'] as String?;
-    final source  = _reminderSource(title);
-    final accent  = isPast ? Colors.grey : _reminderAccent(dt);
-    final icon    = _reminderIcon(title);
-
-    return Card(
-      elevation: isPast ? 1 : 3,
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isPast
-              ? Colors.grey.withValues(alpha: 0.15)
-              : accent.withValues(alpha: 0.35),
-          width: 1.2,
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
-      ),
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isPast
-                    ? Colors.grey[100]
-                    : accent.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon,
-                  size: 20,
-                  color: isPast ? Colors.grey[400] : accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: isPast
-                              ? Colors.grey[600]
-                              : Colors.black87,
-                          decoration: isPast
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none)),
-                  if (body.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(body,
-                        style: TextStyle(
-                            fontSize: 12,
-                            height: 1.4,
-                            color: Colors.grey[700])),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    Icon(Icons.schedule_outlined,
-                        size: 12,
-                        color: isPast ? Colors.grey : accent),
-                    const SizedBox(width: 3),
-                    Text(_formatDateTime(dt),
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: isPast ? Colors.grey : accent,
-                            fontWeight: FontWeight.w500)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      _chip(source, _green),
-                      if (plotId != null &&
-                          plotId.isNotEmpty &&
-                          plotId != 'general')
-                        _chip(plotId, Colors.teal[700]!),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18),
-              color: Colors.grey[400],
-              tooltip: 'Remove',
-              onPressed: () => _cancelReminder(ctx, doc.id, notifId),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Tab 3: Farm Tasks ─────────────────────────────────────────────────
-
-  Widget _buildFarmTasksTab() {
-    if (_loadingTasks) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_overdueTasks.isEmpty && _upcomingTasks.isEmpty) {
-      return _emptyState(
-        icon: Icons.task_alt_outlined,
-        title: 'No pending farm tasks',
-        subtitle:
-            'Tasks you add in Farm Management — planting, weeding, '
-            'spraying, harvesting — will appear here when they are due or overdue.',
+        child: Column(children: [
+          Icon(icon, size: 18, color: color),
+          Text('$count', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
+          Text(label, style: const TextStyle(fontSize: 11, color: KmColors.muted)),
+        ]),
       );
-    }
-    return RefreshIndicator(
-      onRefresh: _loadFarmTasks,
-      child: ListView(
-        padding:
-            const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        children: [
-          if (_overdueTasks.isNotEmpty) ...[
-            _sectionHeader(
-                'Overdue (${_overdueTasks.length})',
-                Icons.warning_amber_outlined,
-                _critical),
-            ..._overdueTasks.map(_farmTaskCard),
-            const SizedBox(height: 4),
-          ],
-          if (_upcomingTasks.isNotEmpty) ...[
-            _sectionHeader(
-                'Upcoming (${_upcomingTasks.length})',
-                Icons.upcoming_outlined,
-                _green),
-            ..._upcomingTasks.map(_farmTaskCard),
-          ],
-        ],
-      ),
-    );
-  }
+}
 
-  Widget _farmTaskCard(_FarmTaskItem t) {
-    final isOverdue = _dateOnly(t.dueDate).isBefore(_dateOnly(DateTime.now()));
-    final accent    = isOverdue ? _critical : _green;
-    final priorityColor = t.priority == 'high'
-        ? _critical
-        : t.priority == 'medium'
-            ? _moderate
-            : _green;
+class _TaskCard extends StatelessWidget {
+  final FarmTaskEntry task;
+  final FarmTasksSnapshot snap;
+  final NotificationPrefs prefs;
+  const _TaskCard(this.task, this.snap, this.prefs);
 
-    // Resolve plot id → human-readable plot name
-    final plotLabel = t.plotId.isEmpty || t.plotId == 'all'
-        ? null
-        : _plotNames[t.plotId] ?? t.plotId;
-
-    return Card(
-      elevation: isOverdue ? 3 : 2,
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: accent.withValues(alpha: 0.35),
-          width: isOverdue ? 1.5 : 1.0,
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dueDay = DateTime(task.dueDate.year, task.dueDate.month, task.dueDate.day);
+    final days = dueDay.difference(today).inDays;
+    final overdue = days < 0;
+    final c = overdue ? KmColors.red : (days == 0 ? KmColors.orange : KmColors.teal);
+    final priorityColor = switch (task.priority) {
+      'high' => KmColors.red,
+      'medium' => KmColors.amber,
+      _ => KmColors.green,
+    };
+    final plot = snap.plotLabel(task.plotId);
+    final remindAt = taskReminderTime(task.dueDate, prefs);
+    return _StripeCard(
+      color: c,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 52,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(color: c.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
+          child: Column(children: [
+            Text(DateFormat('d').format(task.dueDate),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c)),
+            Text(DateFormat('MMM').format(task.dueDate).toUpperCase(),
+                style: const TextStyle(fontSize: 10, color: KmColors.muted, fontWeight: FontWeight.w700)),
+          ]),
         ),
-      ),
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isOverdue
-                    ? Icons.warning_amber_outlined
-                    : Icons.check_box_outline_blank,
-                size: 20,
-                color: accent,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t.title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13)),
-                  if (t.description.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(t.description,
-                        style: TextStyle(
-                            fontSize: 12,
-                            height: 1.4,
-                            color: Colors.grey[700])),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    Icon(Icons.calendar_today_outlined,
-                        size: 12, color: accent),
-                    const SizedBox(width: 3),
-                    Text(_formatDueDate(t.dueDate),
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: accent,
-                            fontWeight: FontWeight.w500)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      if (plotLabel != null)
-                        _chip(plotLabel, _green),
-                      _chip(_categoryLabel(t.category),
-                          priorityColor),
-                      if (t.priority == 'high')
-                        _chip('High Priority', _critical),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _categoryLabel(String cat) {
-    switch (cat) {
-      case 'planting':    return 'Planting';
-      case 'watering':    return 'Watering';
-      case 'weeding':     return 'Weeding';
-      case 'spraying':    return 'Spraying';
-      case 'fertilising': return 'Fertilising';
-      case 'harvesting':  return 'Harvesting';
-      case 'scouting':    return 'Scouting';
-      default:            return cat.isNotEmpty
-                              ? cat[0].toUpperCase() + cat.substring(1)
-                              : 'General';
-    }
-  }
-
-  // ── Shared UI helpers ─────────────────────────────────────────────────
-
-  Widget _sectionHeader(String label, IconData icon, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 4),
-      child: Row(children: [
-        Icon(icon, size: 15, color: color),
-        const SizedBox(width: 6),
-        Text(label,
-            style: TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 13, color: color)),
-      ]),
-    );
-  }
-
-  Widget _chip(String label, Color color) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 10,
-              color: color,
-              fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _emptyState({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              KmTag(task.categoryLabel, KmColors.blue),
+              KmTag('${task.priority[0].toUpperCase()}${task.priority.substring(1)} priority', priorityColor),
+              if (plot != null) KmTag(plot, KmColors.teal, icon: Icons.crop_square_rounded),
+            ]),
+            const SizedBox(height: 6),
+            Text(task.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+            if (task.description.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(task.description, style: const TextStyle(fontSize: 12.5, height: 1.4, color: Color(0xFF374151))),
+            ],
             const SizedBox(height: 8),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[500],
-                    height: 1.5)),
-          ],
+            Row(children: [
+              Icon(Icons.event_rounded, size: 13, color: c),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Due ${DateFormat('EEE d MMM yyyy').format(task.dueDate)}  ·  '
+                  '${overdue ? 'overdue by ${-days} day${days == -1 ? '' : 's'}' : days == 0 ? 'today' : days == 1 ? 'tomorrow' : 'in $days days'}',
+                  style: TextStyle(fontSize: 11.5, color: c, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 3),
+            Row(children: [
+              Icon(prefs.taskReminders ? Icons.alarm_rounded : Icons.alarm_off_rounded,
+                  size: 13, color: KmColors.muted),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  !prefs.taskReminders
+                      ? 'Reminders off'
+                      : remindAt.isAfter(now)
+                          ? 'Reminder ${fullStamp(remindAt)}'
+                          : 'Reminder time passed (${fullStamp(remindAt)})',
+                  style: const TextStyle(fontSize: 11, color: KmColors.muted),
+                ),
+              ),
+            ]),
+          ]),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Local data models
-// ─────────────────────────────────────────────────────────────────────────────
-
-enum _AlertSource { satellite, weatherStation, iotSensor }
-
-class _AlertItem {
-  final String        title;
-  final String        body;
-  final ConditionRisk risk;
-  final IconData      icon;
-  final _AlertSource  source;
-  const _AlertItem({
-    required this.title,
-    required this.body,
-    required this.risk,
-    required this.icon,
-    this.source = _AlertSource.satellite,
-  });
-}
-
-class _FarmTaskItem {
-  final String   id;
-  final String   title;
-  final String   description;
-  final String   plotId;
-  final String   priority;
-  final String   category;
-  final DateTime dueDate;
-  final bool     isDone;
-
-  const _FarmTaskItem({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.plotId,
-    required this.priority,
-    required this.category,
-    required this.dueDate,
-    required this.isDone,
-  });
-
-  factory _FarmTaskItem.fromJson(Map<String, dynamic> j) {
-    return _FarmTaskItem(
-      id:          (j['id']          as String?) ?? '',
-      title:       (j['title']       as String?) ?? 'Task',
-      description: (j['description'] as String?) ?? '',
-      plotId:      (j['plotId']      as String?) ?? '',
-      priority:    (j['priority']    as String?) ?? 'normal',
-      category:    (j['category']    as String?) ?? 'other',
-      dueDate:     j['dueDate'] != null
-                       ? DateTime.tryParse(j['dueDate'] as String) ??
-                         DateTime.now()
-                       : DateTime.now(),
-      isDone:      (j['isDone'] as bool?) ?? false,
+      ]),
     );
   }
 }

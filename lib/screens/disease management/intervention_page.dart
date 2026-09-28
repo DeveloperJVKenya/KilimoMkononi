@@ -24,7 +24,7 @@ import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
-import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -498,25 +498,15 @@ active ingredient in "why", dosage per litre and timing in "how".
     required DateTime date,
     required String userId,
   }) async {
-    if (date.isBefore(DateTime.now())) return;
+    // Stored + scheduled by ReminderService, which honours Notification Settings.
     try {
-      if (!_tzReady) await _initTz();
-      final tzDate = tz.TZDateTime.from(date, tz.local);
-
-      await FirebaseFirestore.instance.collection('field_reminders').doc(id).set({
-        'userId': userId,
-        'title': title,
-        'body': body,
-        'scheduledDate': Timestamp.fromDate(date),
-        'notifId': id.hashCode,
-      });
-      await widget.notificationsPlugin.zonedSchedule(
-        id: id.hashCode,
+      await ReminderService.schedule(
+        id: id,
+        section: ReminderSection.disease,
         title: title,
         body: body,
-        scheduledDate: tzDate,
-        notificationDetails: NotificationService.details(KmChannel.reminders),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        date: date,
+        userId: userId,
       );
     } catch (_) {}
   }

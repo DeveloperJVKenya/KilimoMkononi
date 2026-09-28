@@ -33,6 +33,17 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Register the push service worker straight away, in FCM's own scope, so
+       it's already active when the app asks for a push token. Otherwise the
+       Firebase SDK registers it during getToken() and gives up after 10 s on
+       slow first loads ("failed-service-worker-registration"). -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('firebase-messaging-sw.js', { scope: 'firebase-cloud-messaging-push-scope' })
+        .catch(function (e) { console.warn('Push service worker not registered:', e); });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

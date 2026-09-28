@@ -3,13 +3,13 @@
 // Shows ALL records for this specific disease — both manual entries and
 // AI photo diagnoses — via the unified FarmerIssueService.
 // No longer depends on FarmerDiagnosisRecord or DiagnosisService.
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:kilimomkononi/screens/disease%20management/disease_model.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 
 // ── Theme ─────────────────────────────────────────────────────────────────
 const _kDark    = Color.fromARGB(255, 3, 39, 4);
@@ -449,15 +449,17 @@ class _RecordCardState extends State<_RecordCard> {
 
     if (result != null && mounted) {
       try {
-        final tzDate = tz.TZDateTime.from(result, tz.local);
-
-        await widget.notificationsPlugin.zonedSchedule(
-          id: widget.record.id.hashCode,
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null) throw StateError('Not signed in');
+        // Stored (so it's listed and can be cancelled) and scheduled by
+        // ReminderService, which honours Notification Settings.
+        await ReminderService.schedule(
+          id: 'followup_${widget.record.id}',
+          section: ReminderSection.disease,
           title: 'Follow-up: ${widget.record.issueName}',
           body: 'Evaluate intervention on ${widget.record.cropName}.',
-          scheduledDate: tzDate,
-          notificationDetails: NotificationService.details(KmChannel.reminders),
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          date: result,
+          userId: uid,
         );
 
         if (mounted) {

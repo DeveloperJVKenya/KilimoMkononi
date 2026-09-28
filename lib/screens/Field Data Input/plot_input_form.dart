@@ -20,7 +20,7 @@ import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
-import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public widget classes — unchanged API, drop-in replacement
@@ -850,39 +850,18 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
     required String body,
     required DateTime scheduledDate,
   }) async {
-    if (scheduledDate.isBefore(DateTime.now())) return;
-
+    // Stored + scheduled by ReminderService, which honours Notification Settings.
     try {
-              if (!_tzInitialised) await _initTimezone();
-      
-      final tzDate = tz.TZDateTime.from(
-        scheduledDate,
-        tz.local,                    // This is correct (Location type)
+      await ReminderService.schedule(
+        id: id,
+        section: ReminderSection.field,
+        title: title,
+        body: body,
+        date: scheduledDate,
+        userId: widget.userId,
+        plotId: widget.plotId,
       );
-      // Persist to Firestore for reboot recovery
-      await FirebaseFirestore.instance
-          .collection('field_reminders')
-          .doc(id)
-          .set({
-        'userId': widget.userId,
-        'plotId': widget.plotId,
-        'title': title,
-        'body': body,
-        'scheduledDate': Timestamp.fromDate(scheduledDate),
-        'notifId': id.hashCode,
-      });
-
-      await widget.notificationsPlugin.zonedSchedule(
-        id: id.hashCode,                    // ← named
-        title: title,                       // ← named
-        body: body,                         // ← named
-        scheduledDate: tzDate,              // ← named
-        notificationDetails: NotificationService.details(KmChannel.reminders),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-    } catch (_) {
-      // Notification persisted in Firestore — reboot receiver will re-schedule
-    }
+    } catch (_) {}
   }
   
   void _showSnack(String msg, {bool green = false, bool amber = false}) {

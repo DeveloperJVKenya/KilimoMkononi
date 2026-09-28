@@ -23,7 +23,7 @@ import 'package:kilimomkononi/screens/Field Data Input/weather_station_screen.da
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
-import 'package:kilimomkononi/services/notification_service.dart';
+import 'package:kilimomkononi/services/reminder_service.dart';
 
 // ── Auto-category inference (used by PestInterventionPage) ─────────────────
 String inferCostCategory(String desc) {
@@ -1301,21 +1301,10 @@ Include pre-harvest interval in warnings.
   }
 
   Future<void> _scheduleReminder(String id, String title, String body, DateTime date, String userId) async {
-    if (date.isBefore(DateTime.now())) return;
+    // Stored + scheduled by ReminderService, which honours Notification Settings.
     try {
-      if (!_tzReady) await _initTz();
-      await FirebaseFirestore.instance.collection('field_reminders').doc(id).set({
-        'userId': userId, 'title': title, 'body': body,
-        'scheduledDate': Timestamp.fromDate(date), 'notifId': id.hashCode,
-      });
-            await widget.notificationsPlugin.zonedSchedule(
-        id: id.hashCode,
-        title: title,
-        body: body,
-        scheduledDate: tz.TZDateTime.from(date, tz.local),
-        notificationDetails: NotificationService.details(KmChannel.reminders),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
+      await ReminderService.schedule(
+        id: id, section: ReminderSection.pest, title: title, body: body, date: date, userId: userId);
     } catch (_) {}
   }
 

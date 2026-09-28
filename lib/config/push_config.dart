@@ -17,7 +17,7 @@
 //
 // A build can still override it:  --dart-define=FCM_VAPID_KEY=<key>
 
-const String _projectVapidKey = '';
+const String _projectVapidKey = 'BJNpamwC-KryJe99gaWqOxIcHPzr0eVsvgv3uiti5QJe7LJOiHvGC8ChukgPc8_LZUks6XMijSMTTeT4iQafWAg';
 
 /// The VAPID key passed to `FirebaseMessaging.getToken` on web, or null to
 /// use the SDK default.
