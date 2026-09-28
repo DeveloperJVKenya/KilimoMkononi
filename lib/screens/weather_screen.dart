@@ -11,7 +11,9 @@
 // station — see WeatherStationScreen — never from this forecast.
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'dart:async';
+
+import 'package:kilimomkononi/services/device_location_service.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/google_weather_service.dart';
@@ -35,6 +37,10 @@ class WeatherScreenState extends State<WeatherScreen> {
   bool _loading = false;
   String? _error;
   String? _notice; // e.g. "Location is off — showing your farm"
+  // What the spinner says ("Finding your location…", "Loading weather…").
+  String _stage = 'Loading weather…';
+  // Showing a saved device position while a fresh fix is found.
+  bool _updatingLocation = false;
   String _place = '';
   GoogleWeather? _weather;
   // Bumped per request so a slow older answer can't replace a newer one.
@@ -58,39 +64,71 @@ class WeatherScreenState extends State<WeatherScreen> {
 
   // ── Sources ────────────────────────────────────────────────────────────────
 
+  /// "My location": shows the forecast for the last saved device position
+  /// straight away (if there is one), while a fresh low-accuracy fix is
+  /// found in the background (DeviceLocationService, capped at 10 s). The
+  /// forecast reloads only if the device has moved more than ~1.5 km.
   Future<void> _useDeviceLocation() async {
     final req = _start(_Where.device);
+    final sw = Stopwatch()..start();
+    final saved = await DeviceLocationService.lastSaved();
+    final showSaved = saved != null && saved.age < const Duration(hours: 12);
+
+    if (showSaved) {
+      setState(() {
+        _stage = 'Loading weather…';
+        _updatingLocation = true;
+      });
+      unawaited(_loadForFix(req, saved, sw, fromSaved: true));
+    } else {
+      setState(() => _stage = 'Finding your location…');
+    }
+
     try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      final fix = await DeviceLocationService.current();
+      if (req != _request || !mounted) return;
+      final moved = !showSaved || fix.distanceTo(saved) > 1500;
+      if (moved) {
+        setState(() => _stage = 'Loading weather…');
+        await _loadForFix(req, fix, sw, fromSaved: false);
+      } else {
+        // Same area — keep what's shown, remember the fresh fix.
+        await DeviceLocationService.save(fix.withLabel(saved.label));
+        debugPrint('[Weather] fresh fix within 1.5 km of saved one — no reload (${sw.elapsedMilliseconds} ms)');
       }
-      final allowed = permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse;
-      if (!allowed || !await Geolocator.isLocationServiceEnabled()) {
-        if (req != _request) return;
-        _notice = allowed
-            ? 'Location is turned off — showing your farm instead.'
-            : 'Location permission not given — showing your farm instead.';
+      if (mounted && req == _request) setState(() => _updatingLocation = false);
+    } on LocationUnavailable catch (e) {
+      if (req != _request || !mounted) return;
+      if (showSaved) {
+        setState(() {
+          _updatingLocation = false;
+          _notice = '${e.message}. Showing your last known location '
+              '(${relativeTimeShort(saved.at)}).';
+        });
+      } else {
+        _notice = '${e.message} — showing your farm instead.';
         await _useFarm(keepNotice: true);
-        return;
       }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 20),
-        ),
-      );
+    }
+  }
+
+  /// Weather + place name for a device fix.
+  Future<void> _loadForFix(int req, DeviceFix fix, Stopwatch sw, {required bool fromSaved}) async {
+    try {
       final results = await Future.wait([
-        GoogleWeatherService.forLocation(pos.latitude, pos.longitude),
-        GoogleWeatherService.placeName(pos.latitude, pos.longitude),
+        GoogleWeatherService.forLocation(fix.latitude, fix.longitude),
+        fix.label != null
+            ? Future<String?>.value(fix.label)
+            : GoogleWeatherService.placeName(fix.latitude, fix.longitude),
       ]);
-      _finish(req, results[0] as GoogleWeather,
-          (results[1] as String?) ?? 'Your location');
+      final label = (results[1] as String?) ?? 'Your location';
+      debugPrint('[Weather] ${fromSaved ? 'saved' : 'fresh'} location weather ready in ${sw.elapsedMilliseconds} ms');
+      if (!fromSaved) await DeviceLocationService.save(fix.withLabel(label));
+      _finish(req, results[0] as GoogleWeather, label);
     } catch (e) {
-      if (req != _request) return;
-      _notice = 'Could not get your location — showing your farm instead.';
-      await _useFarm(keepNotice: true);
+      // A saved-position failure is replaced by the fresh fix; only report
+      // errors for the fresh one.
+      if (!fromSaved) _fail(req, e);
     }
   }
 
@@ -141,6 +179,8 @@ class WeatherScreenState extends State<WeatherScreen> {
       _loading = true;
       _error = null;
       _notice = null;
+      _stage = 'Loading weather…';
+      _updatingLocation = false;
     });
     return ++_request;
   }
@@ -207,10 +247,18 @@ class WeatherScreenState extends State<WeatherScreen> {
             _sourceChips(),
             const SizedBox(height: 12),
             if (_notice != null) _banner(Icons.info_outline_rounded, _notice!),
+            if (_updatingLocation && _weather != null)
+              _banner(Icons.my_location_rounded, 'Updating your location…'),
             if (_loading && _weather == null)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Center(child: CircularProgressIndicator(color: _green)),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const CircularProgressIndicator(color: _green),
+                    const SizedBox(height: 14),
+                    Text(_stage, style: const TextStyle(color: Colors.black54)),
+                  ]),
+                ),
               )
             else if (_error != null && _weather == null)
               _errorCard()
@@ -383,4 +431,13 @@ class WeatherScreenState extends State<WeatherScreen> {
         const SizedBox(width: 4),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
       ]);
+}
+
+/// "5 min ago" / "3 h ago" / "2 days ago".
+String relativeTimeShort(DateTime t) {
+  final d = DateTime.now().difference(t);
+  if (d.inMinutes < 1) return 'just now';
+  if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+  if (d.inHours < 24) return '${d.inHours} h ago';
+  return '${d.inDays} days ago';
 }

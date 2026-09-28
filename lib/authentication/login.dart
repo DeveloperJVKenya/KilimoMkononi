@@ -107,7 +107,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home');
     } on FirebaseAuthException catch (e) {
-      _show(authErrorMessage(e.code, e.message));
+      final wrongCredentials =
+          const {'invalid-credential', 'wrong-password', 'INVALID_LOGIN_CREDENTIALS'}.contains(e.code);
+      // An account created with Google has no password, so email sign-in
+      // fails with this same error even when the details are "right".
+      _show(wrongCredentials
+          ? 'The email or password is incorrect. If you signed up with Google, '
+              'use "Continue with Google" below — Google accounts don\'t have a password here.'
+          : authErrorMessage(e.code, e.message));
       _passwordFocus.requestFocus();
     } catch (e) {
       _show('Could not sign in: $e');
@@ -246,6 +253,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const OrDivider(),
               GoogleAuthButton(label: 'Continue with Google', onPressed: _isLoading ? null : _handleGoogleSignIn),
+              const SizedBox(height: 12),
+              const _GoogleAccountNote(),
               const SizedBox(height: 22),
               Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 const Text('New to Kilimo Mkononi?', style: TextStyle(color: AuthColors.muted)),
@@ -346,5 +355,37 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
                 : const Text('Send link'),
           ),
         ],
+      );
+}
+
+/// Explains that Google-created accounts sign in with Google only.
+class _GoogleAccountNote extends StatelessWidget {
+  const _GoogleAccountNote();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE3F2FD),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF1565C0).withValues(alpha: 0.25)),
+        ),
+        child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF1565C0)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: 'Signed up with Google? ', style: TextStyle(fontWeight: FontWeight.w700)),
+                TextSpan(
+                  text: 'Use "Continue with Google" to sign in. Accounts created with Google have no '
+                      'password, so email and password sign-in won\'t work for them — even with the '
+                      'right email.',
+                ),
+              ]),
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF0D47A1), height: 1.4),
+            ),
+          ),
+        ]),
       );
 }
