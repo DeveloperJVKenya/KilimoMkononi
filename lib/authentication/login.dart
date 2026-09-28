@@ -77,7 +77,8 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+        // Not trimmed: spaces can be part of a password (sign-up keeps them).
+        password: _passwordController.text,
       );
       final uid = cred.user!.uid;
 
@@ -159,6 +160,8 @@ class _LoginScreenState extends State<LoginScreen> {
       ));
     } on GoogleAuthCancelledException {
       // Picker closed — nothing to do.
+    } on GoogleAuthException catch (e) {
+      _show(e.message);
     } catch (e) {
       _show('Google sign-in failed: $e');
     } finally {

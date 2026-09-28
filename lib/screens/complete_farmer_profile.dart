@@ -9,12 +9,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/authentication/widgets/auth_kit.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
+import 'package:kilimomkononi/services/google_auth_service.dart';
 
 class CompleteFarmerProfileScreen extends StatefulWidget {
   final String uid;
@@ -123,9 +123,9 @@ class _CompleteFarmerProfileScreenState
   }
 
   Future<void> _cancel() async {
-    // If they back out, don't leave a half-signed-in Firebase Auth
-    // session with no Firestore profile hanging around.
-    await FirebaseAuth.instance.signOut();
+    // If they back out, don't leave a half-signed-in session with no
+    // Firestore profile — sign out of Firebase AND the Google account.
+    await GoogleAuthService.signOut();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }

@@ -138,11 +138,22 @@ class RegistrationScreenState extends State<RegistrationScreen> {
       userMap['termsAcceptedAt'] = FieldValue.serverTimestamp();
       await _firestore.collection('Users').doc(appUser.id).set(userMap);
 
+      // Confirm the address (not required to use the app).
+      var verificationSent = false;
+      try {
+        await cred.user!.sendEmailVerification();
+        verificationSent = true;
+      } catch (e) {
+        _logger.w('Verification email not sent: $e');
+      }
+
       TextInput.finishAutofillContext();
       if (!mounted) return;
       Provider.of<AuthStateService>(context, listen: false).setSkipNext();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Welcome to Kilimo Mkononi, ${appUser.fullName.split(' ').first}!'),
+        content: Text('Welcome to Kilimo Mkononi, ${appUser.fullName.split(' ').first}!'
+            '${verificationSent ? ' We\'ve sent a link to ${appUser.email} to confirm your email.' : ''}'),
+        duration: const Duration(seconds: 6),
         backgroundColor: AuthColors.green,
       ));
       Navigator.of(context).pushReplacementNamed('/home');
@@ -177,6 +188,11 @@ class RegistrationScreenState extends State<RegistrationScreen> {
       }
       final farmerDoc = await _firestore.collection('Users').doc(uid).get();
       if (farmerDoc.exists) {
+        if (farmerDoc.data()!['isDisabled'] == true) {
+          await GoogleAuthService.signOut();
+          _show('This account has been disabled. Contact the administrator.');
+          return;
+        }
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/home'); // already registered → signed in
         return;
@@ -191,6 +207,8 @@ class RegistrationScreenState extends State<RegistrationScreen> {
       ));
     } on GoogleAuthCancelledException {
       // Picker closed.
+    } on GoogleAuthException catch (e) {
+      _show(e.message);
     } catch (e) {
       _show('Google sign-up failed: $e');
     } finally {

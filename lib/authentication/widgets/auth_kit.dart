@@ -184,7 +184,7 @@ class _BrandMark extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontSize: 20, fontWeight: FontWeight.w800, color: onDark ? Colors.white : AuthColors.green)),
-            Text('Farming in your hands',
+            Text('Smart farming at your fingertips',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: onDark ? Colors.white70 : AuthColors.muted)),

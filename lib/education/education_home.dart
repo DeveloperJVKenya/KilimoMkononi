@@ -41,6 +41,7 @@ import 'package:kilimomkononi/education/education_chat.dart';
 import 'package:kilimomkononi/education/tutor/tutor_chat_screen.dart';
 import 'package:kilimomkononi/education/tutor/tutor_fab.dart';
 import 'package:kilimomkononi/education/analysis/education_plot_analysis_screen.dart';
+import 'package:kilimomkononi/services/session_service.dart';
 
 enum ScreenType { mobile, tablet, desktop }
 
@@ -374,7 +375,7 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('${_kEduCacheKey}_${user.uid}');
     }
-    await FirebaseAuth.instance.signOut();
+    await SessionService.signOut(); // Firebase + Google account
     if (mounted) {
       Navigator.pushReplacement(context,
           MaterialPageRoute(builder: (_) => const EducationLoginScreen()));

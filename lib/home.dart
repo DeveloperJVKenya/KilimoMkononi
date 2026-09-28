@@ -24,6 +24,7 @@ import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/services/session_service.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -238,11 +239,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _handleLogout() async {
     // Stop listeners first so they don't hit permission errors after sign-out
     _cancelSubscriptions();
-    // Clear farm location and IoT cache so the next user gets their own data
-    await FarmLocationService.clear();
-    IotSensorService.clearCache();
-
-    await FirebaseAuth.instance.signOut();
+    // Clears per-user caches, then signs out of Firebase and Google.
+    await SessionService.signOut();
     _goToLogin();
   }
 

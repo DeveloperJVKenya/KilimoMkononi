@@ -8,6 +8,7 @@ import 'package:kilimomkononi/settings/contact_us_screen.dart';
 import 'package:kilimomkononi/settings/faq_screen.dart';
 import 'package:kilimomkononi/settings/terms_and_conditions_screen.dart';
 import 'package:kilimomkononi/settings/about_kilimo_mkononi_screen.dart';
+import 'package:kilimomkononi/services/session_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   /// Set to true when navigating here from the Education platform.
@@ -185,16 +186,19 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 16),
 
               // ── Logout ──────────────────────────────────────────
-              Container(
-                decoration: BoxDecoration(
-                    color: _darkRed, borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: GestureDetector(
-                  onTap: () => ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('Logout tapped'))),
-                  child: const Center(
-                    child: Text('Logout',
-                        style: TextStyle(color: Colors.white, fontSize: 16)),
+              Material(
+                color: _darkRed,
+                borderRadius: BorderRadius.circular(20),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => _confirmLogout(context),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.logout_rounded, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text('Logout', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    ]),
                   ),
                 ),
               ),
@@ -203,5 +207,30 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Confirms, signs out (caches, Firebase, Google) and returns to the
+  /// right sign-in screen for this mode.
+  Future<void> _confirmLogout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.logout_rounded, color: _darkRed),
+        title: const Text('Log out?'),
+        content: const Text('You will need to sign in again to use Kilimo Mkononi on this device.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _darkRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    await SessionService.signOut();
+    navigator.pushNamedAndRemoveUntil(isEducation ? '/edu_login' : '/login', (_) => false);
   }
 }
