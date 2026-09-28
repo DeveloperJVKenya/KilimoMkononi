@@ -12,9 +12,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// to form the app's mark before the tagline "Grow. Learn. Thrive." reveals
 /// word by word.
 ///
-/// The entrance animation is purely decorative and runs on its own clock.
-/// Real navigation is still driven entirely by [_checkAuthAndNavigate],
-/// whose logic and timing are unchanged from the previous version.
+/// The entrance animation runs on its own clock; navigation is driven by
+/// [_checkAuthAndNavigate]. First-time visitors continue as soon as the
+/// entrance finishes (~3 s, or a tap) instead of a fixed 8 s wait; returning
+/// users go straight to their home screen as before. Devices with "reduce
+/// motion" turned on skip the animation.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -26,6 +28,12 @@ class SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _entry;
   late final AnimationController _pulse;
+  // Continuous clock for the drifting particles.
+  late final AnimationController _drift;
+  late final TickerFuture _entryDone;
+  bool _navigated = false;
+  // First-time visitor (not signed in) — may tap to continue.
+  bool _canSkip = false;
 
   late final Animation<double> _topGlow;
   late final Animation<double> _bottomGlow;
@@ -39,8 +47,11 @@ class SplashScreenState extends State<SplashScreen>
   late final Animation<double> _featuresOpacity;
   late final Animation<double> _loadingOpacity;
 
-  Animation<double> _interval(double begin, double end,
-      {Curve curve = Curves.easeOutCubic}) {
+  Animation<double> _interval(
+    double begin,
+    double end, {
+    Curve curve = Curves.easeOutCubic,
+  }) {
     return CurvedAnimation(
       parent: _entry,
       curve: Interval(begin, end, curve: curve),
@@ -54,12 +65,18 @@ class SplashScreenState extends State<SplashScreen>
     _entry = AnimationController(
       duration: const Duration(milliseconds: 2600),
       vsync: this,
-    )..forward();
+    );
+    _entryDone = _entry.forward();
 
     _pulse = AnimationController(
       duration: const Duration(milliseconds: 1800),
       vsync: this,
     )..repeat(reverse: true);
+
+    _drift = AnimationController(
+      duration: const Duration(seconds: 9),
+      vsync: this,
+    )..repeat();
 
     _topGlow = _interval(0.0, 0.40);
     _bottomGlow = _interval(0.0, 0.40);
@@ -73,20 +90,36 @@ class SplashScreenState extends State<SplashScreen>
     _featuresOpacity = _interval(0.74, 0.88);
     _loadingOpacity = _interval(0.86, 1.0);
 
-    // Check auth state and navigate (unchanged from previous version).
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Respect the system's "reduce motion" setting.
+      if (MediaQuery.of(context).disableAnimations) {
+        _entry.value = 1;
+        _pulse.stop();
+        _drift.stop();
+      }
       _checkAuthAndNavigate();
     });
+  }
+
+  void _go(String route) {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    Navigator.of(context).pushReplacementNamed(route);
   }
 
   Future<void> _checkAuthAndNavigate() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      // New user → show splash for 8 seconds, then mode selection
-      await Future.delayed(const Duration(seconds: 8));
-      if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/mode_selection');
+      // New visitor → let the entrance finish (or tap), then mode selection.
+      if (mounted) setState(() => _canSkip = true);
+      try {
+        await _entryDone.orCancel;
+      } on TickerCanceled {
+        // Jumped to the end (reduce motion) or disposed — _go() checks mounted.
+      }
+      await Future.delayed(const Duration(milliseconds: 650));
+      _go('/mode_selection');
       return;
     }
 
@@ -103,14 +136,12 @@ class SplashScreenState extends State<SplashScreen>
         final data = farmerSnap.data()!;
         if (data['isDisabled'] == true) {
           await FirebaseAuth.instance.signOut();
-          if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/mode_selection');
+          _go('/mode_selection');
           return;
         }
         // Returning farmer → short splash, then home
         await Future.delayed(const Duration(seconds: 2));
-        if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/home');
+        _go('/home');
         return;
       }
 
@@ -122,28 +153,25 @@ class SplashScreenState extends State<SplashScreen>
 
       if (eduSnap.exists) {
         final data = eduSnap.data()!;
-        if (data['isDisabled'] == true) { // Add if field exists
+        if (data['isDisabled'] == true) {
+          // Add if field exists
           await FirebaseAuth.instance.signOut();
-          if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/mode_selection');
+          _go('/mode_selection');
           return;
         }
         // Returning education user → short splash, then edu home
         await Future.delayed(const Duration(seconds: 2));
-        if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/edu_home');
+        _go('/edu_home');
         return;
       }
 
       // No profile → sign out and mode selection
       await FirebaseAuth.instance.signOut();
       await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/mode_selection');
+      _go('/mode_selection');
     } catch (e) {
       debugPrint('Auth check error: $e');
-      if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/mode_selection');
+      _go('/mode_selection');
     }
   }
 
@@ -151,6 +179,7 @@ class SplashScreenState extends State<SplashScreen>
   void dispose() {
     _entry.dispose();
     _pulse.dispose();
+    _drift.dispose();
     super.dispose();
   }
 
@@ -160,36 +189,50 @@ class SplashScreenState extends State<SplashScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFF12241A),
-      body: AnimatedBuilder(
-        animation: Listenable.merge([_entry, _pulse]),
-        builder: (context, _) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildTopHalf(size),
-              _buildBottomHalf(size),
-              _buildDivider(size),
-              SafeArea(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Spacer(flex: 2),
-                    _buildLogo(),
-                    const SizedBox(height: 18),
-                    _buildTitle(),
-                    const SizedBox(height: 10),
-                    _buildTagline(),
-                    const Spacer(flex: 3),
-                    _buildFeatures(),
-                    const SizedBox(height: 32),
-                    _buildLoading(),
-                    const SizedBox(height: 36),
-                  ],
-                ),
-              ),
-            ],
-          );
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (_canSkip) _go('/mode_selection');
         },
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_entry, _pulse, _drift]),
+          builder: (context, _) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildTopHalf(size),
+                _buildBottomHalf(size),
+                IgnorePointer(
+                  child: CustomPaint(
+                    painter: _ParticlesPainter(
+                      time: _drift.value,
+                      opacity: _topGlow.value.clamp(0.0, 1.0),
+                    ),
+                  ),
+                ),
+                _buildDivider(size),
+                SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Spacer(flex: 2),
+                      _buildLogo(),
+                      const SizedBox(height: 18),
+                      _buildTitle(),
+                      const SizedBox(height: 10),
+                      _buildTagline(),
+                      const Spacer(flex: 3),
+                      _buildFeatures(),
+                      const SizedBox(height: 32),
+                      _buildLoading(),
+                      const SizedBox(height: 36),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -220,9 +263,11 @@ class SplashScreenState extends State<SplashScreen>
               top: size.height * 0.10 + dy,
               child: Opacity(
                 opacity: t * 0.7,
-                child: Icon(Icons.eco,
-                    color: Colors.white.withValues(alpha: 0.55),
-                    size: 22 + i * 4.0),
+                child: Icon(
+                  Icons.eco,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  size: 22 + i * 4.0,
+                ),
               ),
             );
           }),
@@ -257,9 +302,11 @@ class SplashScreenState extends State<SplashScreen>
               bottom: size.height * 0.08 + dy,
               child: Opacity(
                 opacity: t * 0.7,
-                child: Icon(Icons.menu_book_rounded,
-                    color: Colors.white.withValues(alpha: 0.55),
-                    size: 20 + i * 4.0),
+                child: Icon(
+                  Icons.menu_book_rounded,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  size: 20 + i * 4.0,
+                ),
               ),
             );
           }),
@@ -299,38 +346,64 @@ class SplashScreenState extends State<SplashScreen>
     final opacity = _logoOpacity.value.clamp(0.0, 1.0);
     final scale = math.max(0.0, _logoScale.value);
     if (opacity <= 0) return const SizedBox(height: 84);
+    final ring = _pulse.value;
     return Opacity(
       opacity: opacity,
       child: Transform.scale(
         scale: scale,
-        child: Container(
-          width: 84,
-          height: 84,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            // Soft glow ring that breathes with the pulse.
+            Container(
+              width: 84 + 26 * ring,
+              height: 84 + 26 * ring,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.35 * (1 - ring)),
+                  width: 2,
+                ),
               ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned(
-                left: 14,
-                child: Icon(Icons.eco, color: Colors.green.shade600, size: 30),
+            ),
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              Positioned(
-                right: 14,
-                child: Icon(Icons.menu_book_rounded,
-                    color: Colors.teal.shade700, size: 28),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    left: 14,
+                    child: Icon(
+                      Icons.eco,
+                      color: Colors.green.shade600,
+                      size: 30,
+                    ),
+                  ),
+                  Positioned(
+                    right: 14,
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      color: Colors.teal.shade700,
+                      size: 28,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -342,13 +415,32 @@ class SplashScreenState extends State<SplashScreen>
       opacity: opacity,
       child: Transform.translate(
         offset: Offset(0, (1 - opacity) * 10),
-        child: const Text(
-          'Kilimo Mkononi',
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 0.4,
+        child: ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (rect) {
+            final x = -1.0 + 3.0 * _drift.value; // sweeps left → right
+            return LinearGradient(
+              begin: Alignment(x - 0.6, 0),
+              end: Alignment(x + 0.6, 0),
+              colors: const [Colors.white, Color(0xFFE8F5E9), Colors.white],
+              stops: const [0.35, 0.5, 0.65],
+            ).createShader(rect);
+          },
+          child: const Text(
+            'Kilimo Mkononi',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 0.4,
+              shadows: [
+                Shadow(
+                  color: Colors.black26,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -377,7 +469,10 @@ class SplashScreenState extends State<SplashScreen>
         child: Text(
           text,
           style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w600, color: color),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
         ),
       ),
     );
@@ -415,16 +510,29 @@ class SplashScreenState extends State<SplashScreen>
       opacity: opacity,
       child: Column(
         children: [
-          const SizedBox(
-            width: 32,
-            height: 32,
-            child: CircularProgressIndicator(
-                color: Colors.white, strokeWidth: 3),
+          SizedBox(
+            width: 200,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                // Fills with the entrance, then keeps moving while we check
+                // the account.
+                value: _entry.isCompleted ? null : _entry.value,
+                minHeight: 5,
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
+                valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD54F)),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
-            'Preparing your experience...',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
+            _canSkip && _entry.isCompleted
+                ? 'Tap anywhere to continue'
+                : 'Preparing your experience…',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              letterSpacing: 0.2,
+            ),
           ),
         ],
       ),
@@ -443,9 +551,51 @@ class _FeatureIcon extends StatelessWidget {
       children: [
         Icon(icon, size: 30, color: Colors.white),
         const SizedBox(height: 6),
-        Text(label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
       ],
     );
   }
+}
+
+/// Small glowing seeds drifting upward across the whole splash.
+class _ParticlesPainter extends CustomPainter {
+  _ParticlesPainter({required this.time, required this.opacity});
+  final double time; // 0..1, repeating
+  final double opacity;
+
+  static final _seeds = List.generate(22, (i) {
+    final r = math.Random(i * 7919);
+    return (
+      r.nextDouble(),
+      r.nextDouble(),
+      1.2 + r.nextDouble() * 2.6,
+      0.4 + r.nextDouble() * 0.6,
+    );
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0) return;
+    final paint = Paint();
+    for (final (x, y0, radius, speed) in _seeds) {
+      final y = (y0 - time * speed) % 1.0;
+      final sway = math.sin((time * 2 + x) * math.pi * 2) * 10;
+      final fade = math.sin(
+        y * math.pi,
+      ); // fade in at the bottom, out at the top
+      paint.color = Colors.white.withValues(alpha: 0.28 * fade * opacity);
+      canvas.drawCircle(
+        Offset(x * size.width + sway, y * size.height),
+        radius,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ParticlesPainter old) =>
+      old.time != time || old.opacity != opacity;
 }

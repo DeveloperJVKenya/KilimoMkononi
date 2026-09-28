@@ -8,12 +8,12 @@
 // lookups etc.), not a registration-county default.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:kilimomkononi/models/user_model.dart';
-import 'package:kilimomkononi/data/kenya_locations.dart';
+import 'package:kilimomkononi/authentication/widgets/auth_kit.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
 
 class CompleteFarmerProfileScreen extends StatefulWidget {
@@ -42,10 +42,11 @@ class _CompleteFarmerProfileScreenState
   String? _county;
   String? _constituency;
   String? _ward;
-  List<String> _currentConstituencies = [];
-  List<String> _currentWards = [];
   bool _isLoading = false;
   bool _hasAcceptedTerms = false;
+  AutovalidateMode _autovalidate = AutovalidateMode.disabled;
+  final _nameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
 
   @override
   void initState() {
@@ -57,15 +58,15 @@ class _CompleteFarmerProfileScreenState
   void dispose() {
     _fullNameController.dispose();
     _phoneNumberController.dispose();
+    _nameFocus.dispose();
+    _phoneFocus.dispose();
     super.dispose();
   }
 
   void _updateConstituencies(String? county) {
     setState(() {
       _county = county;
-      _currentConstituencies = county != null ? kenyaLocations[county] ?? [] : [];
       _constituency = null;
-      _currentWards = [];
       _ward = null;
     });
   }
@@ -73,7 +74,6 @@ class _CompleteFarmerProfileScreenState
   void _updateWards(String? constituency) {
     setState(() {
       _constituency = constituency;
-      _currentWards = constituency != null ? constituencyWards[constituency] ?? [] : [];
       _ward = null;
     });
   }
@@ -130,179 +130,86 @@ class _CompleteFarmerProfileScreenState
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
   }
 
+  // Enter / button: validate, focus the first problem, else save.
+  void _submit() {
+    if (_isLoading) return;
+    setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
+    if (!_formKey.currentState!.validate()) {
+      if (validateName(_fullNameController.text) != null) {
+        _nameFocus.requestFocus();
+      } else if (validatePhone(_phoneNumberController.text) != null) {
+        _phoneFocus.requestFocus();
+      }
+      return;
+    }
+    _saveProfile();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Finish Setting Up'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _isLoading ? null : _cancel,
-        ),
+    final first = widget.suggestedFullName.trim().split(' ').first;
+    return AuthLayout(
+      title: first.isEmpty ? 'Almost there!' : 'Almost there, $first!',
+      subtitle: 'Signed in as ${widget.email}. Add your phone and farm location — we use them '
+          'for accurate weather, alerts and advice.',
+      maxFormWidth: 580,
+      topAction: (onDark) => TextButton.icon(
+        onPressed: _isLoading ? null : _cancel,
+        icon: const Icon(Icons.close_rounded, size: 18),
+        label: const Text('Cancel'),
+        style: TextButton.styleFrom(foregroundColor: onDark ? Colors.white : AuthColors.muted),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+      child: EnterToSubmit(
+        onSubmit: _submit,
+        enabled: !_isLoading,
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 10),
-              Text(
-                'Almost there, ${widget.suggestedFullName.split(' ').first}!',
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold, color: Colors.teal),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'We use your farm location for accurate weather and satellite data — this only takes a moment.',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 24),
-
-              TextFormField(
+          autovalidateMode: _autovalidate,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const AuthSectionTitle(step: '1', title: 'About you', icon: Icons.person_outline_rounded),
+            AuthRow(children: [
+              AuthField(
                 controller: _fullNameController,
-                decoration: InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                  filled: true,
-                  fillColor: Colors.grey[200],
-                ),
-                validator: (v) => v == null || v.isEmpty ? 'Please enter your full name' : null,
+                focusNode: _nameFocus,
+                label: 'Full name',
+                icon: Icons.badge_outlined,
+                capitalization: TextCapitalization.words,
+                validator: validateName,
+                onSubmitted: (_) => _submit(),
               ),
-              const SizedBox(height: 15.0),
-
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'County',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                  filled: true,
-                  fillColor: Colors.grey[200],
-                ),
-                initialValue: _county,
-                items: kenyaLocations.keys
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: _updateConstituencies,
-                validator: (v) => v == null ? 'Please select a county' : null,
-              ),
-              const SizedBox(height: 15.0),
-
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'Constituency',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                  filled: true,
-                  fillColor: Colors.grey[200],
-                ),
-                initialValue: _constituency,
-                items: _currentConstituencies
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: _updateWards,
-                validator: (v) => v == null ? 'Please select a constituency' : null,
-              ),
-              const SizedBox(height: 15.0),
-
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'Ward',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                  filled: true,
-                  fillColor: Colors.grey[200],
-                ),
-                initialValue: _ward,
-                items: _currentWards
-                    .map((w) => DropdownMenuItem(value: w, child: Text(w)))
-                    .toList(),
-                onChanged: (v) => setState(() => _ward = v),
-                validator: (v) => v == null ? 'Please select a ward' : null,
-              ),
-              const SizedBox(height: 15.0),
-
-              TextFormField(
+              AuthField(
                 controller: _phoneNumberController,
+                focusNode: _phoneFocus,
+                label: 'Phone number',
+                hint: '0712 345 678',
+                icon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                  filled: true,
-                  fillColor: Colors.grey[200],
-                ),
-                validator: (v) => v == null || v.isEmpty ? 'Please enter your phone number' : null,
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-()]'))],
+                validator: validatePhone,
+                onSubmitted: (_) => _submit(),
               ),
-              const SizedBox(height: 20.0),
-
-              // Terms & Conditions Checkbox — same pattern as the main
-              // registration screen, since Google sign-up skips that
-              // form entirely and this is the only step where a
-              // brand-new farmer account actually gets created.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: _hasAcceptedTerms,
-                    activeColor: Colors.teal,
-                    onChanged: (val) => setState(() => _hasAcceptedTerms = val ?? false),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: RichText(
-                        text: TextSpan(
-                          style: const TextStyle(color: Colors.black87, fontSize: 14),
-                          children: [
-                            const TextSpan(text: 'I have read and agree to the '),
-                            TextSpan(
-                              text: 'Terms & Conditions',
-                              style: const TextStyle(
-                                color: Colors.teal,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () => Navigator.pushNamed(context, '/terms'),
-                            ),
-                            const TextSpan(text: ' and '),
-                            TextSpan(
-                              text: 'Privacy Policy',
-                              style: const TextStyle(
-                                color: Colors.teal,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () => Navigator.pushNamed(context, '/privacy'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10.0),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: (_isLoading || !_hasAcceptedTerms) ? null : _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _hasAcceptedTerms ? Colors.teal : Colors.grey,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
-                    padding: const EdgeInsets.symmetric(vertical: 15.0),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Finish Setup',
-                          style: TextStyle(fontSize: 20.0, color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
+            ]),
+            const SizedBox(height: 22),
+            const AuthSectionTitle(step: '2', title: 'Farm location', icon: Icons.agriculture_outlined),
+            KenyaLocationFields(
+              county: _county,
+              constituency: _constituency,
+              ward: _ward,
+              onCounty: _updateConstituencies,
+              onConstituency: _updateWards,
+              onWard: (v) => setState(() => _ward = v),
+            ),
+            const SizedBox(height: 16),
+            TermsField(context: context, onChanged: (v) => setState(() => _hasAcceptedTerms = v)),
+            const SizedBox(height: 16),
+            AuthPrimaryButton(
+              label: 'Finish setup',
+              busyLabel: 'Saving…',
+              icon: Icons.check_rounded,
+              busy: _isLoading,
+              onPressed: _submit,
+            ),
+          ]),
         ),
       ),
     );

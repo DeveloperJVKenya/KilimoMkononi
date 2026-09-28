@@ -1,16 +1,21 @@
-// lib/screens/registration.dart
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// lib/authentication/registration.dart
+//
+// Farmer sign-up. Same responsive shell as login (auth_kit.dart), with the
+// form in three short sections — About you, Farm location, Security — laid
+// out in columns when there's room. Enter submits from anywhere; if
+// something's missing, the errors show and focus jumps to the first one.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart';
-import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:kilimomkononi/authentication/widgets/auth_kit.dart';
 import 'package:kilimomkononi/models/user_model.dart';
-import 'package:kilimomkononi/data/kenya_locations.dart';
+import 'package:kilimomkononi/screens/complete_farmer_profile.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
 import 'package:kilimomkononi/services/google_auth_service.dart';
-import 'package:kilimomkononi/screens/complete_farmer_profile.dart';
-import 'package:kilimomkononi/widgets/google_logo.dart';
+import 'package:logger/logger.dart';
+import 'package:provider/provider.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -20,336 +25,145 @@ class RegistrationScreen extends StatefulWidget {
 }
 
 class RegistrationScreenState extends State<RegistrationScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneNumberController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final logger = Logger(printer: PrettyPrinter());
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  final _formKey = GlobalKey<FormState>();
+  final _logger = Logger(printer: PrettyPrinter());
 
-  String? _fullName;
-  String? _email;
-  String? _phoneNumber;
-  String? _password;
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+
+  final _nameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _countyFocus = FocusNode();
+  final _constituencyFocus = FocusNode();
+  final _wardFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
+
   String? _county;
   String? _constituency;
   String? _ward;
+  bool _acceptedTerms = false;
+  bool _obscure = true;
   bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _hasAcceptedTerms = false;
+  String? _error;
+  BannerTone _tone = BannerTone.error;
+  AutovalidateMode _autovalidate = AutovalidateMode.disabled;
 
-  List<String> _currentConstituencies = [];
-  List<String> _currentWards = [];
+  @override
+  void initState() {
+    super.initState();
+    if (isKeyboardPlatform) WidgetsBinding.instance.addPostFrameCallback((_) => _nameFocus.requestFocus());
+  }
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _emailController.dispose();
-    _phoneNumberController.dispose();
-    _passwordController.dispose();
+    for (final c in [_name, _phone, _email, _password, _confirm]) {
+      c.dispose();
+    }
+    for (final f in [
+      _nameFocus, _phoneFocus, _emailFocus, _countyFocus, _constituencyFocus, _wardFocus, _passwordFocus, _confirmFocus,
+    ]) {
+      f.dispose();
+    }
     super.dispose();
   }
 
-  void _updateConstituencies(String? county) {
+  void _show(String? message, [BannerTone tone = BannerTone.error]) {
+    if (!mounted) return;
     setState(() {
-      _county = county;
-      _currentConstituencies = county != null ? kenyaLocations[county] ?? [] : [];
-      _constituency = null;
-      _currentWards = [];
-      _ward = null;
+      _error = message;
+      _tone = tone;
     });
   }
 
-  void _updateWards(String? constituency) {
-    setState(() {
-      _constituency = constituency;
-      _currentWards = constituency != null ? constituencyWards[constituency] ?? [] : [];
-      _ward = null;
-    });
+  String? _validatePassword(String? v) =>
+      (v ?? '').length < 6 ? 'Use at least 6 characters' : null;
+
+  String? _validateConfirm(String? v) =>
+      v != _password.text ? 'Passwords don\'t match' : null;
+
+  /// Focus of the first field that still needs attention (in form order).
+  FocusNode? _firstProblem() {
+    if (validateName(_name.text) != null) return _nameFocus;
+    if (validatePhone(_phone.text) != null) return _phoneFocus;
+    if (validateEmail(_email.text) != null) return _emailFocus;
+    if (_county == null) return _countyFocus;
+    if (_constituency == null) return _constituencyFocus;
+    if (_ward == null) return _wardFocus;
+    if (_validatePassword(_password.text) != null) return _passwordFocus;
+    if (_validateConfirm(_confirm.text) != null) return _confirmFocus;
+    return null;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/registration_background.jpg'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const SizedBox(height: 20.0),
-                  const Text(
-                    'Welcome!',
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.teal),
-                  ),
-                  const SizedBox(height: 10.0),
-                  Text(
-                    'Create your account below.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 30.0),
+  void _submit() {
+    if (_isLoading) return;
+    _show(null);
+    setState(() => _autovalidate = AutovalidateMode.onUserInteraction);
+    final ok = _formKey.currentState!.validate();
+    if (!ok) {
+      final problem = _firstProblem();
+      if (problem != null) {
+        problem.requestFocus();
+      } else if (!_acceptedTerms) {
+        _show('Please accept the Terms & Conditions and Privacy Policy to continue.', BannerTone.warning);
+      }
+      return;
+    }
+    _signUp();
+  }
 
-                  // Full Name
-                  TextFormField(
-                    controller: _fullNameController,
-                    decoration: InputDecoration(
-                      labelText: 'Full Name',
-                      hintText: 'Enter your full name',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                    ),
-                    validator: (v) => v == null || v.isEmpty ? 'Please enter your full name' : null,
-                    onSaved: (v) => _fullName = v,
-                  ),
-                  const SizedBox(height: 15.0),
+  Future<void> _signUp() async {
+    setState(() => _isLoading = true);
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: _email.text.trim(),
+        password: _password.text,
+      );
+      final appUser = AppUser(
+        id: cred.user!.uid,
+        fullName: _name.text.trim(),
+        email: _email.text.trim(),
+        county: _county!,
+        constituency: _constituency!,
+        ward: _ward!,
+        phoneNumber: _phone.text.trim(),
+      );
+      final userMap = appUser.toMap();
+      userMap['termsAcceptedAt'] = FieldValue.serverTimestamp();
+      await _firestore.collection('Users').doc(appUser.id).set(userMap);
 
-                  // Email
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'Enter your email address',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
-                        return 'Please enter a valid email address';
-                      }
-                      return null;
-                    },
-                    onSaved: (v) => _email = v,
-                  ),
-                  const SizedBox(height: 15.0),
-
-                  // County
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'County',
-                      hintText: 'Select your county',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                    ),
-                    initialValue: _county,
-                    items: kenyaLocations.keys
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: _updateConstituencies,
-                    validator: (v) => v == null ? 'Please select a county' : null,
-                    onSaved: (v) => _county = v,
-                  ),
-                  const SizedBox(height: 15.0),
-
-                  // Constituency
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Constituency',
-                      hintText: 'Select your constituency',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                    ),
-                    initialValue: _constituency,
-                    items: _currentConstituencies
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: _updateWards,
-                    validator: (v) => v == null ? 'Please select a constituency' : null,
-                    onSaved: (v) => _constituency = v,
-                  ),
-                  const SizedBox(height: 15.0),
-
-                  // Ward
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Ward',
-                      hintText: 'Select your ward',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                    ),
-                    initialValue: _ward,
-                    items: _currentWards
-                        .map((w) => DropdownMenuItem(value: w, child: Text(w)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _ward = v),
-                    validator: (v) => v == null ? 'Please select a ward' : null,
-                    onSaved: (v) => _ward = v,
-                  ),
-                  const SizedBox(height: 15.0),
-
-                  // Phone
-                  TextFormField(
-                    controller: _phoneNumberController,
-                    decoration: InputDecoration(
-                      labelText: 'Phone Number',
-                      hintText: 'Enter your phone number',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                    ),
-                    validator: (v) => v == null || v.isEmpty ? 'Please enter your phone number' : null,
-                    onSaved: (v) => _phoneNumber = v,
-                  ),
-                  const SizedBox(height: 15.0),
-
-                  // Password
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Enter your password',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30.0)),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      ),
-                    ),
-                    validator: (v) => v == null || v.isEmpty ? 'Please enter a password' : null,
-                    onSaved: (v) => _password = v,
-                  ),
-                  const SizedBox(height: 20.0),
-
-                  // Terms & Conditions Checkbox
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Checkbox(
-                        value: _hasAcceptedTerms,
-                        activeColor: Colors.teal,
-                        onChanged: (val) => setState(() => _hasAcceptedTerms = val ?? false),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 12.0),
-                          child: RichText(
-                            text: TextSpan(
-                              style: const TextStyle(color: Colors.black87, fontSize: 14),
-                              children: [
-                                const TextSpan(text: 'I have read and agree to the '),
-                                TextSpan(
-                                  text: 'Terms & Conditions',
-                                  style: const TextStyle(
-                                    color: Colors.teal,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () => Navigator.pushNamed(context, '/terms'),
-                                ),
-                                const TextSpan(text: ' and '),
-                                TextSpan(
-                                  text: 'Privacy Policy',
-                                  style: const TextStyle(
-                                    color: Colors.teal,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () => Navigator.pushNamed(context, '/privacy'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16.0),
-
-                  // Sign Up Button – disabled until terms accepted
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: (_isLoading || !_hasAcceptedTerms)
-                          ? null
-                          : () {
-                              if (_formKey.currentState!.validate()) {
-                                _formKey.currentState!.save();
-                                _signUp();
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _hasAcceptedTerms ? Colors.teal : Colors.grey,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
-                        padding: const EdgeInsets.symmetric(vertical: 15.0),
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Sign Up', style: TextStyle(fontSize: 20.0, color: Colors.white)),
-                    ),
-                  ),
-                  const SizedBox(height: 20.0),
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey[400])),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: Text('OR', style: TextStyle(color: Colors.grey[600])),
-                      ),
-                      Expanded(child: Divider(color: Colors.grey[400])),
-                    ],
-                  ),
-                  const SizedBox(height: 20.0),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _handleGoogleSignUp,
-                      icon: const GoogleLogo(size: 20),
-                      label: const Text('Sign up with Google', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Colors.grey[400]!),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10.0),
-
-                  // Login Link
-                  Center(
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                      child: const Text('Already have an account? Log In', style: TextStyle(color: Colors.teal)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+      TextInput.finishAutofillContext();
+      if (!mounted) return;
+      Provider.of<AuthStateService>(context, listen: false).setSkipNext();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Welcome to Kilimo Mkononi, ${appUser.fullName.split(' ').first}!'),
+        backgroundColor: AuthColors.green,
+      ));
+      Navigator.of(context).pushReplacementNamed('/home');
+    } on FirebaseAuthException catch (e) {
+      _logger.e('Sign up failed: ${e.code}');
+      _show(authErrorMessage(e.code, e.message));
+      if (e.code == 'email-already-in-use' || e.code == 'invalid-email') _emailFocus.requestFocus();
+      if (e.code == 'weak-password') _passwordFocus.requestFocus();
+    } catch (e) {
+      _logger.e('Sign up failed: $e');
+      _show('Could not create your account: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _handleGoogleSignUp() async {
+    _show(null);
     setState(() => _isLoading = true);
-
-    // See the comment in login.dart's _handleGoogleSignIn — this must
-    // be armed BEFORE the credential exchange, not after.
-    final authService = Provider.of<AuthStateService>(context, listen: false);
-    authService.setSkipNext();
-
+    // Must be armed BEFORE the credential exchange — see login.dart.
+    Provider.of<AuthStateService>(context, listen: false).setSkipNext();
     try {
       final result = await GoogleAuthService.signIn();
       final uid = result.uid;
@@ -357,103 +171,175 @@ class RegistrationScreenState extends State<RegistrationScreen> {
       final eduDoc = await _firestore.collection('EducationUsers').doc(uid).get();
       if (eduDoc.exists) {
         await GoogleAuthService.signOut();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This Google account is registered with the Education app. Please use "Education (Schools)" mode.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _show('This Google account is registered with the Education app. Choose "Education (Schools)" instead.',
+            BannerTone.warning);
         return;
       }
-
       final farmerDoc = await _firestore.collection('Users').doc(uid).get();
       if (farmerDoc.exists) {
-        // Already has an account — just log them in.
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacementNamed('/home'); // already registered → signed in
         return;
       }
-
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => CompleteFarmerProfileScreen(
-            uid: uid,
-            email: result.email,
-            suggestedFullName: result.displayName,
-          ),
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => CompleteFarmerProfileScreen(
+          uid: uid,
+          email: result.email,
+          suggestedFullName: result.displayName,
         ),
-      );
+      ));
     } on GoogleAuthCancelledException {
-      // User closed the picker.
+      // Picker closed.
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google sign-up failed: $e')),
-        );
-      }
+      _show('Google sign-up failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _signUp() async {
-    setState(() => _isLoading = true);
+  @override
+  Widget build(BuildContext context) {
+    return AuthLayout(
+      title: 'Create your farmer account',
+      subtitle: 'It takes about a minute. Your farm location is used for accurate weather and advice.',
+      maxFormWidth: 580,
+      topAction: (onDark) => TextButton.icon(
+        onPressed: () => Navigator.of(context).pushReplacementNamed('/mode_selection'),
+        icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+        label: const Text('Switch mode'),
+        style: TextButton.styleFrom(foregroundColor: onDark ? Colors.white : AuthColors.teal),
+      ),
+      child: EnterToSubmit(
+        onSubmit: _submit,
+        enabled: !_isLoading,
+        child: AutofillGroup(
+          child: Form(
+            key: _formKey,
+            autovalidateMode: _autovalidate,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              AuthErrorBanner(message: _error, tone: _tone),
+              GoogleAuthButton(label: 'Sign up with Google', onPressed: _isLoading ? null : _handleGoogleSignUp),
+              const OrDivider(),
 
-    try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: _email!,
-        password: _password!,
-      );
+              const AuthSectionTitle(step: '1', title: 'About you', icon: Icons.person_outline_rounded),
+              AuthRow(children: [
+                AuthField(
+                  controller: _name,
+                  focusNode: _nameFocus,
+                  label: 'Full name',
+                  hint: 'e.g. Jane Wanjiku',
+                  icon: Icons.badge_outlined,
+                  capitalization: TextCapitalization.words,
+                  autofillHints: const [AutofillHints.name],
+                  validator: validateName,
+                  onSubmitted: (_) => _submit(),
+                ),
+                AuthField(
+                  controller: _phone,
+                  focusNode: _phoneFocus,
+                  label: 'Phone number',
+                  hint: '0712 345 678',
+                  icon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                  autofillHints: const [AutofillHints.telephoneNumber],
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-()]'))],
+                  validator: validatePhone,
+                  onSubmitted: (_) => _submit(),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              AuthField(
+                controller: _email,
+                focusNode: _emailFocus,
+                label: 'Email address',
+                hint: 'you@example.com',
+                icon: Icons.alternate_email_rounded,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                validator: validateEmail,
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 22),
 
-      final appUser = AppUser(
-        id: userCredential.user!.uid,
-        fullName: _fullName!,
-        email: _email!,
-        county: _county!,
-        constituency: _constituency!,
-        ward: _ward!,
-        phoneNumber: _phoneNumber!,
-      );
+              const AuthSectionTitle(step: '2', title: 'Farm location', icon: Icons.agriculture_outlined),
+              KenyaLocationFields(
+                county: _county,
+                constituency: _constituency,
+                ward: _ward,
+                countyFocus: _countyFocus,
+                constituencyFocus: _constituencyFocus,
+                wardFocus: _wardFocus,
+                onCounty: (v) => setState(() {
+                  _county = v;
+                  _constituency = null;
+                  _ward = null;
+                }),
+                onConstituency: (v) => setState(() {
+                  _constituency = v;
+                  _ward = null;
+                }),
+                onWard: (v) => setState(() => _ward = v),
+              ),
+              const SizedBox(height: 22),
 
-      final userMap = appUser.toMap();
-      userMap['termsAcceptedAt'] = FieldValue.serverTimestamp();
-      await _firestore.collection('Users').doc(appUser.id).set(userMap);
-
-      if (!mounted) return;
-
-      // SKIP SPLASHSCREEN NAVIGATION
-      final authService = Provider.of<AuthStateService>(context, listen: false);
-      authService.setSkipNext();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign up successful. Welcome, $_fullName!')),
-      );
-
-      // GO TO HOME – NEW USER UX
-      Navigator.of(context).pushReplacementNamed('/home');
-    } catch (e) {
-      if (!mounted) return;
-
-      logger.e('Error during sign up: $e');
-      String errorMessage = 'Failed to sign up. Please try again.';
-      if (e is FirebaseAuthException) {
-        switch (e.code) {
-          case 'email-already-in-use':
-            errorMessage = 'The email address is already in use.';
-            break;
-          case 'invalid-email':
-            errorMessage = 'The email address is invalid.';
-            break;
-          case 'weak-password':
-            errorMessage = 'The password is too weak.';
-            break;
-        }
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+              const AuthSectionTitle(step: '3', title: 'Security', icon: Icons.shield_outlined),
+              AuthRow(children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  AuthField(
+                    controller: _password,
+                    focusNode: _passwordFocus,
+                    label: 'Password',
+                    icon: Icons.lock_outline_rounded,
+                    obscure: _obscure,
+                    autofillHints: const [AutofillHints.newPassword],
+                    validator: _validatePassword,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _submit(),
+                    suffix: IconButton(
+                      tooltip: _obscure ? 'Show password' : 'Hide password',
+                      icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                  PasswordStrengthMeter(password: _password.text),
+                  CapsLockHint(focusNode: _passwordFocus),
+                ]),
+                AuthField(
+                  controller: _confirm,
+                  focusNode: _confirmFocus,
+                  label: 'Confirm password',
+                  icon: Icons.lock_reset_rounded,
+                  obscure: _obscure,
+                  textInputAction: TextInputAction.go,
+                  autofillHints: const [AutofillHints.newPassword],
+                  validator: _validateConfirm,
+                  onSubmitted: (_) => _submit(),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              TermsField(context: context, onChanged: (v) => setState(() => _acceptedTerms = v)),
+              const SizedBox(height: 16),
+              AuthPrimaryButton(
+                label: 'Create account',
+                busyLabel: 'Creating your account…',
+                icon: Icons.check_rounded,
+                busy: _isLoading,
+                onPressed: _submit,
+              ),
+              const SizedBox(height: 18),
+              Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                const Text('Already have an account?', style: TextStyle(color: AuthColors.muted)),
+                TextButton(
+                  onPressed: _isLoading ? null : () => Navigator.of(context).pushReplacementNamed('/login'),
+                  style: TextButton.styleFrom(foregroundColor: AuthColors.green),
+                  child: const Text('Sign in', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 }

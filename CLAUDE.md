@@ -144,6 +144,10 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   Update them whenever you change the rules.
 
 ## Notes for future changes
+- Farmer auth screens (login, registration, Google "finish setup") share
+  `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
+  width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),
+  shared fields, validators and Firebase error messages. Build new auth UI from it.
 - `lib/enterprise/features/weather/` — **Field Agronomist** role + verified weather advisories.
   - Role: `Agronomists/{uid}` doc, granted by an admin (Admin panel → "Assign Field Agronomist").
     Checked with `AgronomicAdvisoryService.isFieldAgronomist()`; enforced by `isAgronomist()` in the
