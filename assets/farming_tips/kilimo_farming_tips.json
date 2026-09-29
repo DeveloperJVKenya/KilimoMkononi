@@ -53,7 +53,7 @@
     }
   },
   "beans": {
-    "icon": "🫘",
+    "icon": "🌱",
     "general": "- Inoculate seed with rhizobium (especially on new fields)\n- Avoid excess nitrogen fertilizer\n- Critical moisture needed at flowering & pod filling",
     "image_general": "farming_tips/images/beans_general.jpg",
     "stages": {
