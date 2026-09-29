@@ -6,7 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 // Riverpod runs alongside `provider` during the migration. Only ProviderScope
 // is imported here — both packages define a class named `Provider`.
-import 'package:flutter_riverpod/flutter_riverpod.dart' show ProviderScope;
+import 'package:flutter_riverpod/flutter_riverpod.dart' show ConsumerWidget, ProviderScope, WidgetRef;
 
 // connectivity_plus — import here so the ConnectivityService provider
 // is available to the entire widget tree (both Farmer and Education).
@@ -36,6 +36,9 @@ import 'package:kilimomkononi/services/connectivity_service.dart'; // <-- create
 // Policy screens
 import 'package:kilimomkononi/settings/terms_and_conditions_screen.dart';
 import 'package:kilimomkononi/settings/privacy_policy_screen.dart';
+
+// Appearance (text size, font …) from Settings
+import 'package:kilimomkononi/settings/appearance/appearance.dart';
 
 // User profile provider
 import 'package:kilimomkononi/settings/providers/user_profile_provider.dart';
@@ -93,20 +96,25 @@ void _openNotificationRoute(String route, Map<String, String> args) {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appearance = ref.watch(appearanceProvider);
     return MaterialApp(
       title: 'Kilimo Mkononi',
       navigatorKey: NotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
+      theme: appearanceTheme(
+        ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+          useMaterial3: true,
+          fontFamily: 'Roboto',
+        ),
+        appearance,
       ),
+      builder: (context, child) => AppearanceScope(settings: appearance, child: child ?? const SizedBox()),
       home: const SplashScreen(),
       routes: {
         '/login': (_) => const LoginScreen(),

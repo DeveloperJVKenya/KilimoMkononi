@@ -1,163 +1,217 @@
-import 'package:flutter/material.dart';
+// lib/settings/faq_screen.dart
+//
+// Settings → Help centre: searchable, grouped answers about the app's real
+// features, with a "still need help?" link to Contact us.
 
-class FAQScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:kilimomkononi/settings/contact_us_screen.dart';
+import 'package:kilimomkononi/settings/widgets/settings_kit.dart';
+
+class Faq {
+  final String category;
+  final IconData icon;
+  final String q;
+  final String a;
+  const Faq(this.category, this.icon, this.q, this.a);
+
+  bool matches(String query) {
+    final t = query.trim().toLowerCase();
+    return t.isEmpty || q.toLowerCase().contains(t) || a.toLowerCase().contains(t) || category.toLowerCase().contains(t);
+  }
+}
+
+const kFarmerFaqs = <Faq>[
+  Faq('Getting started', Icons.rocket_launch_rounded, 'What can I do with Kilimo Mkononi?',
+      'Record your plots and crops (Field Data Input), check the weather and your farm\'s weather station, diagnose '
+          'pests and diseases from a photo, track costs, harvests and loans (Farm Management), compare market prices, '
+          'and read step-by-step farming tips and manuals.'),
+  Faq('Getting started', Icons.rocket_launch_rounded, 'Does the app work without internet?',
+      'Yes, for recording. Field data, pest and disease records, reminders and costs are saved on your phone when you '
+          'are offline and upload automatically when you reconnect. You can see what is waiting in Settings → Offline '
+          'data. Weather, prices and AI diagnosis need a connection.'),
+  Faq('Weather & stations', Icons.cloud_rounded, 'Where does the weather forecast come from?',
+      'The Weather screen uses Google Weather for your location, your farm or any place you type. If your farm is '
+          'linked to a Kilimo Mkononi weather station, the Weather Station screen also shows the station\'s own live '
+          'readings (rain, soil moisture, temperature, spray conditions). Each is clearly labelled.'),
+  Faq('Weather & stations', Icons.cloud_rounded, 'How do I see my weather station?',
+      'Open Field Data Input and choose Weather Station. Stations are assigned to farms by the Kilimo Mkononi team — '
+          'contact us if your farm has a station but you can\'t see it.'),
+  Faq('Weather & stations', Icons.cloud_rounded, 'What is "Verified advice"?',
+      'Advice written and checked by a Field Agronomist for your crops and the conditions your station is recording. '
+          'The AI Farm Advisor underneath is labelled "AI-generated · not verified" — use it as a guide only.'),
+  Faq('Field data', Icons.edit_note_rounded, 'How do I add a plot or crop?',
+      'Go to Field Data Input, create a plot, then add the crop, planting date, soil test results and activities. '
+          'Your crops also decide which verified advice, alerts and farming tips you see first.'),
+  Faq('Pests & diseases', Icons.bug_report_rounded, 'How does photo diagnosis work?',
+      'In Pests & Diseases, take or choose a clear photo of the affected leaf, stem or insect. The app suggests the '
+          'most likely problem with a confidence level and management options. Always confirm with an extension '
+          'officer before spraying.'),
+  Faq('Market prices', Icons.price_check_rounded, 'Where do the market prices come from?',
+      'Prices are reported by farmers using the app, grouped by crop, market and county, with the average, range and '
+          '30-day trend. For official daily prices, open KAMIS (Ministry of Agriculture) from the Market Prices screen.'),
+  Faq('Market prices', Icons.price_check_rounded, 'How do I report or change a price?',
+      'Tap "Report a price", pick the crop, market, county, price and unit, and submit. Tap any of your own reports to '
+          'edit or delete it. Other farmers can see your report but not your name.'),
+  Faq('Notifications', Icons.notifications_rounded, 'Why am I not getting weather alerts?',
+      'Check Settings → Notifications: push notifications and weather alerts must be on, and the phone must allow '
+          'notifications for Kilimo Mkononi. Alerts come from your assigned weather station, so your farm needs a '
+          'station.'),
+  Faq('Notifications', Icons.notifications_rounded, 'How do reminders work?',
+      'When you schedule an activity (for example spraying or top-dressing) the app reminds you on the day. Turn '
+          'reminder types on or off in Settings → Notifications; past alerts stay in the Notifications inbox.'),
+  Faq('Account & privacy', Icons.shield_rounded, 'How do I change my password or email?',
+      'Settings → Account & security. You\'ll confirm your current password first. If you signed up with Google, your '
+          'password is managed by Google — or use "Send password reset link" to add one.'),
+  Faq('Account & privacy', Icons.shield_rounded, 'I forgot my password',
+      'On the sign-in screen tap "Forgot password?" and enter your email — we send a reset link. Check your spam folder '
+          'if it doesn\'t arrive within a few minutes.'),
+  Faq('Account & privacy', Icons.shield_rounded, 'How do I delete my account?',
+      'Settings → Account & security → Delete account and data. Your profile and records are deleted immediately; '
+          'anything else linked to you is removed by our team within 30 days.'),
+  Faq('Account & privacy', Icons.shield_rounded, 'Is my data safe?',
+      'Your records are stored securely on Google Firebase and only you (and authorised Kilimo Mkononi staff) can see '
+          'them. We follow the Kenya Data Protection Act, 2019 — see the Privacy policy for details.'),
+  Faq('Display', Icons.text_fields_rounded, 'The text is too small / hard to read outdoors',
+      'Settings → Appearance: make the text larger, choose a different font, or turn on Bold text.'),
+];
+
+const kEducationFaqs = <Faq>[
+  Faq('Getting started', Icons.school_rounded, 'How do I join my school?',
+      'Register with your school name and choose your role. A head teacher approves teachers, and teachers approve '
+          'students — you\'ll get a notification when you\'re approved.'),
+  Faq('Getting started', Icons.school_rounded, 'Why can\'t I see my class content yet?',
+      'Your account may still be waiting for approval. Ask your teacher (or head teacher) to approve you.'),
+  Faq('Learning', Icons.menu_book_rounded, 'How does the AI tutor work?',
+      'The tutor answers questions about your topics and can create practice quizzes. Check important facts with your '
+          'teacher.'),
+  Faq('Account & privacy', Icons.shield_rounded, 'How do I change my password?',
+      'Settings → Account & security → Change password, or use "Send password reset link".'),
+  Faq('Account & privacy', Icons.shield_rounded, 'How do I delete my account?',
+      'Settings → Account & security → Request account deletion. Because education accounts are linked to a school, '
+          'our team handles it and confirms by email.'),
+  Faq('Display', Icons.text_fields_rounded, 'Can I make the text bigger?', 'Yes — Settings → Appearance.'),
+];
+
+class FAQScreen extends StatefulWidget {
   final bool isEducation;
   const FAQScreen({super.key, this.isEducation = false});
 
-  static const Color customGreen = Color(0xFF003900); // Consistent with your app’s theme
+  @override
+  State<FAQScreen> createState() => _FAQScreenState();
+}
+
+class _FAQScreenState extends State<FAQScreen> {
+  final _search = TextEditingController();
+  String? _category;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Knowledge Base / FAQ',
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor: customGreen,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Text(
-                'Frequently Asked Questions',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: customGreen,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
+    final all = widget.isEducation ? kEducationFaqs : kFarmerFaqs;
+    final categories = <String, IconData>{for (final f in all) f.category: f.icon};
+    final q = _search.text;
+    final shown = all.where((f) => (_category == null || f.category == _category) && f.matches(q)).toList();
 
-              // Introduction
-              const Text(
-                'Find answers to common questions about using Kilimo Mkononi. If you don’t see your question here, '
-                'feel free to contact us!',
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-
-              // FAQ List
-              _buildFAQItem(
-                context,
-                question: 'How do I reset my password?',
-                answer: 'Go to the "Settings" screen, tap "Edit Profile," and select "Change Password." Follow the '
-                    'prompts to enter your old password and set a new one.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'Where can I find crop prices?',
-                answer: 'Check the "Market Price Prediction" section on the Home Screen for real-time updates on '
-                    'crop prices in your region.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'How do I set a reminder for my farming tasks?',
-                answer: 'In the "Field Data Input" screen, select a plot, fill in your data, and tap the "Reminder Date" '
-                    'tile under "Intervention Used." Set the date and activity, then save your data.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'Why aren’t my reminders showing in the Inbox?',
-                answer: 'Ensure you’ve saved your data after setting a reminder. If the issue persists, check your '
-                    'notification settings or contact support at support@kilimomkononi.com.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'How accurate are the weather forecasts?',
-                answer: 'Weather updates are sourced from reliable providers, but accuracy depends on local conditions. '
-                    'Use them as a guide and check frequently for updates.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'Can I use the app offline?',
-                answer: 'Some features, like saved field data and manuals, are available offline. However, weather '
-                    'updates and market prices require an internet connection.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'How do I delete my account?',
-                answer: 'Contact us at support@kilimomkononi.com with your account details, and we’ll process your '
-                    'deletion request within 7 business days.',
-              ),
-              _buildFAQItem(
-                context,
-                question: 'Is my data secure?',
-                answer: 'Yes, we use encryption and secure storage to protect your information. See our Privacy Policy '
-                    'for more details.',
-              ),
-              const SizedBox(height: 24),
-
-              // Contact Prompt
-              _buildSectionTitle(context, 'Still Have Questions?'),
-              const Text(
-                'Reach out to us at:\n'
-                'Email: support@jvalmacis.co.ke\n'
-                'Phone: +254 795 802 020',
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 16),
-
-              // Footer
-              Center(
-                child: Text(
-                  '© 2025 Kilimo Mkononi. All rights reserved.',
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ),
-            ],
+    return SettingsPage(
+      title: 'Help centre',
+      subtitle: 'Frequently asked questions',
+      children: [
+        TextField(
+          controller: _search,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Search help (e.g. alerts, password, offline)',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: q.isEmpty
+                ? null
+                : IconButton(tooltip: 'Clear', icon: const Icon(Icons.close_rounded), onPressed: () => setState(_search.clear)),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kSetBorder)),
+            enabledBorder:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kSetBorder)),
           ),
         ),
-      ),
-    );
-  }
-
-  // Helper method for section titles
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          color: customGreen,
-          fontWeight: FontWeight.bold,
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 40,
+          child: ListView(scrollDirection: Axis.horizontal, children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: const Text('All'),
+                selected: _category == null,
+                showCheckmark: false,
+                selectedColor: const Color(0xFFD8EFD9),
+                onSelected: (_) => setState(() => _category = null),
+              ),
+            ),
+            for (final e in categories.entries)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  avatar: Icon(e.value, size: 16, color: kSetGreen),
+                  label: Text(e.key),
+                  selected: _category == e.key,
+                  showCheckmark: false,
+                  selectedColor: const Color(0xFFD8EFD9),
+                  onSelected: (_) => setState(() => _category = _category == e.key ? null : e.key),
+                ),
+              ),
+          ]),
         ),
-      ),
-    );
-  }
-
-  // Helper method for FAQ items using ExpansionTile
-  Widget _buildFAQItem(BuildContext context, {required String question, required String answer}) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      child: ExpansionTile(
-        leading: const Icon(Icons.question_answer, color: customGreen),
-        title: Text(
-          question,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: customGreen,
-          ),
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              answer,
-              style: const TextStyle(fontSize: 16, height: 1.5),
+        const SizedBox(height: 14),
+        if (shown.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Column(children: [
+              Icon(Icons.search_off_rounded, size: 40, color: kSetMuted),
+              SizedBox(height: 8),
+              Text('No answers match your search', style: TextStyle(fontWeight: FontWeight.w700)),
+            ]),
+          )
+        else
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: kSetBorder)),
+              child: Column(children: [
+                for (var i = 0; i < shown.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: kSetBorder),
+                  Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      key: PageStorageKey(shown[i].q),
+                      leading: SettingsIcon(shown[i].icon),
+                      title: Text(shown[i].q, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+                      subtitle: Text(shown[i].category, style: const TextStyle(color: kSetMuted, fontSize: 12)),
+                      childrenPadding: const EdgeInsets.fromLTRB(66, 0, 16, 16),
+                      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                      children: [Text(shown[i].a, style: const TextStyle(height: 1.5, color: kSetInk))],
+                    ),
+                  ),
+                ],
+              ]),
             ),
           ),
-        ],
-      ),
+        const SizedBox(height: 18),
+        SettingsSection(title: 'Still need help?', children: [
+          SettingsTile(
+            icon: Icons.support_agent_rounded,
+            color: const Color(0xFFB26A00),
+            title: 'Contact the Kilimo Mkononi team',
+            subtitle: 'Call, WhatsApp, email or send a message',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactUsScreen())),
+          ),
+        ]),
+      ],
     );
   }
 }

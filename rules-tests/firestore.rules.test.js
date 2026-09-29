@@ -436,6 +436,21 @@ test("market prices: everyone signed in reads the board; only the reporter edits
   await assertFails(setDoc(doc(as("farmer"), "marketdata/m4"), { ...report, userId: "someoneElse" }));
 });
 
+test("support messages: sender creates and reads their own; strangers can't", async () => {
+  const msg = { userId: "farmer", topic: "problem", name: "Jane", email: "jane@farm.ke",
+    message: "The weather screen is blank", status: "open", createdAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(as("farmer"), "supportMessages/s1"), msg));
+  await assertSucceeds(getDoc(doc(as("farmer"), "supportMessages/s1")));
+  await assertSucceeds(getDocs(query(collection(as("farmer"), "supportMessages"), where("userId", "==", "farmer"))));
+  await assertFails(getDoc(doc(as("stranger"), "supportMessages/s1")));
+  await assertFails(updateDoc(doc(as("farmer"), "supportMessages/s1"), { status: "resolved" }));
+  await assertFails(setDoc(doc(as("farmer"), "supportMessages/s2"), { ...msg, userId: "someoneElse" }));
+  await assertFails(setDoc(doc(as("farmer"), "supportMessages/s3"), { ...msg, topic: "spam" }));
+  await assertFails(setDoc(doc(as("farmer"), "supportMessages/s4"), { ...msg, message: "" }));
+  await assertFails(setDoc(doc(as("farmer"), "supportMessages/s5"), { ...msg, reply: "Fixed!" }));
+  await assertFails(setDoc(doc(anon(), "supportMessages/s6"), msg));
+});
+
 test("notification settings: owner only, valid fields only", async () => {
   const prefs = {
     push: true, weatherAlerts: false, advisories: true, approvals: true,

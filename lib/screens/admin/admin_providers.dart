@@ -109,6 +109,12 @@ const kAdminStats = <AdminStat>[
     Color(0xFF00695C),
   ),
   AdminStat(
+    'supportMessages',
+    'Support messages',
+    Icons.support_agent_rounded,
+    Color(0xFFB26A00),
+  ),
+  AdminStat(
     'admin_logs',
     'Admin logs',
     Icons.receipt_long_rounded,

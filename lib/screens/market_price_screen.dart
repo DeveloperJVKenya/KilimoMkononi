@@ -20,14 +20,15 @@ import 'package:kilimomkononi/screens/market/market_prices.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart' show fullStamp, relativeTime, KmTag;
 import 'package:url_launcher/url_launcher.dart';
 
-const _kOrange = Color(0xFFEF6C00);
-const _kOrangeDark = Color(0xFFBF360C);
+const _kAccent = Color(0xFF2E6A5E); // muted teal — calm on the eyes outdoors
+const _kAccentDark = Color(0xFF1F4D44);
+const _kTint = Color(0xFFE6F0EC);
 const _kGreen = Color(0xFF2E7D32);
 const _kRed = Color(0xFFC62828);
-const _kPage = Color(0xFFF7F5F2);
+const _kPage = Color(0xFFF4F6F4);
 const _kInk = Color(0xFF1F2937);
 const _kMuted = Color(0xFF6B7280);
-const _kBorder = Color(0xFFE7E1DA);
+const _kBorder = Color(0xFFE0E7E3);
 
 class MarketPriceScreen extends ConsumerWidget {
   const MarketPriceScreen({super.key});
@@ -44,7 +45,7 @@ class MarketPriceScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(gradient: LinearGradient(colors: [_kOrangeDark, _kOrange])),
+          decoration: const BoxDecoration(gradient: LinearGradient(colors: [_kAccentDark, _kAccent])),
         ),
         title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Market Prices', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
@@ -59,20 +60,20 @@ class MarketPriceScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: _kOrange,
+        backgroundColor: _kAccent,
         foregroundColor: Colors.white,
         onPressed: () => showPriceForm(context, ref),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Report a price'),
       ),
       body: board.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: _kOrange)),
+        loading: () => const Center(child: CircularProgressIndicator(color: _kAccent)),
         error: (e, _) => _Empty(
           icon: Icons.cloud_off_rounded,
           title: 'Couldn\'t load prices',
           text: 'Check your connection. You can still open the official KAMIS prices.',
           action: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _kOrange),
+            style: FilledButton.styleFrom(backgroundColor: _kAccent),
             onPressed: () => openKamis(context),
             icon: const Icon(Icons.open_in_new_rounded),
             label: const Text('Open KAMIS'),
@@ -156,7 +157,7 @@ class _KamisCard extends StatelessWidget {
           child: Ink(
             padding: const EdgeInsets.all(14),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFF0B3D1E), Color(0xFF1B5E20), Color(0xFF00695C)]),
+              gradient: LinearGradient(colors: [Color(0xFF1E3A5F), Color(0xFF2C5282)]),
             ),
             child: const Row(children: [
               CircleAvatar(
@@ -196,7 +197,7 @@ class _Filters extends ConsumerWidget {
       SegmentedButton<bool>(
         showSelectedIcon: false,
         style: SegmentedButton.styleFrom(
-          selectedBackgroundColor: _kOrange,
+          selectedBackgroundColor: _kAccent,
           selectedForegroundColor: Colors.white,
           backgroundColor: Colors.white,
         ),
@@ -254,7 +255,7 @@ class _Filters extends ConsumerWidget {
             onPressed: () => set(PriceQuery(mineOnly: query.mineOnly, sort: query.sort)),
             icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
             label: const Text('Clear'),
-            style: TextButton.styleFrom(foregroundColor: _kOrangeDark),
+            style: TextButton.styleFrom(foregroundColor: _kAccentDark),
           ),
       ]),
       const SizedBox(height: 12),
@@ -282,9 +283,9 @@ class _Chip extends StatelessWidget {
           selected: selected,
           onSelected: (_) => onTap(),
           showCheckmark: false,
-          selectedColor: _kOrange,
+          selectedColor: _kAccent,
           backgroundColor: Colors.white,
-          side: BorderSide(color: selected ? _kOrange : _kBorder),
+          side: BorderSide(color: selected ? _kAccent : _kBorder),
           labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: selected ? Colors.white : _kInk),
         ),
       );
@@ -302,18 +303,18 @@ class _PickerButton extends StatelessWidget {
     final body = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: active ? const Color(0xFFFFF3E0) : Colors.white,
+        color: active ? _kTint : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: active ? _kOrange : _kBorder),
+        border: Border.all(color: active ? _kAccent : _kBorder),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 16, color: active ? _kOrangeDark : _kMuted),
+        Icon(icon, size: 16, color: active ? _kAccentDark : _kMuted),
         const SizedBox(width: 6),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 170),
           child: Text(label,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: active ? _kOrangeDark : _kInk)),
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: active ? _kAccentDark : _kInk)),
         ),
         const Icon(Icons.expand_more_rounded, size: 16, color: _kMuted),
       ]),
@@ -355,14 +356,14 @@ Future<String?> _pickValue(BuildContext context, String label, List<(String, int
                     if (q.isEmpty)
                       ListTile(
                         leading: Icon(selected == null ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: selected == null ? _kOrange : _kMuted),
+                            color: selected == null ? _kAccent : _kMuted),
                         title: Text('All ${label.toLowerCase()}s'),
                         onTap: () => Navigator.pop(ctx, ''),
                       ),
                     for (final (v, count) in list)
                       ListTile(
                         leading: Icon(v == selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: v == selected ? _kOrange : _kMuted),
+                            color: v == selected ? _kAccent : _kMuted),
                         title: Text(v),
                         trailing: Text('$count report${count == 1 ? '' : 's'}',
                             style: const TextStyle(color: _kMuted, fontSize: 12)),
@@ -397,7 +398,7 @@ class _PickCropHint extends ConsumerWidget {
     return _Card(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Row(children: [
-          Icon(Icons.insights_rounded, color: _kOrange),
+          Icon(Icons.insights_rounded, color: _kAccent),
           SizedBox(width: 8),
           Expanded(
             child: Text('Choose a crop to see its price summary',
@@ -445,7 +446,7 @@ class _SummaryCard extends StatelessWidget {
             child: Text('${s.crop}${region == null ? '' : ' · $region'}',
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           ),
-          KmTag(s.recentOnly ? 'Last 30 days' : 'All time', _kOrangeDark),
+          KmTag(s.recentOnly ? 'Last 30 days' : 'All time', _kAccentDark),
         ]),
         const SizedBox(height: 12),
         Text('Average price', style: const TextStyle(color: _kMuted, fontSize: 12)),
@@ -478,7 +479,7 @@ class _SummaryCard extends StatelessWidget {
         Row(children: [
           Expanded(child: _MiniStat('Lowest', formatKes(s.min), _kRed)),
           Expanded(child: _MiniStat('Highest', formatKes(s.max), _kGreen)),
-          Expanded(child: _MiniStat('Reports', '${s.count}', _kOrangeDark)),
+          Expanded(child: _MiniStat('Reports', '${s.count}', _kAccentDark)),
         ]),
         if (s.trend.length >= 2) ...[
           const SizedBox(height: 14),
@@ -565,16 +566,16 @@ class _TrendPainter extends CustomPainter {
           ..shader = const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x55EF6C00), Color(0x00EF6C00)],
+            colors: [Color(0x552E6A5E), Color(0x002E6A5E)],
           ).createShader(Offset.zero & size));
     canvas.drawPath(
         path,
         Paint()
-          ..color = _kOrange
+          ..color = _kAccent
           ..strokeWidth = 2.5
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round);
-    canvas.drawCircle(at(points.last), 4, Paint()..color = _kOrangeDark);
+    canvas.drawCircle(at(points.last), 4, Paint()..color = _kAccentDark);
   }
 
   @override
@@ -656,7 +657,7 @@ class _CropAvatar extends StatelessWidget {
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(size * 0.3)),
+        decoration: BoxDecoration(color: _kTint, borderRadius: BorderRadius.circular(size * 0.3)),
         child: Text(cropEmoji(crop), style: TextStyle(fontSize: size * 0.5)),
       );
 }
@@ -712,7 +713,7 @@ class _ReportCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: mine ? _kOrange.withValues(alpha: 0.55) : _kBorder),
+              border: Border.all(color: mine ? _kAccent.withValues(alpha: 0.55) : _kBorder),
             ),
             child: Row(children: [
               _CropAvatar(r.crop),
@@ -726,7 +727,7 @@ class _ReportCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: _kInk)),
                     ),
-                    if (mine) ...[const SizedBox(width: 6), const KmTag('You', _kOrange)],
+                    if (mine) ...[const SizedBox(width: 6), const KmTag('You', _kAccent)],
                   ]),
                   const SizedBox(height: 4),
                   _IconLine(Icons.storefront_rounded, r.market.isEmpty ? 'Market not given' : r.market),
@@ -738,13 +739,13 @@ class _ReportCard extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: _kTint, borderRadius: BorderRadius.circular(12)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
                     Text(formatKes(r.price),
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _kOrangeDark)),
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _kAccentDark)),
                     Text(unit.isEmpty ? 'unit not given' : 'per $unit',
                         style: TextStyle(
-                            color: unit.isEmpty ? _kMuted : _kOrangeDark, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                            color: unit.isEmpty ? _kMuted : _kAccentDark, fontSize: 11.5, fontWeight: FontWeight.w600)),
                   ]),
                 ),
                 if (vsAverage != null) ...[
@@ -856,7 +857,7 @@ class _ReportDetails extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(colors: [_kOrangeDark, _kOrange]),
+            gradient: const LinearGradient(colors: [_kAccentDark, _kAccent]),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             FittedBox(
@@ -899,7 +900,7 @@ class _ReportDetails extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 5),
               child: Row(children: [
-                const Icon(Icons.circle, size: 6, color: _kOrange),
+                const Icon(Icons.circle, size: 6, color: _kAccent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('${o.market.isEmpty ? 'Unknown market' : o.market} · ${relativeTime(o.at)}',
@@ -928,7 +929,7 @@ class _ReportDetails extends ConsumerWidget {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _kOrange, padding: const EdgeInsets.symmetric(vertical: 13)),
+                style: FilledButton.styleFrom(backgroundColor: _kAccent, padding: const EdgeInsets.symmetric(vertical: 13)),
                 onPressed: () {
                   Navigator.pop(context);
                   showPriceForm(context, ref, existing: r);
@@ -941,14 +942,14 @@ class _ReportDetails extends ConsumerWidget {
         else
           Wrap(spacing: 10, runSpacing: 10, children: [
             OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: _kOrangeDark),
+              style: OutlinedButton.styleFrom(foregroundColor: _kAccentDark),
               onPressed: () => filter((q) => q.copyWith(crop: () => r.crop, market: () => null, mineOnly: false)),
               icon: const Icon(Icons.insights_rounded),
               label: Text('All ${r.crop} prices'),
             ),
             if (r.market.isNotEmpty)
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _kOrange),
+                style: FilledButton.styleFrom(backgroundColor: _kAccent),
                 onPressed: () => filter((q) => q.copyWith(market: () => r.market, crop: () => null, mineOnly: false)),
                 icon: const Icon(Icons.storefront_rounded),
                 label: Text('Prices at ${r.market}'),
@@ -970,7 +971,7 @@ class _DetailRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _kBorder))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 20, color: _kOrange),
+          Icon(icon, size: 20, color: _kAccent),
           const SizedBox(width: 12),
           SizedBox(width: 80, child: Text(label, style: const TextStyle(color: _kMuted, fontSize: 13))),
           Expanded(
@@ -1192,7 +1193,7 @@ class _PriceFormState extends State<_PriceForm> {
                   ),
                 const Spacer(),
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _kOrange, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+                  style: FilledButton.styleFrom(backgroundColor: _kAccent, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
                   onPressed: _saving ? null : _save,
                   icon: _saving
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -1240,8 +1241,8 @@ class _Empty extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(color: Color(0xFFFFF3E0), shape: BoxShape.circle),
-            child: Icon(icon, size: 36, color: _kOrange),
+            decoration: const BoxDecoration(color: _kTint, shape: BoxShape.circle),
+            child: Icon(icon, size: 36, color: _kAccent),
           ),
           const SizedBox(height: 12),
           Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800)),

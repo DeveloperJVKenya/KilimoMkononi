@@ -149,6 +149,14 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   types, filters, sorts, status, allowed actions) with Riverpod state in `admin_data_providers.dart`.
   Add a collection by adding a spec. Edits are typed (never stringify values); actions log to
   `admin_logs`. Only set `serverOrder` when every document has the time field.
+- Settings (`lib/settings/`): pages are built from `widgets/settings_kit.dart` (`SettingsPage`,
+  `SettingsSection`, `SettingsTile`, `confirmAndLogOut` — every logout asks first) and read the
+  profile via `settings_providers.dart`. Contact details live in `KmContact`; `kAppVersion` /
+  `kAppBuild` must match pubspec (`test/settings_test.dart`). Appearance (text size, font via
+  google_fonts, bold text, reduced motion, compact) is `appearance/appearance.dart`, applied in
+  `MyApp` (`appearanceTheme` + `AppearanceScope`). Contact form → `supportMessages` (rules-
+  validated; admins reply/set status in the Admin panel; users see replies in Contact us).
+  Legal pages keep their text; `widgets/legal_kit.dart` gives them jump-to-section contents.
 - Farmer auth screens (login, registration, Google "finish setup") share
   `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
   width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),

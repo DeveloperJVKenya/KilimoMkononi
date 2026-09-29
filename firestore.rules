@@ -539,6 +539,25 @@ service cloud.firestore {
     }
     // Market price reports (lib/screens/market/): shared price board — any
     // signed-in farmer can read them; only the reporter changes theirs.
+    // Contact us / Report a problem / account deletion requests. The sender
+    // reads their own (with the team's reply); admins manage them via the
+    // catch-all admin rule.
+    match /supportMessages/{docId} {
+      allow read:   if ownsExisting();
+      allow create: if createsOwn() &&
+                       request.resource.data.topic in
+                         ['question', 'problem', 'idea', 'account', 'account_deletion'] &&
+                       request.resource.data.message is string &&
+                       request.resource.data.message.size() > 0 &&
+                       request.resource.data.message.size() <= 3000 &&
+                       request.resource.data.get('email', '') is string &&
+                       request.resource.data.get('email', '').size() <= 120 &&
+                       request.resource.data.get('name', '') is string &&
+                       request.resource.data.get('name', '').size() <= 100 &&
+                       request.resource.data.status == 'open' &&
+                       !('reply' in request.resource.data);
+    }
+
     match /marketdata/{docId} {
       function validPrice() {
         let d = request.resource.data;

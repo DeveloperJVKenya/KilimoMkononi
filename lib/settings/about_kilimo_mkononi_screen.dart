@@ -1,171 +1,152 @@
+// lib/settings/about_kilimo_mkononi_screen.dart
+//
+// Settings → About: app identity and version, mission, what the app does
+// (each feature card explains itself), who builds it, how to reach us, and
+// the open-source licences.
+
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/settings/contact_us_screen.dart';
+import 'package:kilimomkononi/settings/privacy_policy_screen.dart';
+import 'package:kilimomkononi/settings/terms_and_conditions_screen.dart';
+import 'package:kilimomkononi/settings/widgets/settings_kit.dart';
 
 class AboutKilimoMkononiScreen extends StatelessWidget {
   const AboutKilimoMkononiScreen({super.key});
 
-  static const Color customGreen = Color(0xFF003900); // Consistent with your app’s theme
+  static const _features = <(IconData, Color, String, String)>[
+    (Icons.cloud_rounded, Color(0xFF1565C0), 'Weather & stations', 'Forecasts for your farm plus live readings and verified advice from weather stations.'),
+    (Icons.edit_note_rounded, Color(0xFF2E7D32), 'Field data', 'Record plots, crops, soil tests and activities — even offline.'),
+    (Icons.bug_report_rounded, Color(0xFFC62828), 'Pests & diseases', 'Diagnose problems from a photo and plan treatment.'),
+    (Icons.account_balance_wallet_rounded, Color(0xFF6A1B9A), 'Farm management', 'Track costs, harvests, revenue, profit and loans.'),
+    (Icons.price_check_rounded, Color(0xFF2E6A5E), 'Market prices', 'Farmer-reported prices with trends, plus official KAMIS prices.'),
+    (Icons.lightbulb_rounded, Color(0xFF9E9D24), 'Tips & manuals', 'Step-by-step crop guides and downloadable manuals.'),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'About Kilimo Mkononi',
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor: customGreen,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Text(
-                'About Kilimo Mkononi',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: customGreen,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Introduction
-              const Text(
-                'Kilimo Mkononi ("Farming in Your Hands") is a mobile application designed to empower farmers '
-                'across the region with essential tools and real-time information to boost agricultural '
-                'productivity and sustainability. Our goal is to bridge the gap between traditional farming '
-                'practices and modern technology, ensuring farmers thrive in an ever-changing environment.',
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-
-              // Mission Section
-              _buildSectionTitle(context, 'Our Mission'),
-              const Text(
-                'To provide farmers with accessible, reliable, and actionable resources to enhance crop yields, '
-                'connect to markets, and adapt to climate challenges—all from the convenience of their mobile devices.',
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-
-              // Vision Section
-              _buildSectionTitle(context, 'Our Vision'),
-              const Text(
-                'A future where every farmer has the knowledge and tools to make informed decisions, leading to '
-                'food security, economic growth, and sustainable farming practices for generations to come.',
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-
-              // Features Section
-              _buildSectionTitle(context, 'Key Features'),
-               _buildFeatureItem(
-                context,
-                icon: Icons.book,
-                title: 'Farming Tips & Manuals',
-                description: 'Learn best practices from agricultural experts.',
-              ),
-              _buildFeatureItem(
-                context,
-                icon: Icons.store,
-                title: 'Market Connections',
-                description: 'Access market prices and connect with buyers directly.',
-              ),
-              _buildFeatureItem(
-                context,
-                icon: Icons.cloud,
-                title: 'Weather Updates',
-                description: 'Get real-time weather forecasts to plan your farming activities effectively.',
-              ),
-              _buildFeatureItem(
-                context,
-                icon: Icons.spa,
-                title: 'Field Data Management',
-                description: 'Track crop progress, soil nutrients, and interventions with ease.',
-              ),
-              _buildFeatureItem(
-                context,
-                icon: Icons.pest_control,
-                title: 'Pest and Disease Management',
-                description: 'Track crop progress, pests and diseases, and interventions with ease.',
-              ),
-              _buildFeatureItem(
-                context,
-                icon: Icons.account_balance_wallet,
-                title: 'Farm Management',
-                description: 'Track activities cost, total cost of production, revenue and profit or loss and your loan with ease.',
-              ),
-              const SizedBox(height: 24),
-
-              // Contact Section
-              _buildSectionTitle(context, 'Get in Touch'),
-              const Text(
-                'Have questions or feedback? Reach out to us!\n'
-                'Email: support@jvalmacis.co.ke\n'
-                'Phone: +254 795 802 020\n'
-                'Website: https://jvalmacis.com#',
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 16),
-
-              // Footer
-              Center(
-                child: Text(
-                  '© 2025 Kilimo Mkononi. All rights reserved.',
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Helper method for section titles
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-        color: customGreen,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  // Helper method for feature items
-  Widget _buildFeatureItem(BuildContext context, {required IconData icon, required String title, required String description}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: customGreen, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: customGreen),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                ),
-              ],
+    void push(Widget w) => Navigator.push(context, MaterialPageRoute(builder: (_) => w));
+    return SettingsPage(
+      title: 'About',
+      subtitle: 'Kilimo Mkononi — Farming in your hands',
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [kSetGreenDark, kSetGreen, Color(0xFF2E7D32)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
-        ],
-      ),
+          child: Column(children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(22)),
+              child: const Icon(Icons.eco_rounded, color: Colors.white, size: 44),
+            ),
+            const SizedBox(height: 12),
+            const Text('Kilimo Mkononi', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+            const Text('Farming in your hands', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
+              child: const Text('Version $kAppVersion (build $kAppBuild)',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        const SettingsSection(title: 'Our mission', children: [
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'To give every Kenyan farmer reliable, practical information — weather, crop advice, market prices and '
+              'farm records — in their pocket, so they can grow more, spend less and adapt to a changing climate.',
+              style: TextStyle(height: 1.5, color: kSetInk),
+            ),
+          ),
+        ]),
+        const Padding(
+          padding: EdgeInsets.only(left: 6, bottom: 8),
+          child: Text('WHAT YOU CAN DO',
+              style: TextStyle(color: kSetMuted, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+        ),
+        LayoutBuilder(builder: (context, c) {
+          final cols = c.maxWidth >= 520 ? 3 : 2;
+          final w = (c.maxWidth - (cols - 1) * 10) / cols;
+          return Wrap(spacing: 10, runSpacing: 10, children: [
+            for (final (icon, color, title, text) in _features)
+              Container(
+                width: w,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: kSetBorder),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SettingsIcon(icon, color: color),
+                  const SizedBox(height: 10),
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: kSetInk)),
+                  const SizedBox(height: 4),
+                  Text(text, style: const TextStyle(color: kSetMuted, fontSize: 12.5, height: 1.35)),
+                ]),
+              ),
+          ]);
+        }),
+        const SizedBox(height: 18),
+        SettingsSection(title: 'Who we are', children: [
+          const SettingsTile(
+            icon: Icons.business_rounded,
+            title: KmContact.company,
+            subtitle: 'Builds and runs Kilimo Mkononi, with agricultural content partners including KALRO.',
+          ),
+          SettingsTile(
+            icon: Icons.language_rounded,
+            title: 'Website',
+            value: KmContact.website,
+            onTap: () => openExternal(context, KmContact.websiteUrl),
+          ),
+          SettingsTile(
+            icon: Icons.support_agent_rounded,
+            title: 'Contact us',
+            subtitle: '${KmContact.phone} · ${KmContact.email}',
+            onTap: () => push(const ContactUsScreen()),
+          ),
+        ]),
+        SettingsSection(title: 'Legal', children: [
+          SettingsTile(
+            icon: Icons.description_rounded,
+            color: kSetMuted,
+            title: 'Terms and conditions',
+            onTap: () => push(const TermsAndConditionsScreen()),
+          ),
+          SettingsTile(
+            icon: Icons.privacy_tip_rounded,
+            color: kSetMuted,
+            title: 'Privacy policy',
+            onTap: () => push(const PrivacyPolicyScreen()),
+          ),
+          SettingsTile(
+            icon: Icons.code_rounded,
+            color: kSetMuted,
+            title: 'Open-source licences',
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: 'Kilimo Mkononi',
+              applicationVersion: '$kAppVersion ($kAppBuild)',
+              applicationLegalese: '© ${DateTime.now().year} ${KmContact.company}',
+            ),
+          ),
+        ]),
+        Center(
+          child: Text('© ${DateTime.now().year} ${KmContact.company}. All rights reserved.',
+              style: const TextStyle(color: kSetMuted, fontSize: 12)),
+        ),
+      ],
     );
   }
 }

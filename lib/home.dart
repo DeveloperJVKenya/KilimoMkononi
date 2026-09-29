@@ -14,7 +14,9 @@ import 'package:kilimomkononi/screens/manuals_screen.dart';
 import 'package:kilimomkononi/screens/pests_diseases_home.dart';
 import 'package:kilimomkononi/screens/weather_screen.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
-import 'package:kilimomkononi/screens/user_profile.dart';
+import 'package:kilimomkononi/settings/contact_us_screen.dart';
+import 'package:kilimomkononi/settings/profile_edit_screen.dart';
+import 'package:kilimomkononi/settings/widgets/settings_kit.dart';
 import 'package:kilimomkononi/authentication/login.dart';
 import 'package:kilimomkononi/settings/notifications_screen.dart';
 import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
@@ -28,7 +30,6 @@ import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
-import 'package:kilimomkononi/services/session_service.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -206,13 +207,9 @@ class _HomePageState extends State<HomePage> {
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
-  Future<void> _handleLogout() async {
-    // Stop listeners first so they don't hit permission errors after sign-out
-    _cancelSubscriptions();
-    // Clears per-user caches, then signs out of Firebase and Google.
-    await SessionService.signOut();
-    _goToLogin();
-  }
+  /// Asks first (a mis-tap no longer logs you out), stops the listeners so
+  /// they don't hit permission errors, then signs out and opens sign-in.
+  Future<void> _handleLogout() => confirmAndLogOut(context, beforeSignOut: _cancelSubscriptions);
 
   // ── Navigate to Season Analysis with top-level defaults ──────────────
   void _openSeasonAnalysis() {
@@ -259,7 +256,7 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildDrawer(fullName),
       body: [
         _buildHomeContent(fullName),
-        const SettingsScreen(isEducation: false),
+        const SettingsScreen(isEducation: false, embedded: true),
         const NotificationsScreen(),
       ][_selectedIndex],
       bottomNavigationBar: NavigationBar(
@@ -350,7 +347,7 @@ class _HomePageState extends State<HomePage> {
                 title: 'Market Prices',
                 subtitle: 'Latest crop prices from markets near you',
                 icon: Icons.price_check_rounded,
-                colors: const [Color(0xFFBF360C), Color(0xFFEF6C00), Color(0xFFFFA726)],
+                colors: const [Color(0xFF1F4D44), Color(0xFF2E6A5E), Color(0xFF4E8577)],
                 onTap: () => _open(const MarketPriceScreen()),
               ),
               _ToolCard(
@@ -432,7 +429,7 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => UserProfileScreen(profileImageBytes: _profileImageBytes, fullName: fullName, role: null),
+        builder: (_) => const ProfileEditScreen(),
       ),
     ).then((_) => _fetchUserData());
   }
@@ -479,64 +476,124 @@ class _HomePageState extends State<HomePage> {
 
   // ── Drawer ────────────────────────────────────────────────────────────
   Widget _buildDrawer(String fullName) {
-    // White comes from the Drawer's own Material. A coloured Container here
-    // hid the menu items' tap ripples (and raised a ListTile assertion).
+    final email = '${_userData?['email'] ?? ''}';
+    final county = '${_userData?['county'] ?? ''}';
+    final ward = '${_userData?['ward'] ?? ''}';
+    final place = [ward, county].where((p) => p.isNotEmpty).join(', ');
     return Drawer(
       backgroundColor: Colors.white,
-      child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            GestureDetector(
-              onTap: () => _openUserProfile(fullName),
-              child: UserAccountsDrawerHeader(
-                decoration: const BoxDecoration(color: Color.fromARGB(255, 3, 39, 4)),
-                accountName: Text(fullName, style: const TextStyle(fontSize: 18)),
-                currentAccountPicture: CircleAvatar(
-                  radius: 40,
-                  backgroundImage:
-                      _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                  child: _profileImageBytes == null
-                      ? const Icon(Icons.person, size: 40, color: Colors.white70)
-                      : null,
+      width: 304,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
+      child: Column(children: [
+        // Header: who is signed in; tap to edit the profile.
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openUserProfile(fullName),
+            child: Ink(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0B3D1E), _kGreen, Color(0xFF2E7D32)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                accountEmail: const Text('Tap to edit your profile',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                borderRadius: BorderRadius.only(topRight: Radius.circular(24)),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 10, 18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.white24,
+                        backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                        child: _profileImageBytes == null
+                            ? const Icon(Icons.person_rounded, size: 32, color: Colors.white)
+                            : null,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Close menu',
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
+                    Text(fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                    if (email.isNotEmpty)
+                      Text(email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      if (place.isNotEmpty) _HeroChip(Icons.place_rounded, place),
+                      const _HeroChip(Icons.edit_rounded, 'Edit profile'),
+                    ]),
+                  ]),
+                ),
               ),
             ),
-            _drawerItem(Icons.home, 'Home', _goHome, selected: _selectedIndex == 0),
-            _drawerItem(Icons.cloud, 'Weather Forecast',
-                () => _navigateTo(const WeatherScreen())),
-            _drawerItem(Icons.input, 'Field Data Input',
-                () => _navigateTo(const FieldDataInputHomePage())),
-            _drawerItem(Icons.bug_report, 'Pests & Diseases',
-                () => _navigateTo(const PestDiseaseHomePage())),
-            _drawerItem(Icons.account_balance_wallet, 'Farm Management',
-                () => _navigateTo(const FarmManagementScreen())),
-            _drawerItem(Icons.book, 'Manuals',
-                () => _navigateTo(const ManualsScreen())),
-            // ── Season Analysis drawer entry ──────────────────────
-            _drawerItem(
-              Icons.bar_chart_rounded,
-              'Season Analysis',
-              () {
-                Navigator.pop(context);
-                _openSeasonAnalysis();
-              },
-            ),
-            _drawerItem(Icons.settings, 'Settings',
-                () => _navigateTo(const SettingsScreen(isEducation: false))),
-            const Divider(),
-            _drawerItem(Icons.logout, 'Logout', _handleLogout),
-          ],
-      ),
+          ),
+        ),
+        Expanded(
+          child: ListView(padding: const EdgeInsets.fromLTRB(10, 8, 10, 12), children: [
+            const _DrawerLabel('Farm'),
+            _DrawerItem(Icons.home_rounded, 'Home', selected: _selectedIndex == 0, onTap: () => _goTab(0)),
+            _DrawerItem(Icons.wb_cloudy_rounded, 'Weather forecast', onTap: () => _navigateTo(const WeatherScreen())),
+            _DrawerItem(Icons.edit_note_rounded, 'Field data input',
+                subtitle: 'Plots, crops & weather station', onTap: () => _navigateTo(const FieldDataInputHomePage())),
+            _DrawerItem(Icons.bug_report_rounded, 'Pests & diseases',
+                onTap: () => _navigateTo(const PestDiseaseHomePage())),
+            _DrawerItem(Icons.account_balance_wallet_rounded, 'Farm management',
+                subtitle: 'Costs, harvests & loans', onTap: () => _navigateTo(const FarmManagementScreen())),
+            const _DrawerLabel('Insights & learning'),
+            _DrawerItem(Icons.insights_rounded, 'Season analysis', onTap: () {
+              Navigator.pop(context);
+              _openSeasonAnalysis();
+            }),
+            _DrawerItem(Icons.menu_book_rounded, 'Manuals', onTap: () => _navigateTo(const ManualsScreen())),
+            const _DrawerLabel('Account'),
+            Consumer(builder: (context, ref, _) {
+              final unread = ref.watch(unreadCountProvider);
+              return _DrawerItem(Icons.notifications_rounded, 'Notifications',
+                  selected: _selectedIndex == 2, badge: unread, onTap: () => _goTab(2));
+            }),
+            _DrawerItem(Icons.settings_rounded, 'Settings', selected: _selectedIndex == 1, onTap: () => _goTab(1)),
+            _DrawerItem(Icons.support_agent_rounded, 'Help & support',
+                onTap: () => _navigateTo(const ContactUsScreen())),
+            if (_isMainAdmin)
+              _DrawerItem(Icons.admin_panel_settings_rounded, 'Admin panel',
+                  onTap: () => _navigateTo(const AdminManagementScreen())),
+          ]),
+        ),
+        const Divider(height: 1),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+            child: Column(children: [
+              _DrawerItem(Icons.logout_rounded, 'Log out', danger: true, onTap: _handleLogout),
+              const Padding(
+                padding: EdgeInsets.only(top: 2, bottom: 4),
+                child: Text('Kilimo Mkononi v$kAppVersion', style: TextStyle(color: Colors.black45, fontSize: 11.5)),
+              ),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 
-  /// Drawer "Home": close the drawer and show the Home tab (from the
-  /// Settings or Notifications tab too).
-  void _goHome() {
+  /// Close the drawer and show a bottom-nav tab (Home / Settings / Notifications).
+  void _goTab(int index) {
     Navigator.pop(context);
-    setState(() => _selectedIndex = 0);
+    setState(() => _selectedIndex = index);
   }
 
   void _navigateTo(Widget page) {
@@ -549,28 +606,13 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => UserProfileScreen(
-          profileImageBytes: _profileImageBytes,
-          fullName: fullName,
-          role: null, // farmer flow — UserProfileScreen loads the rest from Firestore
-        ),
+        builder: (_) => const ProfileEditScreen(),
       ),
     ).then((_) {
       // In case the realtime listener hasn't caught up yet, refresh
       // immediately when they come back from editing.
       _fetchUserData();
     });
-  }
-
-  ListTile _drawerItem(IconData icon, String title, VoidCallback onTap, {bool selected = false}) {
-    return ListTile(
-      leading: Icon(icon, color: const Color.fromARGB(255, 3, 39, 4)),
-      title: Text(title, style: selected ? const TextStyle(fontWeight: FontWeight.w800) : null),
-      selected: selected,
-      selectedColor: _kGreen,
-      selectedTileColor: const Color(0xFFE8F5E9),
-      onTap: onTap,
-    );
   }
 }
 
@@ -894,6 +936,73 @@ class _NotificationBell extends ConsumerWidget {
         label: Text(unread > 99 ? '99+' : '$unread'),
         backgroundColor: const Color(0xFFEF6C00),
         child: const Icon(Icons.notifications_rounded),
+      ),
+    );
+  }
+}
+
+class _DrawerLabel extends StatelessWidget {
+  final String text;
+  const _DrawerLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+        child: Text(text.toUpperCase(),
+            style: const TextStyle(color: Colors.black45, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.9)),
+      );
+}
+
+/// Menu row: rounded highlight for the current page, optional subtitle and
+/// unread badge; red for Log out.
+class _DrawerItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool selected;
+  final bool danger;
+  final int badge;
+  final VoidCallback onTap;
+  const _DrawerItem(this.icon, this.label,
+      {required this.onTap, this.subtitle, this.selected = false, this.danger = false, this.badge = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? const Color(0xFFB3261E) : (selected ? _kGreen : const Color(0xFF374151));
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Material(
+        color: selected ? const Color(0xFFDDEFDF) : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(label,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 14.5,
+                          fontWeight: selected || danger ? FontWeight.w800 : FontWeight.w600)),
+                  if (subtitle != null)
+                    Text(subtitle!, style: const TextStyle(color: Colors.black45, fontSize: 11.5)),
+                ]),
+              ),
+              if (badge > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: const Color(0xFFB3261E), borderRadius: BorderRadius.circular(10)),
+                  child: Text(badge > 99 ? '99+' : '$badge',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+                ),
+            ]),
+          ),
+        ),
       ),
     );
   }
