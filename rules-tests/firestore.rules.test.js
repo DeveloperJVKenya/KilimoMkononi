@@ -420,6 +420,22 @@ test("admin test mode: test advisories never reach farmers", async () => {
   assert.equal(adminView.size, 1);
 });
 
+test("market prices: everyone signed in reads the board; only the reporter edits", async () => {
+  const report = { userId: "farmer", cropType: "Maize", market: "Nakuru Wakulima", region: "Nakuru",
+    retailPrice: 3500, unit: "per 90 kg bag", timestamp: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(as("farmer"), "marketdata/m1"), report));
+  await assertSucceeds(getDoc(doc(as("stranger"), "marketdata/m1")));
+  await assertSucceeds(getDocs(query(collection(as("stranger"), "marketdata"), where("cropType", "==", "Maize"))));
+  await assertFails(getDoc(doc(anon(), "marketdata/m1")));
+  await assertFails(updateDoc(doc(as("stranger"), "marketdata/m1"), { retailPrice: 1 }));
+  await assertFails(deleteDoc(doc(as("stranger"), "marketdata/m1")));
+  await assertSucceeds(updateDoc(doc(as("farmer"), "marketdata/m1"), { retailPrice: 3600 }));
+  // invalid reports are refused
+  await assertFails(setDoc(doc(as("farmer"), "marketdata/m2"), { ...report, retailPrice: -5 }));
+  await assertFails(setDoc(doc(as("farmer"), "marketdata/m3"), { ...report, cropType: "" }));
+  await assertFails(setDoc(doc(as("farmer"), "marketdata/m4"), { ...report, userId: "someoneElse" }));
+});
+
 test("notification settings: owner only, valid fields only", async () => {
   const prefs = {
     push: true, weatherAlerts: false, advisories: true, approvals: true,

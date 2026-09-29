@@ -537,10 +537,20 @@ service cloud.firestore {
       allow update: if ownsExisting() && keepsOwner();
       allow delete: if ownsExisting();
     }
+    // Market price reports (lib/screens/market/): shared price board — any
+    // signed-in farmer can read them; only the reporter changes theirs.
     match /marketdata/{docId} {
-      allow read:   if signedIn() && (resource == null || ownsExisting());
-      allow create: if createsOwn();
-      allow update: if ownsExisting() && keepsOwner();
+      function validPrice() {
+        let d = request.resource.data;
+        return d.cropType is string && d.cropType.size() > 0 && d.cropType.size() <= 60 &&
+               d.market is string && d.market.size() > 0 && d.market.size() <= 80 &&
+               d.region is string && d.region.size() <= 60 &&
+               d.retailPrice is number && d.retailPrice > 0 && d.retailPrice < 10000000 &&
+               d.get('unit', '') is string && d.get('unit', '').size() <= 30;
+      }
+      allow read:   if signedIn();
+      allow create: if createsOwn() && validPrice();
+      allow update: if ownsExisting() && keepsOwner() && validPrice();
       allow delete: if ownsExisting();
     }
     // Soft-delete model: owners can't read or hard-delete deleted records.
