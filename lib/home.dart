@@ -1,5 +1,6 @@
 // lib/screens/home.dart
 import 'package:flutter/material.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:intl/intl.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
@@ -280,51 +281,40 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Home: greeting, farm alerts, every feature in a responsive grid, and
-  /// the Season Analysis highlight. Content is centred and capped at
-  /// 1100 px so nothing stretches on wide screens.
+  /// Home: greeting, a carousel of the app's sections (each slide opens its
+  /// section), farm alerts and the Season Analysis highlight. Content is
+  /// centred and capped at 1100 px so nothing stretches on wide screens.
   Widget _buildHomeContent(String fullName) {
-    final features = <_Feature>[
-      _Feature(Icons.wb_cloudy_rounded, 'Weather', 'Forecast for any place', const Color(0xFF1565C0),
-          () => _open(const WeatherScreen())),
-      _Feature(Icons.sensors_rounded, 'Weather Station', 'Live readings & verified advice', const Color(0xFF00796B),
-          () => _open(const WeatherStationScreen())),
-      _Feature(Icons.edit_note_rounded, 'Field Data', 'Record plots, soil & crops', const Color(0xFF2E7D32),
-          () => _open(const FieldDataInputHomePage())),
-      _Feature(Icons.bug_report_rounded, 'Pests & Diseases', 'Diagnose and treat', const Color(0xFFC62828),
-          () => _open(const PestDiseaseHomePage())),
-      _Feature(Icons.account_balance_wallet_rounded, 'Farm Management', 'Tasks, costs & harvests',
-          const Color(0xFF6D4C41), () => _open(const FarmManagementScreen())),
-      _Feature(Icons.price_check_rounded, 'Market Prices', 'Prices near you', const Color(0xFFEF6C00),
-          () => _open(const MarketPriceScreen())),
-      _Feature(Icons.lightbulb_rounded, 'Farming Tips', 'Practical guidance', const Color(0xFFF9A825),
-          () => _open(const FarmingTipsWidget())),
-      _Feature(Icons.menu_book_rounded, 'Manuals', 'Guides & documents', const Color(0xFF3949AB),
-          () => _open(const ManualsScreen())),
+    final slides = <_Slide>[
+      _Slide('assets/weather_forecast.jpg', 'Weather', 'Forecast for your farm or any place',
+          Icons.wb_cloudy_rounded, () => _open(const WeatherScreen())),
+      _Slide('assets/field_data_collection.jpg', 'Field Data', 'Record plots, soil tests and crops',
+          Icons.edit_note_rounded, () => _open(const FieldDataInputHomePage())),
+      _Slide('assets/pest_management.jpg', 'Pests & Diseases', 'Diagnose problems and plan treatment',
+          Icons.bug_report_rounded, () => _open(const PestDiseaseHomePage())),
+      _Slide('assets/farm_management.jpg', 'Farm Management', 'Tasks, costs, harvests and loans',
+          Icons.account_balance_wallet_rounded, () => _open(const FarmManagementScreen())),
+      _Slide('assets/farming_tips.png', 'Farming Tips', 'Practical guidance for every season',
+          Icons.lightbulb_rounded, () => _open(const FarmingTipsWidget())),
+      _Slide('assets/manuals.jpg', 'Manuals', 'Guides and documents to download',
+          Icons.menu_book_rounded, () => _open(const ManualsScreen())),
+      _Slide('assets/soil.png', 'Season Analysis', 'AI insights on your field, soil and finances',
+          Icons.insights_rounded, _openSeasonAnalysis),
     ];
 
     return LayoutBuilder(builder: (context, c) {
       final side = c.maxWidth > 1132 ? (c.maxWidth - 1100) / 2 : 16.0;
-      final ts = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.5);
       return CustomScrollView(slivers: [
         SliverPadding(
           padding: EdgeInsets.fromLTRB(side, 16, side, 0),
           sliver: SliverToBoxAdapter(child: _heroCard(fullName)),
         ),
         SliverPadding(
-          padding: EdgeInsets.fromLTRB(side, 22, side, 10),
-          sliver: const SliverToBoxAdapter(child: _SectionTitle('Farm alerts', Icons.warning_amber_rounded)),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.symmetric(horizontal: side),
-          sliver: const SliverToBoxAdapter(child: FarmAlertsHomeWidget()),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(side, 22, side, 10),
+          padding: EdgeInsets.fromLTRB(side, 20, side, 10),
           sliver: SliverToBoxAdapter(
             child: _SectionTitle(
-              'Features',
-              Icons.apps_rounded,
+              'Explore',
+              Icons.explore_rounded,
               action: TextButton.icon(
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 icon: const Icon(Icons.menu_rounded, size: 18),
@@ -336,18 +326,18 @@ class _HomePageState extends State<HomePage> {
         ),
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: side),
-          sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 230,
-              mainAxisExtent: 118 * ts,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-            ),
-            delegate: SliverChildBuilderDelegate((_, i) => _FeatureTile(features[i]), childCount: features.length),
-          ),
+          sliver: SliverToBoxAdapter(child: _SectionCarousel(slides: slides, width: c.maxWidth - 2 * side)),
         ),
         SliverPadding(
-          padding: EdgeInsets.fromLTRB(side, 16, side, 32),
+          padding: EdgeInsets.fromLTRB(side, 22, side, 10),
+          sliver: const SliverToBoxAdapter(child: _SectionTitle('Farm alerts', Icons.warning_amber_rounded)),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: side),
+          sliver: const SliverToBoxAdapter(child: FarmAlertsHomeWidget()),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 20, side, 32),
           sliver: SliverToBoxAdapter(child: _seasonAnalysisCard()),
         ),
       ]);
@@ -488,12 +478,18 @@ class _HomePageState extends State<HomePage> {
             _drawerItem(Icons.home, 'Home', () => Navigator.pop(context)),
             _drawerItem(Icons.cloud, 'Weather Forecast',
                 () => _navigateTo(const WeatherScreen())),
+            _drawerItem(Icons.sensors_rounded, 'Weather Station',
+                () => _navigateTo(const WeatherStationScreen())),
             _drawerItem(Icons.input, 'Field Data Input',
                 () => _navigateTo(const FieldDataInputHomePage())),
             _drawerItem(Icons.bug_report, 'Pests & Diseases',
                 () => _navigateTo(const PestDiseaseHomePage())),
             _drawerItem(Icons.account_balance_wallet, 'Farm Management',
                 () => _navigateTo(const FarmManagementScreen())),
+            _drawerItem(Icons.price_check_rounded, 'Market Prices',
+                () => _navigateTo(const MarketPriceScreen())),
+            _drawerItem(Icons.lightbulb_rounded, 'Farming Tips',
+                () => _navigateTo(const FarmingTipsWidget())),
             _drawerItem(Icons.book, 'Manuals',
                 () => _navigateTo(const ManualsScreen())),
             // ── Season Analysis drawer entry ──────────────────────
@@ -549,51 +545,156 @@ class _HomePageState extends State<HomePage> {
 const _kGreen = Color(0xFF1B5E20);
 const _kPage = Color(0xFFF4F6F3);
 
-class _Feature {
-  final IconData icon;
+class _Slide {
+  final String image;
   final String title;
   final String subtitle;
-  final Color color;
+  final IconData icon;
   final VoidCallback onTap;
-  const _Feature(this.icon, this.title, this.subtitle, this.color, this.onTap);
+  const _Slide(this.image, this.title, this.subtitle, this.icon, this.onTap);
 }
 
-class _FeatureTile extends StatelessWidget {
-  final _Feature f;
-  const _FeatureTile(this.f);
+/// Auto-playing carousel of the app's sections; each slide opens its
+/// section. Dots show the position; arrows on wide screens.
+class _SectionCarousel extends StatefulWidget {
+  final List<_Slide> slides;
+  final double width;
+  const _SectionCarousel({required this.slides, required this.width});
+
+  @override
+  State<_SectionCarousel> createState() => _SectionCarouselState();
+}
+
+class _SectionCarouselState extends State<_SectionCarousel> {
+  final _controller = CarouselSliderController();
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget.width;
+    final wide = w >= 700;
+    final height = wide ? 280.0 : (w < 380 ? 180.0 : 200.0);
+    return Column(children: [
+      Stack(alignment: Alignment.center, children: [
+        CarouselSlider(
+          carouselController: _controller,
+          options: CarouselOptions(
+            height: height,
+            autoPlay: true,
+            autoPlayInterval: const Duration(seconds: 5),
+            enlargeCenterPage: true,
+            enlargeFactor: 0.18,
+            viewportFraction: wide ? 0.62 : 0.9,
+            onPageChanged: (i, _) => setState(() => _index = i),
+          ),
+          items: [for (final s in widget.slides) _SlideCard(s)],
+        ),
+        if (wide) ...[
+          Positioned(left: 4, child: _ArrowButton(Icons.chevron_left_rounded, _controller.previousPage)),
+          Positioned(right: 4, child: _ArrowButton(Icons.chevron_right_rounded, _controller.nextPage)),
+        ],
+      ]),
+      const SizedBox(height: 10),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        for (var i = 0; i < widget.slides.length; i++)
+          GestureDetector(
+            onTap: () => _controller.animateToPage(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == _index ? 20 : 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: i == _index ? _kGreen : const Color(0xFFC8D6CA),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+      ]),
+    ]);
+  }
+}
+
+class _SlideCard extends StatelessWidget {
+  final _Slide s;
+  const _SlideCard(this.s);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Material(
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          elevation: 3,
+          shadowColor: Colors.black26,
+          child: InkWell(
+            onTap: s.onTap,
+            child: Stack(fit: StackFit.expand, children: [
+              Image.asset(s.image, fit: BoxFit.cover, errorBuilder: (_, _, _) => Container(color: _kGreen)),
+              // Legibility gradient.
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0x33000000), Color(0xCC000000)],
+                    stops: [0.35, 0.6, 1],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 14,
+                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                    child: Icon(s.icon, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Text(s.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(s.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('Open', style: TextStyle(color: _kGreen, fontWeight: FontWeight.w800, fontSize: 12.5)),
+                      Icon(Icons.chevron_right_rounded, color: _kGreen, size: 16),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _ArrowButton extends StatelessWidget {
+  final IconData icon;
+  final Future<void> Function({Duration duration, Curve curve}) go;
+  const _ArrowButton(this.icon, this.go);
 
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: 0,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: f.onTap,
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8E3)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(color: f.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                child: Icon(f.icon, color: f.color, size: 24),
-              ),
-              const Spacer(),
-              Text(f.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF1B2A1B))),
-              const SizedBox(height: 2),
-              Text(f.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF6B7280))),
-            ]),
-          ),
+        shape: const CircleBorder(),
+        elevation: 3,
+        child: IconButton(
+          icon: Icon(icon, color: _kGreen),
+          onPressed: () => go(duration: const Duration(milliseconds: 350), curve: Curves.easeOut),
         ),
       );
 }
