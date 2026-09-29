@@ -144,6 +144,11 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   Update them whenever you change the rules.
 
 ## Notes for future changes
+- Admin record screens: every dashboard card / tool opens `AdminCollectionScreen`
+  (`lib/screens/admin/data/`), configured per collection in `admin_collection_spec.dart` (fields +
+  types, filters, sorts, status, allowed actions) with Riverpod state in `admin_data_providers.dart`.
+  Add a collection by adding a spec. Edits are typed (never stringify values); actions log to
+  `admin_logs`. Only set `serverOrder` when every document has the time field.
 - Farmer auth screens (login, registration, Google "finish setup") share
   `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
   width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),

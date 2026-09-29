@@ -1,19 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kilimomkononi/screens/admin/admin_providers.dart';
-import 'package:kilimomkononi/screens/admin/filter_users_screen.dart';
+import 'package:kilimomkononi/screens/admin/data/admin_collection_screen.dart';
 import 'package:kilimomkononi/screens/admin/widgets/interactive_tile.dart';
 import 'package:kilimomkononi/screens/admin/widgets/role_sheet.dart';
-import 'package:logger/logger.dart';
-import 'package:kilimomkononi/screens/collection_management_screen.dart';
-import 'package:kilimomkononi/screens/pest%20management/admin_pest_management_page.dart';
 import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 
 const _kDarkGreen = Color.fromARGB(255, 3, 39, 4);
@@ -30,57 +23,6 @@ class AdminManagementScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
-  final logger = Logger(printer: PrettyPrinter());
-
-  Future<void> _deleteUser(String uid) async {
-    try {
-      await FirebaseFirestore.instance.collection('Users').doc(uid).delete();
-      _logActivity('Deleted user $uid');
-      ref.invalidate(collectionCountProvider('Users'));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User deleted from Firestore!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error deleting user: $e')));
-      }
-    }
-  }
-
-  Future<void> _resetPassword(String email) async {
-    try {
-      if (email.isEmpty) throw 'Email is required';
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      _logActivity('Sent password reset for $email');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset email sent!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sending password reset: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _logActivity(String action) async {
-    try {
-      await FirebaseFirestore.instance.collection('admin_logs').add({
-        'action': action,
-        'timestamp': Timestamp.now(),
-        'adminUid': FirebaseAuth.instance.currentUser?.uid,
-      });
-    } catch (e) {
-      logger.e('Error logging activity: $e');
-    }
-  }
 
   /// Pull-to-refresh: re-run every count() aggregation.
   Future<void> _refresh() async {
@@ -226,8 +168,7 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
         color: s.color,
         // Keep showing the previous number while a refresh runs.
         count: count.hasError && !count.hasValue ? -1 : count.value,
-        onTap: () =>
-            _open(CollectionManagementScreen(collectionName: s.collection)),
+        onTap: () => _open(AdminCollectionScreen(collection: s.collection)),
       );
     },
   );
@@ -257,311 +198,43 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
     ActionTile(
       icon: Icons.manage_accounts_rounded,
       title: 'Manage Users',
-      subtitle: 'Delete, reset passwords, copy UIDs',
+      subtitle: 'Edit, disable/enable, reset passwords — one or many',
       gradient: const [Color(0xFF0D47A1), Color(0xFF42A5F5)],
-      onTap: _showManageUsersScreen,
+      onTap: () => _open(const AdminCollectionScreen(collection: 'Users')),
     ),
     ActionTile(
       icon: Icons.filter_alt_rounded,
       title: 'Filter Users',
-      subtitle: 'Find farmers by location and status',
+      subtitle: 'Find farmers by county, constituency, ward or status',
       gradient: const [Color(0xFF00695C), Color(0xFF4DB6AC)],
-      onTap: () => _open(const FilterUsersScreen()),
+      onTap: () => _open(const AdminCollectionScreen(collection: 'Users', startWithFilters: true)),
+    ),
+    ActionTile(
+      icon: Icons.how_to_reg_rounded,
+      title: 'Education Approvals',
+      subtitle: 'Approve or deny pending school accounts',
+      gradient: const [Color(0xFF283593), Color(0xFF5C6BC0)],
+      onTap: () => _open(const AdminCollectionScreen(
+        collection: 'EducationUsers',
+        initialFilters: {'approvalStatus': 'pending'},
+      )),
     ),
     ActionTile(
       icon: Icons.bug_report_rounded,
       title: 'Manage Pests',
-      subtitle: 'Review and restore pest records',
+      subtitle: 'Review, restore or remove pest records',
       gradient: const [Color(0xFFB71C1C), Color(0xFFEF5350)],
-      onTap: () => _open(const AdminPestManagementPage()),
+      onTap: () => _open(const AdminCollectionScreen(collection: 'pestinterventiondata')),
+    ),
+    ActionTile(
+      icon: Icons.coronavirus_rounded,
+      title: 'Manage Diseases',
+      subtitle: 'Review, restore or remove disease records',
+      gradient: const [Color(0xFF4A148C), Color(0xFFAB47BC)],
+      onTap: () => _open(const AdminCollectionScreen(collection: 'diseaseinterventiondata')),
     ),
   ];
 
-  void _showManageUsersScreen() {
-    String? bulkAction;
-    List<String> selectedUids = [];
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StatefulBuilder(
-          builder: (context, setState) => Scaffold(
-            appBar: AppBar(
-              title: const Text(
-                'Manage Users',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-              foregroundColor: Colors.white,
-              actions: [
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.menu),
-                  onSelected: (value) {
-                    setState(() {
-                      bulkAction = value;
-                      selectedUids.clear();
-                    });
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'Bulk Delete',
-                      child: Text('Bulk Delete'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'Bulk Reset Password',
-                      child: Text('Bulk Reset Password'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            body: Column(
-              children: [
-                // count() aggregation — was a second full stream of every user.
-                Consumer(
-                  builder: (context, ref, _) {
-                    final total = ref
-                        .watch(collectionCountProvider('Users'))
-                        .value;
-                    if (total == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        'Total Users: $total',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('Users')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError) {
-                        return Center(child: Text('Error: ${snapshot.error}'));
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text('No users found.'));
-                      }
-
-                      final users = snapshot.data!.docs;
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          child: DataTable(
-                            columns: const [
-                              DataColumn(
-                                label: Text(
-                                  'Profile',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Full Name',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Email',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'County',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Constituency',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Ward',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Phone Number',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Status',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Actions',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                            rows: users.map((doc) {
-                              final data = doc.data() as Map<String, dynamic>;
-                              final uid = doc.id;
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    data['profileImage'] != null
-                                        ? Image.memory(
-                                            base64Decode(data['profileImage']),
-                                            width: 28,
-                                            height: 28,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : const Icon(Icons.person, size: 28),
-                                  ),
-                                  DataCell(Text(data['fullName'] ?? 'N/A')),
-                                  DataCell(Text(data['email'] ?? 'N/A')),
-                                  DataCell(Text(data['county'] ?? 'N/A')),
-                                  DataCell(Text(data['constituency'] ?? 'N/A')),
-                                  DataCell(Text(data['ward'] ?? 'N/A')),
-                                  DataCell(Text(data['phoneNumber'] ?? 'N/A')),
-                                  DataCell(
-                                    Text(
-                                      data['isDisabled'] == true
-                                          ? 'Disabled'
-                                          : 'Active',
-                                    ),
-                                  ),
-                                  DataCell(
-                                    PopupMenuButton<String>(
-                                      onSelected: (value) {
-                                        if (value == 'Delete') {
-                                          _confirmDeleteUser(uid);
-                                        }
-                                        if (value == 'Reset Password') {
-                                          _resetPassword(data['email'] ?? '');
-                                        }
-                                        if (value == 'Copy UID') {
-                                          Clipboard.setData(
-                                            ClipboardData(text: uid),
-                                          );
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'UID copied to clipboard!',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                      itemBuilder: (context) => [
-                                        const PopupMenuItem(
-                                          value: 'Delete',
-                                          child: Text('Delete User'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'Reset Password',
-                                          child: Text('Reset Password'),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'Copy UID',
-                                          child: Text('Copy UID'),
-                                        ),
-                                      ],
-                                      icon: const Icon(Icons.more_vert),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (bulkAction != null && selectedUids.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (bulkAction == 'Bulk Delete') {
-                          for (var uid in selectedUids) {
-                            _confirmDeleteUser(uid);
-                          }
-                        } else if (bulkAction == 'Bulk Reset Password') {
-                          for (var uid in selectedUids) {
-                            final doc = await FirebaseFirestore.instance
-                                .collection('Users')
-                                .doc(uid)
-                                .get();
-                            await _resetPassword(
-                              doc.data()?['email'] as String? ?? '',
-                            );
-                          }
-                        }
-                        setState(() {
-                          bulkAction = null;
-                          selectedUids.clear();
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text('Execute $bulkAction'),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _confirmDeleteUser(String uid) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'Confirm Deletion',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to delete this user? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              _deleteUser(uid);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ── Small building blocks ────────────────────────────────────────────────────
