@@ -622,75 +622,362 @@ class _ReportSliver extends ConsumerWidget {
                 style: const TextStyle(color: _kMuted, fontSize: 12, fontWeight: FontWeight.w700)),
           );
         }
-        return _ReportCard(report: items[i - 1], mine: items[i - 1].isMine(uid));
+        final r = items[i - 1];
+        return _ReportCard(
+          report: r,
+          mine: r.isMine(uid),
+          vsAverage: board.vsAverage(r),
+          onTap: () => showReportDetails(context, ref, r),
+        );
       },
     );
   }
 }
 
-class _ReportCard extends ConsumerWidget {
-  final PriceReport report;
-  final bool mine;
-  const _ReportCard({required this.report, required this.mine});
+const _cropEmoji = {
+  'maize': '🌽', 'beans': '🌱', 'irish potatoes': '🥔', 'potatoes': '🥔', 'tomatoes': '🍅',
+  'cabbages': '🥬', 'cabbage': '🥬', 'kales': '🥬', 'onions': '🧅', 'carrots': '🥕', 'wheat': '🌾',
+  'rice': '🌾', 'sorghum': '🌾', 'green grams': '🌱', 'bananas': '🍌', 'avocados': '🥑',
+  'mangoes': '🥭', 'milk': '🥛',
+};
+
+String cropEmoji(String crop) => _cropEmoji[crop.toLowerCase()] ?? '🧺';
+
+/// Price + unit, e.g. "KES 70 per kg".
+String priceWithUnit(PriceReport r) => r.unit.isEmpty ? formatKes(r.price) : '${formatKes(r.price)} ${r.unit}';
+
+class _CropAvatar extends StatelessWidget {
+  final String crop;
+  final double size;
+  const _CropAvatar(this.crop, {this.size = 46});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(size * 0.3)),
+        child: Text(cropEmoji(crop), style: TextStyle(fontSize: size * 0.5)),
+      );
+}
+
+/// "12% above avg" / "8% below avg" / "About average".
+class _VsAverage extends StatelessWidget {
+  final double pct;
+  const _VsAverage(this.pct);
+
+  @override
+  Widget build(BuildContext context) {
+    final flat = pct.abs() < 3;
+    final up = pct > 0;
+    final color = flat ? _kMuted : (up ? _kGreen : _kRed);
+    final text = flat ? 'About average' : '${pct.abs().toStringAsFixed(0)}% ${up ? 'above' : 'below'} avg';
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(flat ? Icons.drag_handle_rounded : (up ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded),
+          size: 13, color: color),
+      const SizedBox(width: 2),
+      Flexible(
+        child: Text(text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
+      ),
+    ]);
+  }
+}
+
+class _ReportCard extends StatelessWidget {
+  final PriceReport report;
+  final bool mine;
+  final double? vsAverage;
+  final VoidCallback onTap;
+  const _ReportCard({required this.report, required this.mine, required this.onTap, this.vsAverage});
+
+  @override
+  Widget build(BuildContext context) {
     final r = report;
+    final unit = shortUnit(r.unit);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        elevation: 0.6,
+        shadowColor: Colors.black26,
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: mine ? () => showPriceForm(context, ref, existing: r) : null,
+          key: ValueKey('report-${r.id}'),
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: mine ? _kOrange.withValues(alpha: 0.5) : _kBorder),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: mine ? _kOrange.withValues(alpha: 0.55) : _kBorder),
             ),
             child: Row(children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(12)),
-                child: Text(r.crop.isEmpty ? '?' : r.crop[0],
-                    style: const TextStyle(color: _kOrangeDark, fontWeight: FontWeight.w900, fontSize: 18)),
-              ),
+              _CropAvatar(r.crop),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Flexible(
                       child: Text(r.crop,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: _kInk)),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: _kInk)),
                     ),
                     if (mine) ...[const SizedBox(width: 6), const KmTag('You', _kOrange)],
                   ]),
+                  const SizedBox(height: 4),
+                  _IconLine(Icons.storefront_rounded, r.market.isEmpty ? 'Market not given' : r.market),
                   const SizedBox(height: 2),
-                  Text([r.market, r.region].where((s) => s.isNotEmpty).join(' · '),
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _kMuted, fontSize: 12.5)),
-                  const SizedBox(height: 2),
-                  Tooltip(
-                    message: fullStamp(r.at),
-                    child: Text(relativeTime(r.at), style: const TextStyle(color: _kMuted, fontSize: 11.5)),
-                  ),
+                  _IconLine(Icons.schedule_rounded, [if (r.region.isNotEmpty) r.region, relativeTime(r.at)].join(' · ')),
                 ]),
               ),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text(formatKes(r.price), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _kInk)),
-                if (r.unit.isNotEmpty) Text(r.unit, style: const TextStyle(color: _kMuted, fontSize: 11.5)),
-                if (mine) const Icon(Icons.edit_rounded, size: 14, color: _kOrange),
+              const SizedBox(width: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(12)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                    Text(formatKes(r.price),
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _kOrangeDark)),
+                    Text(unit.isEmpty ? 'unit not given' : 'per $unit',
+                        style: TextStyle(
+                            color: unit.isEmpty ? _kMuted : _kOrangeDark, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+                if (vsAverage != null) ...[
+                  const SizedBox(height: 4),
+                  ConstrainedBox(constraints: const BoxConstraints(maxWidth: 120), child: _VsAverage(vsAverage!)),
+                ],
               ]),
+              const Icon(Icons.chevron_right_rounded, color: _kMuted),
             ]),
           ),
         ),
       ),
     );
   }
+}
+
+class _IconLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _IconLine(this.icon, this.text);
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, size: 14, color: _kMuted),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(text,
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _kMuted, fontSize: 12.5)),
+        ),
+      ]);
+}
+
+// ── Report details ───────────────────────────────────────────────────────────
+
+Future<bool> _confirmDelete(BuildContext context) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Delete this report?'),
+        content: const Text('Other farmers will no longer see this price.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _kRed),
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Delete')),
+        ],
+      ),
+    ) ==
+    true;
+
+Future<void> showReportDetails(BuildContext context, WidgetRef ref, PriceReport report) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: Colors.white,
+    constraints: BoxConstraints(maxWidth: 640, maxHeight: MediaQuery.sizeOf(context).height * 0.88),
+    builder: (_) => _ReportDetails(report: report),
+  );
+}
+
+class _ReportDetails extends ConsumerWidget {
+  final PriceReport report;
+  const _ReportDetails({required this.report});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final r = report;
+    final mine = r.isMine(ref.watch(marketUidProvider));
+    final board = ref.watch(priceBoardProvider).value;
+    final all = ref.watch(priceReportsProvider).value ?? const <PriceReport>[];
+    final vs = board?.vsAverage(r);
+    final avg = board?.averages[averageKey(r.crop, r.unit)];
+    final others = all.where((o) => o.id != r.id && o.crop.toLowerCase() == r.crop.toLowerCase()).take(5).toList();
+
+    void filter(PriceQuery Function(PriceQuery) f) {
+      ref.read(priceQueryProvider.notifier).set(f(ref.read(priceQueryProvider)));
+      Navigator.pop(context);
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          _CropAvatar(r.crop, size: 52),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.crop, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: _kInk)),
+              Text(mine ? 'You reported this price' : 'Reported by a farmer',
+                  style: const TextStyle(color: _kMuted, fontSize: 12.5)),
+            ]),
+          ),
+          IconButton(
+            tooltip: 'Copy',
+            icon: const Icon(Icons.copy_rounded, color: _kMuted),
+            onPressed: () {
+              final where = [if (r.market.isNotEmpty) r.market, if (r.region.isNotEmpty) r.region].join(', ');
+              Clipboard.setData(ClipboardData(
+                  text: '${r.crop}: ${priceWithUnit(r)}${where.isEmpty ? '' : ' at $where'} '
+                      '(${fullStamp(r.at)}) — via Kilimo Mkononi'));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Price copied')));
+            },
+          ),
+        ]),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(colors: [_kOrangeDark, _kOrange]),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(formatKes(r.price),
+                    style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(r.unit.isEmpty ? '(unit not given)' : r.unit,
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                ),
+              ]),
+            ),
+            if (vs != null && avg != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                vs.abs() < 3
+                    ? 'About the same as the 30-day average (${formatKes(avg)} ${r.unit})'
+                    : '${vs.abs().toStringAsFixed(0)}% ${vs > 0 ? 'above' : 'below'} the 30-day average '
+                        'of ${formatKes(avg)} ${r.unit}',
+                style: const TextStyle(color: Colors.white, fontSize: 12.5, height: 1.35),
+              ),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 14),
+        _DetailRow(Icons.storefront_rounded, 'Market', r.market.isEmpty ? 'Not given' : r.market),
+        _DetailRow(Icons.map_outlined, 'County', r.region.isEmpty ? 'Not given' : r.region),
+        _DetailRow(Icons.scale_rounded, 'Unit', r.unit.isEmpty ? 'Not given' : r.unit),
+        _DetailRow(Icons.schedule_rounded, 'Reported', '${fullStamp(r.at)}\n${relativeTime(r.at)}'),
+        if (others.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text('Other recent ${r.crop} prices',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: _kInk)),
+          const SizedBox(height: 6),
+          for (final o in others)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(children: [
+                const Icon(Icons.circle, size: 6, color: _kOrange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('${o.market.isEmpty ? 'Unknown market' : o.market} · ${relativeTime(o.at)}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _kMuted, fontSize: 13)),
+                ),
+                const SizedBox(width: 8),
+                Text(priceWithUnit(o), style: const TextStyle(fontWeight: FontWeight.w800, color: _kInk, fontSize: 13)),
+              ]),
+            ),
+        ],
+        const SizedBox(height: 18),
+        if (mine)
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: _kRed, padding: const EdgeInsets.symmetric(vertical: 13)),
+                onPressed: () async {
+                  if (!await _confirmDelete(context)) return;
+                  await PriceReportsRepository.delete(r.id);
+                  if (context.mounted) Navigator.pop(context);
+                },
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Delete'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: _kOrange, padding: const EdgeInsets.symmetric(vertical: 13)),
+                onPressed: () {
+                  Navigator.pop(context);
+                  showPriceForm(context, ref, existing: r);
+                },
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('Edit'),
+              ),
+            ),
+          ])
+        else
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: _kOrangeDark),
+              onPressed: () => filter((q) => q.copyWith(crop: () => r.crop, market: () => null, mineOnly: false)),
+              icon: const Icon(Icons.insights_rounded),
+              label: Text('All ${r.crop} prices'),
+            ),
+            if (r.market.isNotEmpty)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: _kOrange),
+                onPressed: () => filter((q) => q.copyWith(market: () => r.market, crop: () => null, mineOnly: false)),
+                icon: const Icon(Icons.storefront_rounded),
+                label: Text('Prices at ${r.market}'),
+              ),
+          ]),
+      ]),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _DetailRow(this.icon, this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _kBorder))),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 20, color: _kOrange),
+          const SizedBox(width: 12),
+          SizedBox(width: 80, child: Text(label, style: const TextStyle(color: _kMuted, fontSize: 13))),
+          Expanded(
+            child: Text(value, style: const TextStyle(color: _kInk, fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.35)),
+          ),
+        ]),
+      );
 }
 
 // ── Report form ──────────────────────────────────────────────────────────────
@@ -783,20 +1070,8 @@ class _PriceFormState extends State<_PriceForm> {
   }
 
   Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Delete this report?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-          FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _kRed),
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Delete')),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final ok = await _confirmDelete(context);
+    if (!ok) return;
     await PriceReportsRepository.delete(widget.existing!.id);
     if (mounted) Navigator.pop(context);
   }

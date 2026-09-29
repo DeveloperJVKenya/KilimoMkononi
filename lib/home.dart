@@ -503,7 +503,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(color: Colors.white70, fontSize: 12)),
               ),
             ),
-            _drawerItem(Icons.home, 'Home', () => Navigator.pop(context)),
+            _drawerItem(Icons.home, 'Home', _goHome, selected: _selectedIndex == 0),
             _drawerItem(Icons.cloud, 'Weather Forecast',
                 () => _navigateTo(const WeatherScreen())),
             _drawerItem(Icons.input, 'Field Data Input',
@@ -532,6 +532,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// Drawer "Home": close the drawer and show the Home tab (from the
+  /// Settings or Notifications tab too).
+  void _goHome() {
+    Navigator.pop(context);
+    setState(() => _selectedIndex = 0);
+  }
+
   void _navigateTo(Widget page) {
     Navigator.pop(context);
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
@@ -555,10 +562,13 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  ListTile _drawerItem(IconData icon, String title, VoidCallback onTap) {
+  ListTile _drawerItem(IconData icon, String title, VoidCallback onTap, {bool selected = false}) {
     return ListTile(
       leading: Icon(icon, color: const Color.fromARGB(255, 3, 39, 4)),
-      title: Text(title),
+      title: Text(title, style: selected ? const TextStyle(fontWeight: FontWeight.w800) : null),
+      selected: selected,
+      selectedColor: _kGreen,
+      selectedTileColor: const Color(0xFFE8F5E9),
       onTap: onTap,
     );
   }

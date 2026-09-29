@@ -71,6 +71,9 @@ class PriceReport {
   bool isMine(String? uid) => uid != null && uid == userId;
 }
 
+/// "per 90 kg bag" → "90 kg bag"; '' when no unit was given.
+String shortUnit(String unit) => unit.replaceFirst(RegExp(r'^per\s+', caseSensitive: false), '').trim();
+
 String _title(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
 String formatKes(num v) {
@@ -156,11 +159,44 @@ class CropSummary {
 
 class PriceBoard {
   final List<PriceReport> shown;
+  final Map<String, double> averages; // averageKey(crop, unit) → last-30-day average
   final List<(String, int)> crops; // crop → reports (all)
   final List<(String, int)> regions;
   final List<(String, int)> markets;
   final CropSummary? summary; // when a crop is selected
-  const PriceBoard({required this.shown, required this.crops, required this.regions, required this.markets, this.summary});
+  const PriceBoard({
+    required this.shown,
+    required this.crops,
+    required this.regions,
+    required this.markets,
+    this.summary,
+    this.averages = const {},
+  });
+
+  /// How far [r] is from the recent average for the same crop and unit, in
+  /// percent (null when there's nothing comparable).
+  double? vsAverage(PriceReport r) {
+    final avg = averages[averageKey(r.crop, r.unit)];
+    if (avg == null || avg == 0) return null;
+    return (r.price - avg) / avg * 100;
+  }
+}
+
+String averageKey(String crop, String unit) => '${crop.toLowerCase()}|${unit.toLowerCase()}';
+
+/// Average price per crop + unit over the last 30 days, only where at least
+/// two reports exist (a single report has nothing to compare against).
+Map<String, double> cropUnitAverages(List<PriceReport> reports, {DateTime? now}) {
+  final cutoff = (now ?? DateTime.now()).subtract(const Duration(days: 30));
+  final groups = <String, List<double>>{};
+  for (final r in reports) {
+    if (!r.at.isAfter(cutoff)) continue;
+    groups.putIfAbsent(averageKey(r.crop, r.unit), () => []).add(r.price);
+  }
+  return {
+    for (final e in groups.entries)
+      if (e.value.length >= 2) e.key: e.value.reduce((a, b) => a + b) / e.value.length,
+  };
 }
 
 List<(String, int)> _counts(Iterable<String> values) {
@@ -205,6 +241,7 @@ PriceBoard computePriceBoard(List<PriceReport> reports, PriceQuery q, {String? u
     regions: _counts(scope.map((r) => r.region)),
     markets: _counts(scope.map((r) => r.market)),
     summary: summary,
+    averages: cropUnitAverages(reports, now: n),
   );
 }
 

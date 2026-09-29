@@ -84,6 +84,17 @@ void main() {
       expect(s.unit, 'per kg');
     });
 
+    test('per-crop averages compare like with like (same unit, 30 days)', () {
+      final avgs = cropUnitAverages(_reports(), now: _now);
+      expect(avgs[averageKey('Maize', 'per kg')], closeTo(56.67, 0.01));
+      expect(avgs.containsKey(averageKey('Tomatoes', 'per crate')), isFalse); // one report only
+      final b = computePriceBoard(_reports(), const PriceQuery(), now: _now);
+      expect(b.vsAverage(_reports()[1]), closeTo(23.5, 0.1)); // 70 vs 56.67
+      expect(b.vsAverage(_reports()[4]), isNull);
+      expect(shortUnit('per 90 kg bag'), '90 kg bag');
+      expect(shortUnit(''), '');
+    });
+
     test('summary falls back to all reports when none are recent', () {
       final s = summariseCrop('Maize', [_r('d', 'Maize', 'Kibuye', 'Kisumu', 50, daysAgo: 90)], now: _now)!;
       expect(s.recentOnly, isFalse);
@@ -157,6 +168,39 @@ void main() {
       await t.scrollUntilVisible(find.text('1 report'), 200, scrollable: find.byType(Scrollable).first);
       expect(find.text('1 report'), findsOneWidget);
       expect(find.text('You'), findsOneWidget);
+      expect(find.text('per kg'), findsOneWidget);
+      expect(find.text('29% below avg'), findsOneWidget);
+
+      // Tap the card: detail sheet with unit, comparison and owner actions.
+      await t.tapAt(t.getTopLeft(find.byKey(const ValueKey('report-c'))) + const Offset(24, 24));
+      await t.pumpAndSettle();
+      expect(find.text('You reported this price'), findsOneWidget);
+      expect(find.textContaining('below the 30-day average of KES 57 per kg'), findsOneWidget);
+      expect(find.text('Kibuye'), findsWidgets);
+      await t.ensureVisible(find.text('Edit'));
+      expect(find.text('Delete'), findsOneWidget);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets("market board: another farmer's report → filter shortcuts", (t) async {
+      await pump(t, const MarketPriceScreen(), [
+        marketUidProvider.overrideWithValue('u1'),
+        priceReportsProvider.overrideWith((ref) => Stream.value(_reports())),
+      ]);
+      final card = find.byKey(const ValueKey('report-e'));
+      await t.scrollUntilVisible(card, 200, scrollable: find.byType(Scrollable).first);
+      await t.ensureVisible(card);
+      await t.pumpAndSettle();
+      expect(find.text('per crate'), findsOneWidget);
+      await t.tapAt(t.getTopLeft(card) + const Offset(24, 24));
+      await t.pumpAndSettle();
+      expect(find.text('Reported by a farmer'), findsOneWidget);
+      expect(find.text('KES 120'), findsWidgets);
+      await t.ensureVisible(find.text('Prices at Wakulima'));
+      await t.tap(find.text('Prices at Wakulima'));
+      await t.pumpAndSettle();
+      expect(find.text('Wakulima'), findsWidgets);
+      expect(find.text('3 reports'), findsOneWidget); // Wakulima: maize ×2 + tomatoes
       expect(t.takeException(), isNull);
     });
 
