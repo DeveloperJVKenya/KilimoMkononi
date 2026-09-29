@@ -506,8 +506,6 @@ class _HomePageState extends State<HomePage> {
             _drawerItem(Icons.home, 'Home', () => Navigator.pop(context)),
             _drawerItem(Icons.cloud, 'Weather Forecast',
                 () => _navigateTo(const WeatherScreen())),
-            _drawerItem(Icons.sensors_rounded, 'Weather Station',
-                () => _navigateTo(const WeatherStationScreen())),
             _drawerItem(Icons.input, 'Field Data Input',
                 () => _navigateTo(const FieldDataInputHomePage())),
             _drawerItem(Icons.bug_report, 'Pests & Diseases',
