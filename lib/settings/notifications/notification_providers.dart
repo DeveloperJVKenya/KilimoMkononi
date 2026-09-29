@@ -28,7 +28,12 @@ import 'package:kilimomkononi/settings/notifications/farm_alerts.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-final notifUidProvider = Provider<String?>((ref) => FirebaseAuth.instance.currentUser?.uid);
+/// Live sign-in state, so the inbox, badge and settings switch with the
+/// account (a shared browser can sign out and in without restarting).
+final _authUserProvider = StreamProvider<User?>((ref) => FirebaseAuth.instance.authStateChanges());
+
+final notifUidProvider = Provider<String?>(
+    (ref) => ref.watch(_authUserProvider).value?.uid ?? FirebaseAuth.instance.currentUser?.uid);
 
 DateTime? _ts(dynamic v) => v is Timestamp ? v.toDate() : null;
 

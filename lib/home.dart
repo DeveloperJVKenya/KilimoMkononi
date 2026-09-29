@@ -1,6 +1,7 @@
 // lib/screens/home.dart
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
@@ -16,6 +17,7 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_scree
 import 'package:kilimomkononi/screens/user_profile.dart';
 import 'package:kilimomkononi/authentication/login.dart';
 import 'package:kilimomkononi/settings/notifications_screen.dart';
+import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
 import 'package:kilimomkononi/settings/settings_screen.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -250,6 +252,8 @@ class _HomePageState extends State<HomePage> {
                 MaterialPageRoute(builder: (_) => const AdminManagementScreen()),
               ),
             ),
+          _NotificationBell(onTap: () => _onItemTapped(2)),
+          const SizedBox(width: 4),
         ],
       ),
       drawer: _buildDrawer(fullName),
@@ -294,12 +298,10 @@ class _HomePageState extends State<HomePage> {
           Icons.bug_report_rounded, () => _open(const PestDiseaseHomePage())),
       _Slide('assets/farm_management.jpg', 'Farm Management', 'Tasks, costs, harvests and loans',
           Icons.account_balance_wallet_rounded, () => _open(const FarmManagementScreen())),
-      _Slide('assets/farming_tips.png', 'Farming Tips', 'Practical guidance for every season',
-          Icons.lightbulb_rounded, () => _open(const FarmingTipsWidget())),
+      _Slide('assets/soil.png', 'Weather Station', 'Rainfall, soil moisture, temperature & spray windows',
+          Icons.sensors_rounded, () => _open(const WeatherStationScreen())),
       _Slide('assets/manuals.jpg', 'Manuals', 'Guides and documents to download',
           Icons.menu_book_rounded, () => _open(const ManualsScreen())),
-      _Slide('assets/soil.png', 'Season Analysis', 'AI insights on your field, soil and finances',
-          Icons.insights_rounded, _openSeasonAnalysis),
     ];
 
     return LayoutBuilder(builder: (context, c) {
@@ -337,7 +339,33 @@ class _HomePageState extends State<HomePage> {
           sliver: const SliverToBoxAdapter(child: FarmAlertsHomeWidget()),
         ),
         SliverPadding(
-          padding: EdgeInsets.fromLTRB(side, 20, side, 32),
+          padding: EdgeInsets.fromLTRB(side, 22, side, 10),
+          sliver: const SliverToBoxAdapter(child: _SectionTitle('Market & tips', Icons.storefront_rounded)),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: side),
+          sliver: SliverToBoxAdapter(
+            child: _TwoUp(children: [
+              _ToolCard(
+                title: 'Market Prices',
+                subtitle: 'Latest crop prices from markets near you',
+                icon: Icons.price_check_rounded,
+                colors: const [Color(0xFFBF360C), Color(0xFFEF6C00), Color(0xFFFFA726)],
+                onTap: () => _open(const MarketPriceScreen()),
+              ),
+              _ToolCard(
+                title: 'Farming Tips',
+                subtitle: 'Practical guidance for every season',
+                icon: Icons.lightbulb_rounded,
+                image: 'assets/farming_tips.png',
+                colors: const [Color(0xFF1B5E20), Color(0xFF558B2F), Color(0xFF9E9D24)],
+                onTap: () => _open(const FarmingTipsWidget()),
+              ),
+            ]),
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 16, side, 32),
           sliver: SliverToBoxAdapter(child: _seasonAnalysisCard()),
         ),
       ]);
@@ -486,10 +514,6 @@ class _HomePageState extends State<HomePage> {
                 () => _navigateTo(const PestDiseaseHomePage())),
             _drawerItem(Icons.account_balance_wallet, 'Farm Management',
                 () => _navigateTo(const FarmManagementScreen())),
-            _drawerItem(Icons.price_check_rounded, 'Market Prices',
-                () => _navigateTo(const MarketPriceScreen())),
-            _drawerItem(Icons.lightbulb_rounded, 'Farming Tips',
-                () => _navigateTo(const FarmingTipsWidget())),
             _drawerItem(Icons.book, 'Manuals',
                 () => _navigateTo(const ManualsScreen())),
             // ── Season Analysis drawer entry ──────────────────────
@@ -743,4 +767,126 @@ class _HeroChip extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Two cards side by side on wider screens, stacked on narrow phones.
+class _TwoUp extends StatelessWidget {
+  final List<Widget> children;
+  const _TwoUp({required this.children});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, c) => c.maxWidth < 360
+            ? Column(children: [
+                for (var i = 0; i < children.length; i++) ...[if (i > 0) const SizedBox(height: 12), children[i]],
+              ])
+            : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  Expanded(child: children[i]),
+                ],
+              ]),
+      );
+}
+
+class _ToolCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
+  final String? image;
+  final VoidCallback onTap;
+  const _ToolCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+    required this.onTap,
+    this.image,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ts = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.4);
+    return SizedBox(
+      height: 132 * ts,
+      child: Material(
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        elevation: 2,
+        shadowColor: Colors.black26,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(fit: StackFit.expand, children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+              ),
+            ),
+            if (image != null)
+              Opacity(
+                opacity: 0.22,
+                child: Image.asset(image!, fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox()),
+              ),
+            // Soft decorative circle.
+            Positioned(
+              right: -24,
+              top: -24,
+              child: Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.10), shape: BoxShape.circle),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(icon, color: Colors.white, size: 22),
+                ),
+                const Spacer(),
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.3)),
+              ]),
+            ),
+            const Positioned(
+              right: 12,
+              bottom: 12,
+              child: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// App-bar bell with the number of unread notifications.
+class _NotificationBell extends ConsumerWidget {
+  final VoidCallback onTap;
+  const _NotificationBell({required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadCountProvider);
+    return IconButton(
+      tooltip: unread == 0 ? 'Notifications' : 'Notifications ($unread unread)',
+      onPressed: onTap,
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text(unread > 99 ? '99+' : '$unread'),
+        backgroundColor: const Color(0xFFEF6C00),
+        child: const Icon(Icons.notifications_rounded),
+      ),
+    );
+  }
 }
