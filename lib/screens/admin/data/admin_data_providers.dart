@@ -199,7 +199,9 @@ AdminView computeAdminView(AdminCollectionSpec spec, List<AdminDoc> docs, AdminQ
   if (sort != null) {
     filtered.sort((a, b) {
       final c = sort.valueOf(a).compareTo(sort.valueOf(b));
-      return query.ascending ? c : -c;
+      if (c != 0) return query.ascending ? c : -c;
+      // Same value (e.g. everyone in the chosen county) → by name A→Z.
+      return spec.titleOf(a).toLowerCase().compareTo(spec.titleOf(b).toLowerCase());
     });
   }
 

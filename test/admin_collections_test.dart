@@ -180,6 +180,27 @@ void main() {
       expect(t.takeException(), isNull);
     });
 
+    testWidgets('sort by county → choose a specific county → only those farmers, by name', (t) async {
+      await sized(t, 390, 844);
+      await t.pumpWidget(app('Users', farmers()));
+      await t.pumpAndSettle();
+      await t.tap(find.byTooltip('Sort'));
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(CheckedPopupMenuItem<String>, 'County'));
+      await t.pumpAndSettle();
+      expect(find.text('Choose county'), findsOneWidget);
+      expect(find.text('All — sort by county'), findsOneWidget);
+      await t.tap(find.descendant(of: find.byType(ListTile), matching: find.text('Nakuru')));
+      await t.pumpAndSettle();
+      expect(find.text('County: Nakuru'), findsWidgets); // sort button + filter chip
+      expect(find.text('2 shown · 3 loaded'), findsOneWidget);
+      final amina = t.getTopLeft(find.text('Amina Hassan'));
+      final jane = t.getTopLeft(find.text('Jane Wanjiku'));
+      expect(amina.dy, lessThan(jane.dy)); // A→Z within the county
+      expect(find.text('Brian Otieno'), findsNothing);
+      expect(t.takeException(), isNull);
+    });
+
     testWidgets('long-press selects; bulk bar offers the collection\'s actions', (t) async {
       await sized(t, 390, 844);
       await t.pumpWidget(app('Users', farmers()));

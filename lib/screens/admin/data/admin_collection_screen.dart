@@ -349,10 +349,19 @@ class _Toolbar extends ConsumerWidget {
             const SizedBox(width: 8),
             PopupMenuButton<String>(
               tooltip: 'Sort',
-              onSelected: q.sortBy,
+              onSelected: (key) => _chooseSort(context, ref, key),
               itemBuilder: (_) => [
                 for (final s in spec.sorts)
-                  CheckedPopupMenuItem(value: s.key, checked: s.key == query.sortKey, child: Text(s.label)),
+                  CheckedPopupMenuItem(
+                    value: s.key,
+                    checked: s.key == query.sortKey,
+                    child: Row(children: [
+                      Expanded(child: Text(s.label)),
+                      // Fields with specific values open a picker.
+                      if (spec.filters.any((f) => f.key == s.key))
+                        const Icon(Icons.chevron_right_rounded, size: 18, color: _kMuted),
+                    ]),
+                  ),
               ],
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
@@ -364,7 +373,12 @@ class _Toolbar extends ConsumerWidget {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(query.ascending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 16, color: spec.color),
                   const SizedBox(width: 4),
-                  Text(sort?.label ?? 'Sort', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(
+                    query.filters[query.sortKey] != null
+                        ? '${sort?.label}: ${query.filters[query.sortKey]}'
+                        : (sort?.label ?? 'Sort'),
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
                 ]),
               ),
             ),
@@ -398,6 +412,25 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
+extension on _Toolbar {
+  /// Sort by [key]; for fields with specific values (county, ward, crop…),
+  /// ask which one — "All …" keeps every record, sorted by that field.
+  Future<void> _chooseSort(BuildContext context, WidgetRef ref, String key) async {
+    final q = ref.read(adminQueryProvider(spec.collection).notifier);
+    final filter = spec.filters.where((f) => f.key == key).firstOrNull;
+    final options = view.filterOptions[key] ?? const [];
+    if (filter == null || options.isEmpty) {
+      q.sortBy(key);
+      return;
+    }
+    final pick = await pickAdminValue(context,
+        spec: spec, filter: filter, options: options, selected: query.filters[key], allLabel: 'All — sort by ${filter.label.toLowerCase()}');
+    if (pick == null) return; // dismissed
+    if (query.sortKey != key) q.sortBy(key);
+    q.setFilter(key, pick.value);
+  }
+}
+
 class _FilterChip extends ConsumerWidget {
   final AdminCollectionSpec spec;
   final AdminFilter filter;
@@ -412,19 +445,14 @@ class _FilterChip extends ConsumerWidget {
     final q = ref.read(adminQueryProvider(spec.collection).notifier);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: PopupMenuButton<String?>(
-        tooltip: filter.label,
-        enabled: options.isNotEmpty,
-        onSelected: (v) => q.setFilter(filter.key, v == '\u0000' ? null : v),
-        itemBuilder: (_) => [
-          if (selected != null) const PopupMenuItem(value: '\u0000', child: Text('Any')),
-          for (final (value, count) in options)
-            CheckedPopupMenuItem(
-              value: value,
-              checked: value == selected,
-              child: Text('$value  ($count)', overflow: TextOverflow.ellipsis),
-            ),
-        ],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: options.isEmpty
+            ? null
+            : () async {
+                final pick = await pickAdminValue(context, spec: spec, filter: filter, options: options, selected: selected);
+                if (pick != null) q.setFilter(filter.key, pick.value);
+              },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
@@ -1240,5 +1268,147 @@ class _Message extends StatelessWidget {
             if (action != null) ...[const SizedBox(height: 8), action!],
           ]),
         ),
+      );
+}
+
+/// The value chosen in [pickAdminValue]; `value == null` means "all".
+class AdminValuePick {
+  final String? value;
+  const AdminValuePick(this.value);
+}
+
+/// Searchable list of a field's values with record counts (e.g. every
+/// county and how many farmers are in it). Returns null if dismissed.
+Future<AdminValuePick?> pickAdminValue(
+  BuildContext context, {
+  required AdminCollectionSpec spec,
+  required AdminFilter filter,
+  required List<(String, int)> options,
+  String? selected,
+  String? allLabel,
+}) {
+  final wide = MediaQuery.sizeOf(context).width >= 700;
+  final body = _ValuePicker(spec: spec, filter: filter, options: options, selected: selected, allLabel: allLabel);
+  if (wide) {
+    return showDialog<AdminValuePick>(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560), child: body),
+      ),
+    );
+  }
+  return showModalBottomSheet<AdminValuePick>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => SizedBox(height: MediaQuery.sizeOf(ctx).height * 0.75, child: body),
+  );
+}
+
+class _ValuePicker extends StatefulWidget {
+  final AdminCollectionSpec spec;
+  final AdminFilter filter;
+  final List<(String, int)> options;
+  final String? selected;
+  final String? allLabel;
+  const _ValuePicker({required this.spec, required this.filter, required this.options, this.selected, this.allLabel});
+
+  @override
+  State<_ValuePicker> createState() => _ValuePickerState();
+}
+
+class _ValuePickerState extends State<_ValuePicker> {
+  String _q = '';
+  bool _az = false; // false = most records first
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.spec.color;
+    final list = widget.options.where((o) => o.$1.toLowerCase().contains(_q.toLowerCase())).toList();
+    if (_az) list.sort((a, b) => a.$1.toLowerCase().compareTo(b.$1.toLowerCase()));
+    final total = widget.options.fold<int>(0, (a, o) => a + o.$2);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(
+            child: Text('Choose ${widget.filter.label.toLowerCase()}',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          ),
+          TextButton.icon(
+            onPressed: () => setState(() => _az = !_az),
+            icon: Icon(_az ? Icons.sort_by_alpha_rounded : Icons.bar_chart_rounded, size: 18),
+            label: Text(_az ? 'A–Z' : 'Most records'),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        TextField(
+          autofocus: MediaQuery.sizeOf(context).width >= 700,
+          onChanged: (v) => setState(() => _q = v),
+          decoration: InputDecoration(
+            hintText: 'Search ${widget.options.length} ${widget.filter.label.toLowerCase()} values…',
+            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ListView(children: [
+            if (_q.isEmpty)
+              _PickRow(
+                label: widget.allLabel ?? 'All',
+                count: total,
+                color: color,
+                selected: widget.selected == null,
+                icon: Icons.select_all_rounded,
+                onTap: () => Navigator.pop(context, const AdminValuePick(null)),
+              ),
+            for (final (value, count) in list)
+              _PickRow(
+                label: value,
+                count: count,
+                color: color,
+                selected: value == widget.selected,
+                onTap: () => Navigator.pop(context, AdminValuePick(value)),
+              ),
+            if (list.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('No matching values', textAlign: TextAlign.center, style: TextStyle(color: _kMuted)),
+              ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _PickRow extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  final bool selected;
+  final IconData? icon;
+  final VoidCallback onTap;
+  const _PickRow({required this.label, required this.count, required this.color, required this.selected, required this.onTap, this.icon});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        dense: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        selected: selected,
+        selectedTileColor: color.withValues(alpha: 0.08),
+        leading: Icon(icon ?? (selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded),
+            color: selected ? color : _kMuted, size: 20),
+        title: Text(label, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
+          child: Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12)),
+        ),
+        onTap: onTap,
       );
 }

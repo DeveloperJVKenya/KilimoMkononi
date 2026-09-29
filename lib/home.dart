@@ -1,6 +1,6 @@
 // lib/screens/home.dart
 import 'package:flutter/material.dart';
-import 'package:carousel_slider/carousel_slider.dart';
+import 'package:intl/intl.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
 import 'package:kilimomkononi/screens/admin/admin_management_screen.dart';
@@ -11,6 +11,7 @@ import 'package:kilimomkononi/screens/market_price_screen.dart';
 import 'package:kilimomkononi/screens/manuals_screen.dart';
 import 'package:kilimomkononi/screens/pests_diseases_home.dart';
 import 'package:kilimomkononi/screens/weather_screen.dart';
+import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/screens/user_profile.dart';
 import 'package:kilimomkononi/authentication/login.dart';
 import 'package:kilimomkononi/settings/notifications_screen.dart';
@@ -29,8 +30,6 @@ import 'package:kilimomkononi/services/notification_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-
-enum ScreenType { mobile, tablet, desktop }
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -53,16 +52,6 @@ class _HomePageState extends State<HomePage> {
   // sign-out) or trigger a second navigation to LoginScreen.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   bool _navigatedToLogin = false;
-
-  final List<String> _carouselImages = [
-    'assets/weather_forecast.jpg',
-    'assets/field_data_collection.jpg',
-    'assets/pest_management.jpg',
-    'assets/farm_management.jpg',
-    'assets/manuals.jpg',
-    'assets/farming_tips.png',
-    'assets/soil.png',
-  ];
 
   @override
   void initState() {
@@ -96,28 +85,6 @@ class _HomePageState extends State<HomePage> {
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
     if (message != null) {
       messenger.showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
-  ScreenType _getScreenType(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width < 600) return ScreenType.mobile;
-    if (width < 1200) return ScreenType.tablet;
-    return ScreenType.desktop;
-  }
-
-  double _getResponsiveValue({
-    required double mobile,
-    required double tablet,
-    required double desktop,
-  }) {
-    switch (_getScreenType(context)) {
-      case ScreenType.mobile:
-        return mobile;
-      case ScreenType.tablet:
-        return tablet;
-      case ScreenType.desktop:
-        return desktop;
     }
   }
 
@@ -267,9 +234,10 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       key: _scaffoldKey,
+      backgroundColor: _kPage,
       appBar: AppBar(
-        title: const Text('Kilimo Mkononi'),
-        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
+        title: const Text('Kilimo Mkononi', style: TextStyle(fontWeight: FontWeight.w800)),
+        backgroundColor: _kGreen,
         foregroundColor: Colors.white,
         actions: [
           if (_isMainAdmin)
@@ -289,234 +257,203 @@ class _HomePageState extends State<HomePage> {
         const SettingsScreen(isEducation: false),
         const NotificationsScreen(),
       ][_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.green,
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notifications'),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        height: 66,
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFFD8EFD9),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded, color: _kGreen), label: 'Home'),
+          NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings_rounded, color: _kGreen),
+              label: 'Settings'),
+          NavigationDestination(
+              icon: Icon(Icons.notifications_outlined),
+              selectedIcon: Icon(Icons.notifications_rounded, color: _kGreen),
+              label: 'Notifications'),
         ],
       ),
     );
   }
 
+  /// Home: greeting, farm alerts, every feature in a responsive grid, and
+  /// the Season Analysis highlight. Content is centred and capped at
+  /// 1100 px so nothing stretches on wide screens.
   Widget _buildHomeContent(String fullName) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 30),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Greeting ────────────────────────────────────────────
-          Padding(
-            padding: EdgeInsets.all(_getResponsiveValue(mobile: 16, tablet: 24, desktop: 32)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hello, $fullName!',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
-                      ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Welcome back to Kilimo Mkononi',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                ),
-              ],
-            ),
-          ),
+    final features = <_Feature>[
+      _Feature(Icons.wb_cloudy_rounded, 'Weather', 'Forecast for any place', const Color(0xFF1565C0),
+          () => _open(const WeatherScreen())),
+      _Feature(Icons.sensors_rounded, 'Weather Station', 'Live readings & verified advice', const Color(0xFF00796B),
+          () => _open(const WeatherStationScreen())),
+      _Feature(Icons.edit_note_rounded, 'Field Data', 'Record plots, soil & crops', const Color(0xFF2E7D32),
+          () => _open(const FieldDataInputHomePage())),
+      _Feature(Icons.bug_report_rounded, 'Pests & Diseases', 'Diagnose and treat', const Color(0xFFC62828),
+          () => _open(const PestDiseaseHomePage())),
+      _Feature(Icons.account_balance_wallet_rounded, 'Farm Management', 'Tasks, costs & harvests',
+          const Color(0xFF6D4C41), () => _open(const FarmManagementScreen())),
+      _Feature(Icons.price_check_rounded, 'Market Prices', 'Prices near you', const Color(0xFFEF6C00),
+          () => _open(const MarketPriceScreen())),
+      _Feature(Icons.lightbulb_rounded, 'Farming Tips', 'Practical guidance', const Color(0xFFF9A825),
+          () => _open(const FarmingTipsWidget())),
+      _Feature(Icons.menu_book_rounded, 'Manuals', 'Guides & documents', const Color(0xFF3949AB),
+          () => _open(const ManualsScreen())),
+    ];
 
-          // ── Carousel ─────────────────────────────────────────────
-          CarouselSlider(
-            options: CarouselOptions(
-              height: _getResponsiveValue(mobile: 200, tablet: 300, desktop: 400),
-              autoPlay: true,
-              enlargeCenterPage: true,
-              viewportFraction: _getResponsiveValue(mobile: 0.85, tablet: 0.6, desktop: 0.5),
-            ),
-            items: _carouselImages
-                .map((path) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.asset(path, fit: BoxFit.cover, width: double.infinity),
-                      ),
-                    ))
-                .toList(),
-          ),
-
-          const SizedBox(height: 30),
-
-          // ── Farm Alerts (IoT + Satellite) ────────────────────────
-          // Auto-loads conditions for the farmer's registered county.
-          // Shows flood, drought, fungal, spray-window alerts.
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Farm Alerts',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: FarmAlertsHomeWidget(),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ── Quick Access ─────────────────────────────────────────
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Quick Access',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Row 1: Farming Tips + Market Price
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _card(Icons.lightbulb, 'Farming Tips', () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FarmingTipsWidget()),
-                    );
-                  }),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _card(Icons.price_check, 'Market Price', () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MarketPriceScreen()),
-                    );
-                  }),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Row 2: Season Analysis (full-width highlight card)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _seasonAnalysisCard(),
-          ),
-
-          const SizedBox(height: 30),
-
-          // ── More Features Button ──────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton.icon(
+    return LayoutBuilder(builder: (context, c) {
+      final side = c.maxWidth > 1132 ? (c.maxWidth - 1100) / 2 : 16.0;
+      final ts = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.5);
+      return CustomScrollView(slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 16, side, 0),
+          sliver: SliverToBoxAdapter(child: _heroCard(fullName)),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 22, side, 10),
+          sliver: const SliverToBoxAdapter(child: _SectionTitle('Farm alerts', Icons.warning_amber_rounded)),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: side),
+          sliver: const SliverToBoxAdapter(child: FarmAlertsHomeWidget()),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 22, side, 10),
+          sliver: SliverToBoxAdapter(
+            child: _SectionTitle(
+              'Features',
+              Icons.apps_rounded,
+              action: TextButton.icon(
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                icon: const Icon(Icons.menu, size: 28),
-                label: const Text('More Features', style: TextStyle(fontSize: 18)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700],
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 6,
-                ),
+                icon: const Icon(Icons.menu_rounded, size: 18),
+                label: const Text('Full menu'),
+                style: TextButton.styleFrom(foregroundColor: _kGreen),
               ),
             ),
-          ),
-
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  // ── Standard quick-access card ────────────────────────────────────────
-  Widget _card(IconData icon, String title, VoidCallback onTap) {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 50, color: const Color.fromARGB(255, 3, 39, 4)),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ],
           ),
         ),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: side),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 230,
+              mainAxisExtent: 118 * ts,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+            ),
+            delegate: SliverChildBuilderDelegate((_, i) => _FeatureTile(features[i]), childCount: features.length),
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 16, side, 32),
+          sliver: SliverToBoxAdapter(child: _seasonAnalysisCard()),
+        ),
+      ]);
+    });
+  }
+
+  void _open(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+
+  Widget _heroCard(String fullName) {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
+    final first = fullName.trim().split(RegExp(r'\s+')).first;
+    final county = (_userData?['county'] as String?)?.trim() ?? '';
+    final ward = (_userData?['ward'] as String?)?.trim() ?? '';
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0B3D1E), _kGreen, Color(0xFF00695C)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: _kGreen.withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 6))],
       ),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(DateFormat('EEEE d MMMM').format(DateTime.now()),
+                style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+            const SizedBox(height: 4),
+            Text('$greeting, $first!',
+                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            const Text('Here\'s what\'s happening on your farm today.',
+                style: TextStyle(color: Colors.white70, fontSize: 13.5)),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              if (county.isNotEmpty)
+                _HeroChip(Icons.place_rounded, ward.isEmpty ? county : '$ward, $county'),
+              _HeroChip(Icons.bar_chart_rounded, 'Season analysis', onTap: _openSeasonAnalysis),
+              if (_isMainAdmin)
+                _HeroChip(Icons.admin_panel_settings_rounded, 'Admin panel',
+                    onTap: () => _open(const AdminManagementScreen())),
+            ]),
+          ]),
+        ),
+        const SizedBox(width: 12),
+        InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => _openUserProfileFromHome(fullName),
+          child: CircleAvatar(
+            radius: 30,
+            backgroundColor: Colors.white24,
+            backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+            child: _profileImageBytes == null ? const Icon(Icons.person_rounded, size: 32, color: Colors.white) : null,
+          ),
+        ),
+      ]),
     );
   }
 
-  // ── Season Analysis highlighted card (full-width) ─────────────────────
+  void _openUserProfileFromHome(String fullName) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserProfileScreen(profileImageBytes: _profileImageBytes, fullName: fullName, role: null),
+      ),
+    ).then((_) => _fetchUserData());
+  }
+
+  /// Season Analysis highlight (inside the capped content width).
   Widget _seasonAnalysisCard() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Material(
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: _openSeasonAnalysis,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [
-                const Color.fromARGB(255, 3, 39, 4),
-                Colors.green[700]!,
-              ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
+        child: Ink(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [Color(0xFF1A237E), Color(0xFF3949AB), Color(0xFF00897B)]),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), shape: BoxShape.circle),
+              child: const Icon(Icons.insights_rounded, size: 28, color: Colors.white),
             ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Row(
-            children: [
-              const Icon(Icons.bar_chart_rounded, size: 48, color: Colors.white),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Season Analysis',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'AI insights on your field data, pests, diseases & finances',
-                      style: TextStyle(fontSize: 13, color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
-            ],
-          ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Season Analysis',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+                SizedBox(height: 3),
+                Text('AI insights on your field data, pests, diseases and finances',
+                    style: TextStyle(fontSize: 12.5, color: Colors.white70)),
+              ]),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+              child: const Text('Open',
+                  style: TextStyle(color: Color(0xFF1A237E), fontWeight: FontWeight.w800, fontSize: 12.5)),
+            ),
+          ]),
         ),
       ),
     );
@@ -607,4 +544,102 @@ class _HomePageState extends State<HomePage> {
       onTap: onTap,
     );
   }
+}
+
+const _kGreen = Color(0xFF1B5E20);
+const _kPage = Color(0xFFF4F6F3);
+
+class _Feature {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+  const _Feature(this.icon, this.title, this.subtitle, this.color, this.onTap);
+}
+
+class _FeatureTile extends StatelessWidget {
+  final _Feature f;
+  const _FeatureTile(this.f);
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: 0,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: f.onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8E3)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(color: f.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+                child: Icon(f.icon, color: f.color, size: 24),
+              ),
+              const Spacer(),
+              Text(f.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF1B2A1B))),
+              const SizedBox(height: 2),
+              Text(f.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF6B7280))),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget? action;
+  const _SectionTitle(this.title, this.icon, {this.action});
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, size: 20, color: _kGreen),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1B2A1B))),
+        ),
+        ?action,
+      ]);
+}
+
+class _HeroChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _HeroChip(this.icon, this.label, {this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 14, color: Colors.white),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+        ),
+      );
 }
