@@ -11,7 +11,8 @@ final _now = DateTime(2026, 9, 29, 12);
 
 List<AdminDoc> farmers() => const [
       AdminDoc('u1', {'fullName': 'Jane Wanjiku', 'email': 'jane@farm.ke', 'county': 'Nakuru', 'ward': 'Njoro', 'isDisabled': false}),
-      AdminDoc('u2', {'fullName': 'Brian Otieno', 'email': 'brian@farm.ke', 'county': 'Kisumu', 'ward': 'Kondele', 'isDisabled': true}),
+      AdminDoc('u2', {'fullName': 'Brian Otieno', 'email': 'brian@farm.ke', 'county': 'Kisumu', 'ward': 'Kondele', 'isDisabled': true,
+          'legacyNote': 'Imported from the old system'}), // → "Other data" section
       AdminDoc('u3', {'fullName': 'Amina Hassan', 'email': 'amina@farm.ke', 'county': 'Nakuru', 'ward': 'Bahati'}),
     ];
 
@@ -152,6 +153,14 @@ void main() {
       expect(find.text('Farm location'), findsOneWidget);
       expect(find.text('Enable'), findsOneWidget); // disabled account → enable
       expect(find.text('Reset password'), findsOneWidget);
+      expect(t.takeException(), isNull);
+      // Extra fields appear under "Other data" (expandable, with ripple).
+      await t.ensureVisible(find.text('Other data (1)'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Other data (1)'));
+      await t.pumpAndSettle();
+      expect(find.byWidgetPredicate((w) => w is SelectableText && w.data == 'Imported from the old system'),
+          findsOneWidget);
       expect(t.takeException(), isNull);
     });
 

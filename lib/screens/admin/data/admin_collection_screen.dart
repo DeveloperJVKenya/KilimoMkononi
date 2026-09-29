@@ -1037,16 +1037,19 @@ class _Card extends StatelessWidget {
   final Widget child;
   const _Card({required this.child});
 
+  // Material (not a coloured Container) so tiles inside show their ripple.
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        decoration: BoxDecoration(
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Material(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _kBorder),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: _kBorder),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 10), child: child),
         ),
-        child: child,
       );
 }
 
