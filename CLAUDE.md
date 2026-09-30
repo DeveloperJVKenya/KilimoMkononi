@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Kilimo Mkononi ("Farming in your hands") is a Flutter app for smart farming, with a Firebase backend
+Kilimo Mkononi ("Smart farming at your fingertips") is a Flutter app for smart farming, with a Firebase backend
 (Firestore, Auth, Storage, Cloud Functions, Hosting). Targets Android, iOS, macOS, Windows, Linux and
 Web from a single `lib/` codebase. Firebase project id: `kilimomkononi-e1031`.
 

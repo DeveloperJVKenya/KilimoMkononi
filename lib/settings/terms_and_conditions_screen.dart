@@ -50,7 +50,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
         // ── 1 ───────────────────────────────────────────────────
         _buildSectionTitle(context, '1.  About Kilimo Mkononi'),
         _buildBody(
-          'Kilimo Mkononi ("Farming in Your Hands") is an AgriTech mobile application designed to '
+          'Kilimo Mkononi ("Smart farming at your fingertips") is an AgriTech mobile application designed to '
           'support smallholder farmers, agricultural students, and educational institutions across '
           'Kenya. The App provides farming tips, market price information, weather forecasts, pest '
           'and disease management guidance, farm management tools, and — through the Education '

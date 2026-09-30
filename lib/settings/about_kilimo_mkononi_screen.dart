@@ -27,7 +27,7 @@ class AboutKilimoMkononiScreen extends StatelessWidget {
     void push(Widget w) => Navigator.push(context, MaterialPageRoute(builder: (_) => w));
     return SettingsPage(
       title: 'About',
-      subtitle: 'Kilimo Mkononi — Farming in your hands',
+      subtitle: 'Kilimo Mkononi — Smart farming at your fingertips',
       children: [
         // Hero.
         ClipRRect(
@@ -58,7 +58,7 @@ class AboutKilimoMkononiScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   const Text('Kilimo Mkononi', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
-                  const Text('Farming in your hands', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  const Text('Smart farming at your fingertips', style: TextStyle(color: Colors.white70, fontSize: 14)),
                   const SizedBox(height: 12),
                   Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: const [
                     _HeroChip(Icons.new_releases_rounded, 'Version $kAppVersion'),
