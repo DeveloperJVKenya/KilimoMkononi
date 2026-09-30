@@ -98,12 +98,18 @@ enum ManualSort { newest, title }
 List<Manual> filterManuals(List<Manual> all, {String? crop, String query = '', ManualSort sort = ManualSort.newest}) {
   final q = query.trim().toLowerCase();
   final out = all
-      .where((m) => (crop == null || m.crop == crop) && (q.isEmpty || m.title.toLowerCase().contains(q) || m.fileName.toLowerCase().contains(q)))
+      .where(
+        (m) =>
+            (crop == null || m.crop == crop) &&
+            (q.isEmpty || m.title.toLowerCase().contains(q) || m.fileName.toLowerCase().contains(q)),
+      )
       .toList();
-  out.sort((a, b) => switch (sort) {
-        ManualSort.newest => (b.uploadedAt ?? DateTime(1970)).compareTo(a.uploadedAt ?? DateTime(1970)),
-        ManualSort.title => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-      });
+  out.sort(
+    (a, b) => switch (sort) {
+      ManualSort.newest => (b.uploadedAt ?? DateTime(1970)).compareTo(a.uploadedAt ?? DateTime(1970)),
+      ManualSort.title => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+    },
+  );
   return out;
 }
 
@@ -111,28 +117,30 @@ List<Manual> filterManuals(List<Manual> all, {String? crop, String query = '', M
 
 final manualsProvider = FutureProvider<List<Manual>>((ref) async {
   final result = await FirebaseStorage.instance.ref('manuals').listAll();
-  final items = await Future.wait(result.items.map((item) async {
-    try {
-      final (url, meta) = await (item.getDownloadURL(), item.getMetadata()).wait;
-      final clean = item.name.contains('_') && RegExp(r'^\d+_').hasMatch(item.name)
-          ? item.name.substring(item.name.indexOf('_') + 1)
-          : item.name;
-      final custom = meta.customMetadata ?? const {};
-      final crop = custom['category'];
-      return Manual(
-        title: (custom['title'] ?? '').trim().isNotEmpty ? custom['title']!.trim() : manualTitleFromFile(clean),
-        fileName: clean,
-        fullPath: item.fullPath,
-        url: url,
-        uploadedAt: meta.timeCreated,
-        crop: kManualCrops.containsKey(crop) ? crop! : detectManualCrop(clean),
-        sizeBytes: meta.size,
-        uploadedBy: custom['uploadedBy'] ?? 'Kilimo Mkononi',
-      );
-    } catch (_) {
-      return null;
-    }
-  }));
+  final items = await Future.wait(
+    result.items.map((item) async {
+      try {
+        final (url, meta) = await (item.getDownloadURL(), item.getMetadata()).wait;
+        final clean = item.name.contains('_') && RegExp(r'^\d+_').hasMatch(item.name)
+            ? item.name.substring(item.name.indexOf('_') + 1)
+            : item.name;
+        final custom = meta.customMetadata ?? const {};
+        final crop = custom['category'];
+        return Manual(
+          title: (custom['title'] ?? '').trim().isNotEmpty ? custom['title']!.trim() : manualTitleFromFile(clean),
+          fileName: clean,
+          fullPath: item.fullPath,
+          url: url,
+          uploadedAt: meta.timeCreated,
+          crop: kManualCrops.containsKey(crop) ? crop! : detectManualCrop(clean),
+          sizeBytes: meta.size,
+          uploadedBy: custom['uploadedBy'] ?? 'Kilimo Mkononi',
+        );
+      } catch (_) {
+        return null;
+      }
+    }),
+  );
   return items.whereType<Manual>().toList();
 });
 
@@ -165,7 +173,9 @@ final savedManualsProvider = FutureProvider.autoDispose<Set<String>>((ref) async
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 class ManualsScreen extends ConsumerStatefulWidget {
-  const ManualsScreen({super.key});
+  /// True when shown as a Home tab (under the Home app bar).
+  final bool embedded;
+  const ManualsScreen({super.key, this.embedded = false});
 
   @override
   ConsumerState<ManualsScreen> createState() => _ManualsScreenState();
@@ -195,7 +205,12 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
       if (!ok) return;
     }
     if (!mounted) return;
-    Navigator.push(context, MaterialPageRoute(builder: (_) => PDFViewerScreen(filePath: path, fileName: m.title)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PDFViewerScreen(filePath: path, fileName: m.title),
+      ),
+    );
   }
 
   Future<void> _download(Manual m) async {
@@ -230,22 +245,33 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
         title: Text('$reason manual'),
         content: ValueListenableBuilder<double?>(
           valueListenable: progress,
-          builder: (_, p, _) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 14),
-            LinearProgressIndicator(value: p, color: _kGreen, minHeight: 6, borderRadius: BorderRadius.circular(3)),
-            const SizedBox(height: 8),
-            Text(p == null ? 'Starting…' : '${(p * 100).round()}% of ${formatBytes(m.sizeBytes)}',
-                style: const TextStyle(color: _kMuted)),
-          ]),
+          builder: (_, p, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(m.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 14),
+              LinearProgressIndicator(value: p, color: _kGreen, minHeight: 6, borderRadius: BorderRadius.circular(3)),
+              const SizedBox(height: 8),
+              Text(
+                p == null ? 'Starting…' : '${(p * 100).round()}% of ${formatBytes(m.sizeBytes)}',
+                style: const TextStyle(color: _kMuted),
+              ),
+            ],
+          ),
         ),
         actions: [TextButton(onPressed: () => cancel.cancel(), child: const Text('Cancel'))],
       ),
     );
     try {
-      await Dio().download(m.url, path, cancelToken: cancel, onReceiveProgress: (r, t) {
-        if (t > 0) progress.value = r / t;
-      });
+      await Dio().download(
+        m.url,
+        path,
+        cancelToken: cancel,
+        onReceiveProgress: (r, t) {
+          if (t > 0) progress.value = r / t;
+        },
+      );
       ref.invalidate(savedManualsProvider);
       return true;
     } catch (e) {
@@ -270,9 +296,10 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _kRed),
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Delete')),
+            style: FilledButton.styleFrom(backgroundColor: _kRed),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -291,51 +318,54 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
       context: context,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.chrome_reader_mode_rounded, color: _kGreen),
-            title: const Text('Read'),
-            onTap: () {
-              Navigator.pop(ctx);
-              _read(m);
-            },
-          ),
-          ListTile(
-            leading: Icon(saved ? Icons.folder_open_rounded : Icons.download_rounded, color: _kGreen),
-            title: Text(saved ? 'Open saved copy' : (_canSaveOffline ? 'Save for offline reading' : 'Download PDF')),
-            onTap: () {
-              Navigator.pop(ctx);
-              _download(m);
-            },
-          ),
-          if (saved)
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             ListTile(
-              leading: const Icon(Icons.delete_sweep_rounded),
-              title: const Text('Remove from this phone'),
+              leading: const Icon(Icons.chrome_reader_mode_rounded, color: _kGreen),
+              title: const Text('Read'),
               onTap: () {
                 Navigator.pop(ctx);
-                _removeOffline(m);
+                _read(m);
               },
             ),
-          ListTile(
-            leading: const Icon(Icons.link_rounded),
-            title: const Text('Copy link to share'),
-            onTap: () {
-              Navigator.pop(ctx);
-              Clipboard.setData(ClipboardData(text: m.url));
-              _snack('Link copied');
-            },
-          ),
-          if (admin)
             ListTile(
-              leading: const Icon(Icons.delete_outline_rounded, color: _kRed),
-              title: const Text('Delete manual', style: TextStyle(color: _kRed)),
+              leading: Icon(saved ? Icons.folder_open_rounded : Icons.download_rounded, color: _kGreen),
+              title: Text(saved ? 'Open saved copy' : (_canSaveOffline ? 'Save for offline reading' : 'Download PDF')),
               onTap: () {
                 Navigator.pop(ctx);
-                _delete(m);
+                _download(m);
               },
             ),
-        ]),
+            if (saved)
+              ListTile(
+                leading: const Icon(Icons.delete_sweep_rounded),
+                title: const Text('Remove from this phone'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _removeOffline(m);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.link_rounded),
+              title: const Text('Copy link to share'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Clipboard.setData(ClipboardData(text: m.url));
+                _snack('Link copied');
+              },
+            ),
+            if (admin)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: _kRed),
+                title: const Text('Delete manual', style: TextStyle(color: _kRed)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _delete(m);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -348,22 +378,32 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
 
     return Scaffold(
       backgroundColor: _kPage,
-      appBar: AppBar(
-        foregroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Colors.white),
-        flexibleSpace: Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [_kGreenDark, _kGreen]))),
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Farming manuals', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-          Text('Guides from research institutes and experts', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
-        ]),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => ref.invalidate(manualsProvider),
-          ),
-        ],
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              foregroundColor: Colors.white,
+              iconTheme: const IconThemeData(color: Colors.white),
+              flexibleSpace: Container(
+                decoration: const BoxDecoration(gradient: LinearGradient(colors: [_kGreenDark, _kGreen])),
+              ),
+              title: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Farming manuals', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                  Text(
+                    'Guides from research institutes and experts',
+                    style: TextStyle(fontSize: 11.5, color: Colors.white70),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: () => ref.invalidate(manualsProvider),
+                ),
+              ],
+            ),
       floatingActionButton: admin
           ? FloatingActionButton.extended(
               backgroundColor: _kGreen,
@@ -400,111 +440,151 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
           return RefreshIndicator(
             color: _kGreen,
             onRefresh: () => ref.refresh(manualsProvider.future),
-            child: LayoutBuilder(builder: (context, c) {
-              final side = c.maxWidth > 1132 ? (c.maxWidth - 1100) / 2 : 16.0;
-              return CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(side, 16, side, 0),
-                  sliver: SliverList.list(children: [
-                    TextField(
-                      controller: _search,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Search manuals',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: _search.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear',
-                                icon: const Icon(Icons.close_rounded),
-                                onPressed: () => setState(_search.clear)),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _kBorder)),
-                        enabledBorder:
-                            OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _kBorder)),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 40,
-                      child: ListView(scrollDirection: Axis.horizontal, children: [
-                        _CropChip(label: 'All · ${all.length}', selected: _crop == null, onTap: () => setState(() => _crop = null)),
-                        for (final e in kManualCrops.entries)
-                          if ((counts[e.key] ?? 0) > 0)
-                            _CropChip(
-                              label: '${e.value.$2} ${e.value.$1} · ${counts[e.key]}',
-                              selected: _crop == e.key,
-                              onTap: () => setState(() => _crop = _crop == e.key ? null : e.key),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final side = c.maxWidth > 1132 ? (c.maxWidth - 1100) / 2 : 16.0;
+                return CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(side, 16, side, 0),
+                      sliver: SliverList.list(
+                        children: [
+                          TextField(
+                            controller: _search,
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Search manuals',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              suffixIcon: _search.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear',
+                                      icon: const Icon(Icons.close_rounded),
+                                      onPressed: () => setState(_search.clear),
+                                    ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(color: _kBorder),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(color: _kBorder),
+                              ),
                             ),
-                      ]),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(
-                        child: Text('${shown.length} manual${shown.length == 1 ? '' : 's'}'
-                            '${saved.isEmpty ? '' : ' · ${saved.length} saved offline'}',
-                            style: const TextStyle(color: _kMuted, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                      ),
-                      PopupMenuButton<ManualSort>(
-                        tooltip: 'Sort',
-                        onSelected: (s) => setState(() => _sort = s),
-                        itemBuilder: (_) => [
-                          CheckedPopupMenuItem(value: ManualSort.newest, checked: _sort == ManualSort.newest, child: const Text('Newest first')),
-                          CheckedPopupMenuItem(value: ManualSort.title, checked: _sort == ManualSort.title, child: const Text('Title A–Z')),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 40,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                _CropChip(
+                                  label: 'All · ${all.length}',
+                                  selected: _crop == null,
+                                  onTap: () => setState(() => _crop = null),
+                                ),
+                                for (final e in kManualCrops.entries)
+                                  if ((counts[e.key] ?? 0) > 0)
+                                    _CropChip(
+                                      label: '${e.value.$2} ${e.value.$1} · ${counts[e.key]}',
+                                      selected: _crop == e.key,
+                                      onTap: () => setState(() => _crop = _crop == e.key ? null : e.key),
+                                    ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${shown.length} manual${shown.length == 1 ? '' : 's'}'
+                                  '${saved.isEmpty ? '' : ' · ${saved.length} saved offline'}',
+                                  style: const TextStyle(color: _kMuted, fontWeight: FontWeight.w700, fontSize: 12.5),
+                                ),
+                              ),
+                              PopupMenuButton<ManualSort>(
+                                tooltip: 'Sort',
+                                onSelected: (s) => setState(() => _sort = s),
+                                itemBuilder: (_) => [
+                                  CheckedPopupMenuItem(
+                                    value: ManualSort.newest,
+                                    checked: _sort == ManualSort.newest,
+                                    child: const Text('Newest first'),
+                                  ),
+                                  CheckedPopupMenuItem(
+                                    value: ManualSort.title,
+                                    checked: _sort == ManualSort.title,
+                                    child: const Text('Title A–Z'),
+                                  ),
+                                ],
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 6),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.sort_rounded, size: 18, color: _kMuted),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _sort == ManualSort.newest ? 'Newest' : 'A–Z',
+                                        style: const TextStyle(
+                                          color: _kInk,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                         ],
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            const Icon(Icons.sort_rounded, size: 18, color: _kMuted),
-                            const SizedBox(width: 4),
-                            Text(_sort == ManualSort.newest ? 'Newest' : 'A–Z',
-                                style: const TextStyle(color: _kInk, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                          ]),
+                      ),
+                    ),
+                    if (shown.isEmpty)
+                      SliverToBoxAdapter(
+                        child: _Message(
+                          icon: all.isEmpty ? Icons.menu_book_rounded : Icons.search_off_rounded,
+                          title: all.isEmpty ? 'No manuals yet' : 'No manuals match',
+                          text: all.isEmpty
+                              ? (admin
+                                    ? 'Tap "Upload manual" to add the first one.'
+                                    : 'New guides will appear here soon.')
+                              : 'Try another crop or search word.',
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(side, 0, side, admin ? 96 : 32),
+                        sliver: SliverGrid(
+                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 540,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            mainAxisExtent: 166 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.35),
+                          ),
+                          delegate: SliverChildBuilderDelegate((_, i) {
+                            final m = shown[i];
+                            final isSaved = saved.contains(m.fileName);
+                            return _ManualCard(
+                              manual: m,
+                              saved: isSaved,
+                              onRead: () => _read(m),
+                              onDownload: () => _download(m),
+                              onMore: () => _actions(m, saved: isSaved, admin: admin),
+                            );
+                          }, childCount: shown.length),
                         ),
                       ),
-                    ]),
-                    const SizedBox(height: 8),
-                  ]),
-                ),
-                if (shown.isEmpty)
-                  SliverToBoxAdapter(
-                    child: _Message(
-                      icon: all.isEmpty ? Icons.menu_book_rounded : Icons.search_off_rounded,
-                      title: all.isEmpty ? 'No manuals yet' : 'No manuals match',
-                      text: all.isEmpty
-                          ? (admin ? 'Tap "Upload manual" to add the first one.' : 'New guides will appear here soon.')
-                          : 'Try another crop or search word.',
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(side, 0, side, admin ? 96 : 32),
-                    sliver: SliverGrid(
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 540,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        mainAxisExtent: 166 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.35),
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (_, i) {
-                          final m = shown[i];
-                          final isSaved = saved.contains(m.fileName);
-                          return _ManualCard(
-                            manual: m,
-                            saved: isSaved,
-                            onRead: () => _read(m),
-                            onDownload: () => _download(m),
-                            onMore: () => _actions(m, saved: isSaved, admin: admin),
-                          );
-                        },
-                        childCount: shown.length,
-                      ),
-                    ),
-                  ),
-              ]);
-            }),
+                  ],
+                );
+              },
+            ),
           );
         },
       ),
@@ -520,18 +600,18 @@ class _CropChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(
-          label: Text(label),
-          selected: selected,
-          onSelected: (_) => onTap(),
-          showCheckmark: false,
-          selectedColor: _kGreen,
-          backgroundColor: Colors.white,
-          side: BorderSide(color: selected ? _kGreen : _kBorder),
-          labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: selected ? Colors.white : _kInk),
-        ),
-      );
+    padding: const EdgeInsets.only(right: 8),
+    child: ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      showCheckmark: false,
+      selectedColor: _kGreen,
+      backgroundColor: Colors.white,
+      side: BorderSide(color: selected ? _kGreen : _kBorder),
+      labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: selected ? Colors.white : _kInk),
+    ),
+  );
 }
 
 class _ManualCard extends StatelessWidget {
@@ -565,71 +645,108 @@ class _ManualCard extends StatelessWidget {
         onLongPress: onMore,
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 12, 6, 10),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: _kBorder)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(
-                  width: 50,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDECEA),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFF5C6C2)),
-                  ),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(emoji, style: const TextStyle(fontSize: 20)),
-                    const Text('PDF', style: TextStyle(color: _kRed, fontSize: 10.5, fontWeight: FontWeight.w900)),
-                  ]),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(m.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: _kInk, height: 1.25)),
-                    const SizedBox(height: 4),
-                    Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _kMuted, fontSize: 12)),
-                    const SizedBox(height: 6),
-                    Wrap(spacing: 6, runSpacing: 4, children: [
-                      _Tag(cropLabel, _kGreen),
-                      if (saved) const _Tag('Saved offline', Color(0xFF1565C0), icon: Icons.offline_pin_rounded),
-                    ]),
-                  ]),
-                ),
-                IconButton(
-                  tooltip: 'More options',
-                  icon: const Icon(Icons.more_vert_rounded, color: _kMuted),
-                  onPressed: onMore,
-                ),
-              ]),
-            ),
-            Row(children: [
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Expanded(
-                child: FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFDDEFDF),
-                    foregroundColor: _kGreen,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: onRead,
-                  icon: const Icon(Icons.chrome_reader_mode_rounded, size: 18),
-                  label: const Text('Read'),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 62,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDECEA),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFF5C6C2)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(emoji, style: const TextStyle(fontSize: 20)),
+                          const Text(
+                            'PDF',
+                            style: TextStyle(color: _kRed, fontSize: 10.5, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            m.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: _kInk,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            meta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: _kMuted, fontSize: 12),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              _Tag(cropLabel, _kGreen),
+                              if (saved)
+                                const _Tag('Saved offline', Color(0xFF1565C0), icon: Icons.offline_pin_rounded),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'More options',
+                      icon: const Icon(Icons.more_vert_rounded, color: _kMuted),
+                      onPressed: onMore,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(foregroundColor: _kGreen, visualDensity: VisualDensity.compact),
-                  onPressed: onDownload,
-                  icon: Icon(saved ? Icons.folder_open_rounded : Icons.download_rounded, size: 18),
-                  label: Text(saved ? 'Open file' : 'Download'),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFDDEFDF),
+                        foregroundColor: _kGreen,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: onRead,
+                      icon: const Icon(Icons.chrome_reader_mode_rounded, size: 18),
+                      label: const Text('Read'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(foregroundColor: _kGreen, visualDensity: VisualDensity.compact),
+                      onPressed: onDownload,
+                      icon: Icon(saved ? Icons.folder_open_rounded : Icons.download_rounded, size: 18),
+                      label: Text(saved ? 'Open file' : 'Download'),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
               ),
-              const SizedBox(width: 6),
-            ]),
-          ]),
+            ],
+          ),
         ),
       ),
     );
@@ -644,13 +761,19 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (icon != null) ...[Icon(icon, size: 12, color: color), const SizedBox(width: 3)],
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
-        ]),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[Icon(icon, size: 12, color: color), const SizedBox(width: 3)],
+        Text(
+          label,
+          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Message extends StatelessWidget {
@@ -662,20 +785,31 @@ class _Message extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(color: Color(0xFFE8F5E9), shape: BoxShape.circle),
-            child: Icon(icon, size: 36, color: _kGreen),
-          ),
-          const SizedBox(height: 12),
-          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(text, textAlign: TextAlign.center, style: const TextStyle(color: _kMuted, height: 1.4)),
-          if (action != null) ...[const SizedBox(height: 14), action!],
-        ]),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(color: Color(0xFFE8F5E9), shape: BoxShape.circle),
+          child: Icon(icon, size: 36, color: _kGreen),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: _kMuted, height: 1.4),
+        ),
+        if (action != null) ...[const SizedBox(height: 14), action!],
+      ],
+    ),
+  );
 }
 
 // ── Admin upload ─────────────────────────────────────────────────────────────
@@ -731,12 +865,17 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
     try {
       final user = FirebaseAuth.instance.currentUser!;
       final storageRef = FirebaseStorage.instance.ref('manuals/${DateTime.now().millisecondsSinceEpoch}_${f.name}');
-      final meta = SettableMetadata(contentType: 'application/pdf', customMetadata: {
-        'title': _title.text.trim().isEmpty ? manualTitleFromFile(f.name) : _title.text.trim(),
-        'category': _crop,
-        'uploadedBy': user.displayName?.isNotEmpty == true ? user.displayName! : 'Kilimo Mkononi',
-      });
-      final task = kIsWeb || f.path == null ? storageRef.putData(await f.readAsBytes(), meta) : storageRef.putFile(File(f.path!), meta);
+      final meta = SettableMetadata(
+        contentType: 'application/pdf',
+        customMetadata: {
+          'title': _title.text.trim().isEmpty ? manualTitleFromFile(f.name) : _title.text.trim(),
+          'category': _crop,
+          'uploadedBy': user.displayName?.isNotEmpty == true ? user.displayName! : 'Kilimo Mkononi',
+        },
+      );
+      final task = kIsWeb || f.path == null
+          ? storageRef.putData(await f.readAsBytes(), meta)
+          : storageRef.putFile(File(f.path!), meta);
       task.snapshotEvents.listen((s) {
         if (s.totalBytes > 0 && mounted) setState(() => _progress = s.bytesTransferred / s.totalBytes);
       }, onError: (_) {});
@@ -744,7 +883,9 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
       ref.invalidate(manualsProvider);
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Manual uploaded'), backgroundColor: _kGreen));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Manual uploaded'), backgroundColor: _kGreen));
     } catch (e) {
       setState(() => _error = 'Upload failed: $e');
     } finally {
@@ -754,62 +895,85 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const Text('Upload a manual', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                const Text('PDF, up to 50 MB. Farmers see it straight away.', style: TextStyle(color: _kMuted)),
-                const SizedBox(height: 16),
-                if (_error != null)
-                  Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, style: const TextStyle(color: _kRed))),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), foregroundColor: _kGreen),
-                  onPressed: _uploading ? null : _pick,
-                  icon: Icon(_file == null ? Icons.attach_file_rounded : Icons.picture_as_pdf_rounded),
-                  label: Text(_file == null ? 'Choose PDF file' : '${_file!.name} · ${formatBytes(_fileSize)}',
-                      overflow: TextOverflow.ellipsis),
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Upload a manual', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Text('PDF, up to 50 MB. Farmers see it straight away.', style: TextStyle(color: _kMuted)),
+              const SizedBox(height: 16),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(_error!, style: const TextStyle(color: _kRed)),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _title,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: 'Title farmers will see',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  foregroundColor: _kGreen,
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _crop,
-                  decoration: InputDecoration(labelText: 'Crop', border: OutlineInputBorder(borderRadius: BorderRadius.circular(14))),
-                  items: [
-                    for (final e in kManualCrops.entries) DropdownMenuItem(value: e.key, child: Text('${e.value.$2}  ${e.value.$1}')),
-                  ],
-                  onChanged: _uploading ? null : (v) => setState(() => _crop = v ?? _crop),
+                onPressed: _uploading ? null : _pick,
+                icon: Icon(_file == null ? Icons.attach_file_rounded : Icons.picture_as_pdf_rounded),
+                label: Text(
+                  _file == null ? 'Choose PDF file' : '${_file!.name} · ${formatBytes(_fileSize)}',
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (_uploading) ...[
-                  const SizedBox(height: 16),
-                  LinearProgressIndicator(value: _progress, color: _kGreen, minHeight: 6, borderRadius: BorderRadius.circular(3)),
-                  const SizedBox(height: 6),
-                  Text('${((_progress ?? 0) * 100).round()}% uploaded', style: const TextStyle(color: _kMuted)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _title,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Title farmers will see',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _crop,
+                decoration: InputDecoration(
+                  labelText: 'Crop',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                items: [
+                  for (final e in kManualCrops.entries)
+                    DropdownMenuItem(value: e.key, child: Text('${e.value.$2}  ${e.value.$1}')),
                 ],
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _kGreen, padding: const EdgeInsets.symmetric(vertical: 14)),
-                  onPressed: _file == null || _uploading ? null : _upload,
-                  icon: const Icon(Icons.cloud_upload_rounded),
-                  label: Text(_uploading ? 'Uploading…' : 'Upload'),
+                onChanged: _uploading ? null : (v) => setState(() => _crop = v ?? _crop),
+              ),
+              if (_uploading) ...[
+                const SizedBox(height: 16),
+                LinearProgressIndicator(
+                  value: _progress,
+                  color: _kGreen,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
                 ),
-              ]),
-            ),
+                const SizedBox(height: 6),
+                Text('${((_progress ?? 0) * 100).round()}% uploaded', style: const TextStyle(color: _kMuted)),
+              ],
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: _file == null || _uploading ? null : _upload,
+                icon: const Icon(Icons.cloud_upload_rounded),
+                label: Text(_uploading ? 'Uploading…' : 'Upload'),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 // ── PDF viewer (phones) ──────────────────────────────────────────────────────
@@ -829,43 +993,48 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          foregroundColor: Colors.white,
-          iconTheme: const IconThemeData(color: Colors.white),
-          backgroundColor: _kGreen,
-          title: Text(widget.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
-          actions: [
-            IconButton(
-              tooltip: 'Open in another app',
-              icon: const Icon(Icons.open_in_new_rounded),
-              onPressed: () => OpenFile.open(widget.filePath),
-            ),
-          ],
+    appBar: AppBar(
+      foregroundColor: Colors.white,
+      iconTheme: const IconThemeData(color: Colors.white),
+      backgroundColor: _kGreen,
+      title: Text(widget.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
+      actions: [
+        IconButton(
+          tooltip: 'Open in another app',
+          icon: const Icon(Icons.open_in_new_rounded),
+          onPressed: () => OpenFile.open(widget.filePath),
         ),
-        body: SafeArea(
-          child: Stack(children: [
-            PDFView(
-              filePath: widget.filePath,
-              onRender: (n) => setState(() => _pages = n ?? 0),
-              onPageChanged: (p, n) => setState(() {
-                _page = p ?? 0;
-                _pages = n ?? _pages;
-              }),
-            ),
-            if (_pages > 0)
-              Positioned(
-                bottom: 16,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)),
-                    child: Text('Page ${_page + 1} of $_pages', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      ],
+    ),
+    body: SafeArea(
+      child: Stack(
+        children: [
+          PDFView(
+            filePath: widget.filePath,
+            onRender: (n) => setState(() => _pages = n ?? 0),
+            onPageChanged: (p, n) => setState(() {
+              _page = p ?? 0;
+              _pages = n ?? _pages;
+            }),
+          ),
+          if (_pages > 0)
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(20)),
+                  child: Text(
+                    'Page ${_page + 1} of $_pages',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
-          ]),
-        ),
-      );
+            ),
+        ],
+      ),
+    ),
+  );
 }

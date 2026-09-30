@@ -90,6 +90,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       title: 'Settings',
       subtitle: 'Your account, display and help',
       showBack: !widget.embedded,
+      showAppBar: !widget.embedded,
       onBack: () {
         final nav = Navigator.of(context);
         if (nav.canPop()) {
@@ -101,7 +102,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       children: [
         _ProfileCard(profile: profile, onEdit: () => _editProfile(profile)),
         const SizedBox(height: 18),
-        SettingsSection(title: 'Account', children: [
+        SettingsSection(title: 'Account', color: const Color(0xFF1565C0), children: [
           SettingsTile(
             icon: Icons.person_rounded,
             title: 'Edit profile',
@@ -125,6 +126,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ]),
         SettingsSection(
           title: 'Appearance',
+          color: const Color(0xFF00695C),
           footer: 'Changes apply straight away across the whole app and are saved on this device.',
           children: [
             SettingsTile(
@@ -160,7 +162,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
         if (!edu)
-          SettingsSection(title: 'Offline data', children: [
+          SettingsSection(title: 'Offline data', color: const Color(0xFF2E7D32), children: [
             SettingsTile(
               icon: _pending == 0 ? Icons.cloud_done_rounded : Icons.cloud_upload_rounded,
               color: _pending == null || _pending == 0 ? kSetGreen : const Color(0xFFB26A00),
@@ -176,7 +178,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _syncing ? null : _syncNow,
             ),
           ]),
-        SettingsSection(title: 'Help & support', children: [
+        SettingsSection(title: 'Help & support', color: const Color(0xFFB26A00), children: [
           SettingsTile(
             icon: Icons.support_agent_rounded,
             color: const Color(0xFFB26A00),
@@ -199,41 +201,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => _push(const ContactUsScreen(initialTopic: SupportTopic.problem)),
           ),
         ]),
-        SettingsSection(title: 'Legal & about', children: [
+        SettingsSection(title: 'Legal & about', color: const Color(0xFF5E35B1), children: [
           SettingsTile(
             icon: Icons.description_rounded,
-            color: kSetMuted,
+            color: const Color(0xFF5E35B1),
             title: 'Terms and conditions',
             onTap: () => _push(TermsAndConditionsScreen(isEducation: edu)),
           ),
           SettingsTile(
             icon: Icons.privacy_tip_rounded,
-            color: kSetMuted,
+            color: const Color(0xFF00838F),
             title: 'Privacy policy',
             subtitle: 'How we handle your data (Kenya Data Protection Act)',
             onTap: () => _push(PrivacyPolicyScreen(isEducation: edu)),
           ),
           SettingsTile(
             icon: Icons.info_rounded,
-            color: kSetMuted,
+            color: const Color(0xFF2E7D32),
             title: 'About Kilimo Mkononi',
             value: 'v$kAppVersion',
             onTap: () => _push(const AboutKilimoMkononiScreen()),
           ),
         ]),
-        SizedBox(
-          height: 52,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: kSetRed,
-              side: const BorderSide(color: kSetRed),
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-            ),
+        Center(
+          child: CompactButton(
+            icon: Icons.logout_rounded,
+            label: 'Log out',
+            color: kSetRed,
+            outlined: true,
             onPressed: () => confirmAndLogOut(context, isEducation: edu),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Log out'),
           ),
         ),
         const SizedBox(height: 16),

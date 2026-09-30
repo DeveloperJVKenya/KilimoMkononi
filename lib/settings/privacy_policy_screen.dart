@@ -11,6 +11,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return LegalScaffold(
       title: 'Privacy policy',
+      icon: Icons.privacy_tip_rounded,
       children: [
         // ── Header ──────────────────────────────────────────────
         _buildPageTitle(context, 'Privacy Policy'),

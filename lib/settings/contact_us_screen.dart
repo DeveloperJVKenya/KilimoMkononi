@@ -369,17 +369,24 @@ class _MessageFormState extends ConsumerState<_MessageForm> {
           validator: (v) => (v ?? '').trim().length < 10 ? 'Please write a little more (10+ characters)' : null,
         ),
         const SizedBox(height: 8),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: kSetGreen, padding: const EdgeInsets.symmetric(vertical: 14)),
-          onPressed: _sending ? null : _send,
-          icon: _sending
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.send_rounded),
-          label: Text(_sending ? 'Sending…' : 'Send message'),
-        ),
-        TextButton(
-          onPressed: () => openExternal(context, _mailto),
-          child: const Text('Or send it from my email app'),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton.icon(
+              onPressed: () => openExternal(context, _mailto),
+              icon: const Icon(Icons.email_outlined, size: 18),
+              label: const Text('Use my email app'),
+            ),
+            CompactButton(
+              icon: Icons.send_rounded,
+              label: _sending ? 'Sending…' : 'Send message',
+              busy: _sending,
+              onPressed: _send,
+            ),
+          ],
         ),
       ]),
     );

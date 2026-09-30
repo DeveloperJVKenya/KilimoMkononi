@@ -6,6 +6,8 @@
 // deleted now, the rest queued for the team via supportMessages; education
 // users: a deletion request to the team).
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -42,12 +44,123 @@ String authErrorMessage(Object e) {
   return '$e';
 }
 
-class AccountSettingsScreen extends ConsumerWidget {
+/// Where the verification / reset emails send people back to.
+final _returnToApp = ActionCodeSettings(url: 'https://kilimomkononi-e1031.web.app/', handleCodeInApp: false);
+
+class AccountSettingsScreen extends ConsumerStatefulWidget {
   final bool isEducation;
   const AccountSettingsScreen({super.key, this.isEducation = false});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AccountSettingsScreen> createState() => _AccountSettingsScreenState();
+}
+
+class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> with WidgetsBindingObserver {
+  // The signed-in user caches emailVerified until reload(), so the badge is
+  // refreshed on open, when the app comes back to the front, every few
+  // seconds while unverified, and on "I've verified".
+  bool? _verified;
+  bool _checking = false;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshVerified();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshVerified();
+  }
+
+  Future<void> _refreshVerified({bool announce = false}) async {
+    final User? user;
+    try {
+      user = FirebaseAuth.instance.currentUser;
+    } catch (_) {
+      return; // Firebase not ready (e.g. tests)
+    }
+    if (user == null) return;
+    if (mounted) setState(() => _checking = true);
+    try {
+      await user.reload();
+      final fresh = FirebaseAuth.instance.currentUser;
+      final ok = fresh?.emailVerified ?? false;
+      // A fresh ID token carries email_verified to the security rules.
+      if (ok && _verified != true) await fresh?.getIdToken(true);
+      if (!mounted) return;
+      setState(() => _verified = ok);
+      _poll?.cancel();
+      if (!ok) _poll = Timer(const Duration(seconds: 8), _refreshVerified);
+      if (announce) {
+        _snack(ok ? 'Email verified — thank you!' : 'Not verified yet. Open the link in the email, then try again.',
+            ok: ok);
+      }
+    } catch (_) {
+      // Offline: keep the last known value.
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  void _snack(String m, {bool ok = false}) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(m), backgroundColor: ok ? kSetGreen : null, duration: const Duration(seconds: 5)));
+
+  Future<void> _sendVerification(String email) async {
+    try {
+      await FirebaseAuth.instance.currentUser!.sendEmailVerification(_returnToApp);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (c) => AlertDialog(
+          icon: const Icon(Icons.mark_email_read_rounded, color: kSetGreen, size: 36),
+          title: const Text('Check your email'),
+          content: Text(
+            'We sent a link to $email.\n\n'
+            'Can\'t find it? Look in your Spam or Junk folder and mark it "Not spam" so our emails reach your inbox. '
+            'After tapping the link, come back here — this page updates by itself.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(height: 1.4),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('OK'))],
+        ),
+      );
+      _refreshVerified();
+    } catch (e) {
+      _snack(authErrorMessage(e));
+    }
+  }
+
+  Future<void> _sendReset(String email, {required bool addsPassword}) async {
+    final ok = await confirmAction(
+      context,
+      icon: Icons.outgoing_mail,
+      title: addsPassword ? 'Add a password?' : 'Send a reset link?',
+      message: 'We\'ll email a link to $email. Your current password keeps working until you set a new one.',
+      confirmLabel: 'Send link',
+    );
+    if (!ok) return;
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email, actionCodeSettings: _returnToApp);
+      _snack('Link sent to $email — check Spam if it isn\'t in your inbox.', ok: true);
+    } catch (e) {
+      _snack(authErrorMessage(e));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEducation = widget.isEducation;
     final user = ref.watch(settingsAuthProvider).value;
     final profile = ref.watch(settingsProfileProvider(isEducation)).value;
     final methods = signInMethods(user);
@@ -55,15 +168,20 @@ class AccountSettingsScreen extends ConsumerWidget {
     final google = methods.contains('google.com');
     final email = user?.email ?? profile?.email ?? '';
     final since = profile?.createdAt ?? user?.metadata.creationTime;
-
-    void snack(String m, {bool ok = false}) => ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(m), backgroundColor: ok ? kSetGreen : null));
+    final verified = _verified ?? user?.emailVerified ?? false;
 
     return SettingsPage(
       title: 'Account & security',
       subtitle: 'Sign-in details and your data',
       children: [
-        SettingsSection(title: 'Signed in as', children: [
+        if (user != null && !verified && email.isNotEmpty)
+          _VerifyBanner(
+            email: email,
+            checking: _checking,
+            onSend: () => _sendVerification(email),
+            onCheck: () => _refreshVerified(announce: true),
+          ),
+        SettingsSection(title: 'Signed in as', color: const Color(0xFF1565C0), children: [
           SettingsTile(
             icon: Icons.email_rounded,
             color: const Color(0xFF1565C0),
@@ -73,9 +191,9 @@ class AccountSettingsScreen extends ConsumerWidget {
                 : google
                     ? 'Signed in with Google'
                     : 'Email and password sign-in',
-            trailing: user?.emailVerified == true
-                ? const _Badge('Verified', kSetGreen)
-                : const _Badge('Not verified', Color(0xFFB26A00)),
+            trailing: verified
+                ? const _Badge('Verified', kSetGreen, icon: Icons.verified_rounded)
+                : const _Badge('Not verified', Color(0xFFB26A00), icon: Icons.error_outline_rounded),
           ),
           SettingsTile(
             icon: Icons.badge_rounded,
@@ -90,59 +208,37 @@ class AccountSettingsScreen extends ConsumerWidget {
               title: 'Member since',
               value: DateFormat('d MMM yyyy').format(since),
             ),
-          if (user != null && !user.emailVerified && email.isNotEmpty)
-            SettingsTile(
-              icon: Icons.mark_email_unread_rounded,
-              color: const Color(0xFFB26A00),
-              title: 'Verify your email',
-              subtitle: 'We\'ll send a link to $email',
-              onTap: () async {
-                try {
-                  await user.sendEmailVerification();
-                  snack('Verification link sent to $email', ok: true);
-                } catch (e) {
-                  snack(authErrorMessage(e));
-                }
-              },
-            ),
         ]),
         SettingsSection(
           title: 'Sign-in',
-          footer: google && !hasPassword
-              ? 'Your password is managed by your Google account.'
-              : null,
+          color: const Color(0xFF2E7D32),
+          footer: google && !hasPassword ? 'Your password is managed by your Google account.' : null,
           children: [
             if (hasPassword) ...[
               SettingsTile(
                 icon: Icons.lock_reset_rounded,
                 title: 'Change password',
                 subtitle: 'You\'ll confirm your current password first',
-                onTap: () => _showChangePassword(context),
+                onTap: () => _sheet(const _ChangePasswordForm()),
               ),
               SettingsTile(
                 icon: Icons.alternate_email_rounded,
+                color: const Color(0xFF00838F),
                 title: 'Change email',
                 subtitle: 'We send a confirmation link to the new address',
-                onTap: () => _showChangeEmail(context, email),
+                onTap: () => _sheet(_ChangeEmailForm(current: email)),
               ),
             ],
             SettingsTile(
               icon: Icons.outgoing_mail,
-              title: 'Send password reset link',
-              subtitle: google && !hasPassword ? 'Adds a password to this account' : 'If you\'ve forgotten your password',
-              onTap: email.isEmpty
-                  ? null
-                  : () async {
-                      try {
-                        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-                        snack('Reset link sent to $email', ok: true);
-                      } catch (e) {
-                        snack(authErrorMessage(e));
-                      }
-                    },
+              color: const Color(0xFF6A1B9A),
+              title: google && !hasPassword ? 'Add a password' : 'Send password reset link',
+              subtitle: google && !hasPassword ? 'Sign in with email too' : 'If you\'ve forgotten your password',
+              onTap: email.isEmpty ? null : () => _sendReset(email, addsPassword: google && !hasPassword),
             ),
             SettingsTile(
               icon: Icons.logout_rounded,
+              color: const Color(0xFF546E7A),
               title: 'Log out of this device',
               onTap: () => confirmAndLogOut(context, isEducation: isEducation),
             ),
@@ -150,6 +246,7 @@ class AccountSettingsScreen extends ConsumerWidget {
         ),
         SettingsSection(
           title: 'Danger zone',
+          color: kSetRed,
           footer: isEducation
               ? 'Education accounts are linked to your school, so deletion is handled by our team.'
               : 'Deletes your profile and your records. This can\'t be undone.',
@@ -158,7 +255,7 @@ class AccountSettingsScreen extends ConsumerWidget {
               icon: Icons.delete_forever_rounded,
               title: isEducation ? 'Request account deletion' : 'Delete account and data',
               destructive: true,
-              onTap: () => _showDelete(context, hasPassword: hasPassword, email: email),
+              onTap: () => _sheet(_DeleteAccountForm(isEducation: isEducation, needsPassword: hasPassword, email: email)),
             ),
           ],
         ),
@@ -166,40 +263,80 @@ class AccountSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showChangePassword(BuildContext context) => showModalBottomSheet<void>(
+  Future<void> _sheet(Widget form) => showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (ctx) => const _SheetPadding(child: _ChangePasswordForm()),
+        builder: (ctx) => _SheetPadding(child: form),
       );
+}
 
-  Future<void> _showChangeEmail(BuildContext context, String current) => showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (ctx) => _SheetPadding(child: _ChangeEmailForm(current: current)),
-      );
+class _VerifyBanner extends StatelessWidget {
+  final String email;
+  final bool checking;
+  final VoidCallback onSend;
+  final VoidCallback onCheck;
+  const _VerifyBanner({required this.email, required this.checking, required this.onSend, required this.onCheck});
 
-  Future<void> _showDelete(BuildContext context, {required bool hasPassword, required String email}) =>
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (ctx) =>
-            _SheetPadding(child: _DeleteAccountForm(isEducation: isEducation, needsPassword: hasPassword, email: email)),
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 18),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(colors: [Color(0xFFFFF4E0), Color(0xFFFFE9C7)]),
+          border: Border.all(color: const Color(0xFFF3D19C)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.mark_email_unread_rounded, color: Color(0xFFB26A00)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('Verify your email',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: Color(0xFF7A4A00))),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            'Confirm $email so you can recover your account. The email may land in Spam — '
+            'this page updates by itself once you tap the link.',
+            style: const TextStyle(color: Color(0xFF7A4A00), height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Wrap(spacing: 10, runSpacing: 8, children: [
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB26A00)),
+              onPressed: onSend,
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text('Send link'),
+            ),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF7A4A00)),
+              onPressed: checking ? null : onCheck,
+              icon: checking
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('I\'ve verified'),
+            ),
+          ]),
+        ]),
       );
 }
 
 class _Badge extends StatelessWidget {
   final String label;
   final Color color;
-  const _Badge(this.label, this.color);
+  final IconData? icon;
+  const _Badge(this.label, this.color, {this.icon});
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-        child: Text(label, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w800)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (icon != null) ...[Icon(icon, size: 13, color: color), const SizedBox(width: 3)],
+          Text(label, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w800)),
+        ]),
       );
 }
 
@@ -316,6 +453,14 @@ class _ChangePasswordFormState extends State<_ChangePasswordForm> {
 
   Future<void> _submit() async {
     if (_busy || !_form.currentState!.validate()) return;
+    final ok = await confirmAction(
+      context,
+      icon: Icons.lock_reset_rounded,
+      title: 'Change your password?',
+      message: 'You\'ll use the new password the next time you sign in on any device.',
+      confirmLabel: 'Change password',
+    );
+    if (!ok || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -353,10 +498,14 @@ class _ChangePasswordFormState extends State<_ChangePasswordForm> {
           _PasswordField(_confirm, 'Confirm new password',
               validator: (v) => v != _next.text ? 'Passwords don\'t match' : null),
           const SizedBox(height: 18),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: kSetGreen, padding: const EdgeInsets.symmetric(vertical: 14)),
-            onPressed: _busy ? null : _submit,
-            child: Text(_busy ? 'Changing…' : 'Change password'),
+          Align(
+            alignment: Alignment.centerRight,
+            child: CompactButton(
+              icon: Icons.lock_reset_rounded,
+              label: _busy ? 'Changing…' : 'Change password',
+              busy: _busy,
+              onPressed: _submit,
+            ),
           ),
         ]),
       );
@@ -386,18 +535,28 @@ class _ChangeEmailFormState extends State<_ChangeEmailForm> {
 
   Future<void> _submit() async {
     if (_busy || !_form.currentState!.validate()) return;
+    final next = _email.text.trim();
+    final ok = await confirmAction(
+      context,
+      icon: Icons.alternate_email_rounded,
+      title: 'Change your email?',
+      message: 'We\'ll send a confirmation link to $next. Until you tap it, keep signing in with '
+          '${widget.current}.',
+      confirmLabel: 'Send link',
+      color: const Color(0xFF00838F),
+    );
+    if (!ok || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       await _reauth(_password.text);
-      final next = _email.text.trim();
-      await FirebaseAuth.instance.currentUser!.verifyBeforeUpdateEmail(next);
+      await FirebaseAuth.instance.currentUser!.verifyBeforeUpdateEmail(next, _returnToApp);
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Check $next and tap the link to finish. Your email changes after that.'),
+        content: Text('Check $next (and Spam) and tap the link to finish. Your email changes after that.'),
         duration: const Duration(seconds: 6),
       ));
     } catch (e) {
@@ -427,10 +586,15 @@ class _ChangeEmailFormState extends State<_ChangeEmailForm> {
           const SizedBox(height: 12),
           _PasswordField(_password, 'Current password'),
           const SizedBox(height: 18),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: kSetGreen, padding: const EdgeInsets.symmetric(vertical: 14)),
-            onPressed: _busy ? null : _submit,
-            child: Text(_busy ? 'Sending…' : 'Send confirmation link'),
+          Align(
+            alignment: Alignment.centerRight,
+            child: CompactButton(
+              icon: Icons.send_rounded,
+              label: _busy ? 'Sending…' : 'Send confirmation link',
+              color: const Color(0xFF00838F),
+              busy: _busy,
+              onPressed: _submit,
+            ),
           ),
         ]),
       );
@@ -560,21 +724,14 @@ class _DeleteAccountFormState extends State<_DeleteAccountForm> {
             ]),
           ],
           const SizedBox(height: 18),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _busy ? null : () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: const Text('Cancel'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: kSetRed, padding: const EdgeInsets.symmetric(vertical: 14)),
-                onPressed: _busy ? null : _submit,
-                child: Text(widget.isEducation ? 'Send request' : 'Delete forever'),
-              ),
+          Wrap(alignment: WrapAlignment.end, spacing: 10, runSpacing: 8, children: [
+            TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+            CompactButton(
+              icon: widget.isEducation ? Icons.send_rounded : Icons.delete_forever_rounded,
+              label: widget.isEducation ? 'Send request' : 'Delete forever',
+              color: kSetRed,
+              busy: _busy,
+              onPressed: _submit,
             ),
           ]),
         ]),

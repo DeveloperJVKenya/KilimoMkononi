@@ -15,6 +15,7 @@ import 'package:kilimomkononi/settings/profile_edit_screen.dart';
 import 'package:kilimomkononi/settings/settings_providers.dart';
 import 'package:kilimomkononi/settings/settings_screen.dart';
 import 'package:kilimomkononi/settings/terms_and_conditions_screen.dart';
+import 'package:kilimomkononi/settings/widgets/legal_kit.dart';
 
 const _jane = ProfileSummary(
   uid: 'u1',
@@ -71,7 +72,7 @@ void main() {
 
   testWidgets('Edit profile: pre-filled, location pickers, phone validation', (t) async {
     await _pump(t, const ProfileEditScreen());
-    expect(find.text('Jane Wanjiku'), findsOneWidget);
+    expect(find.text('Jane Wanjiku'), findsWidgets); // header + field
     expect(find.text('0712345678'), findsOneWidget);
     expect(find.text('Nakuru'), findsOneWidget);
     expect(find.text('Njoro'), findsOneWidget);
@@ -124,6 +125,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('How do I change my password or email?'), findsOneWidget);
     expect(find.text('Where do the market prices come from?'), findsNothing);
+    await t.scrollUntilVisible(find.text('I forgot my password'), 300, scrollable: find.byType(Scrollable).first);
     await t.tap(find.text('I forgot my password'));
     await t.pumpAndSettle();
     expect(find.textContaining('Forgot password?'), findsOneWidget);
@@ -137,14 +139,15 @@ void main() {
     expect(t.takeException(), isNull);
 
     await _pump(t, const TermsAndConditionsScreen());
-    final toc = find.text('14. Governing Law');
+    final toc = find.byWidgetPredicate((w) => w is LegalTocItem && w.text.contains('Governing'));
     expect(toc, findsOneWidget);
     await t.ensureVisible(toc);
     await t.pumpAndSettle();
     await t.tap(toc);
     await t.pumpAndSettle();
     // The section heading is now at the top of the screen.
-    expect(t.getTopLeft(find.text('Governing Law')).dy, lessThan(200));
+    final heading = find.byWidgetPredicate((w) => w is LegalSectionTitle && w.title.contains('Governing'));
+    expect(t.getTopLeft(heading).dy, lessThan(200));
     expect(find.byTooltip('Back to top'), findsOneWidget);
     expect(t.takeException(), isNull);
   });

@@ -156,7 +156,12 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   google_fonts, bold text, reduced motion, compact) is `appearance/appearance.dart`, applied in
   `MyApp` (`appearanceTheme` + `AppearanceScope`). Contact form → `supportMessages` (rules-
   validated; admins reply/set status in the Admin panel; users see replies in Contact us).
-  Legal pages keep their text; `widgets/legal_kit.dart` gives them jump-to-section contents.
+  Legal pages keep their text; `widgets/legal_kit.dart` lays them out (header, contents that jump
+  to sections, one card per numbered section). Buttons in Settings are `CompactButton` (sized to
+  the label, never full width); important changes ask first via `confirmAction`.
+- Home navigation: bottom tabs Home / Manuals / Settings under ONE Home app bar (tab screens take
+  `embedded: true` and drop their own app bar). Notifications open from the app-bar bell only —
+  not a tab or menu item; Help & support lives in Settings, not the menu.
 - Farmer auth screens (login, registration, Google "finish setup") share
   `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
   width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),

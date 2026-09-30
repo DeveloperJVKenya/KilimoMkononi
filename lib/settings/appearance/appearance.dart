@@ -13,9 +13,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Fonts offered in Settings. `system` keeps the platform default.
 enum AppFont {
   system('Default', 'The standard app font'),
+  atkinson('Atkinson Hyperlegible', 'Designed for low vision — very clear'),
   nunito('Nunito', 'Rounded and friendly'),
+  openSans('Open Sans', 'Neutral and easy to read'),
   lato('Lato', 'Clean and compact'),
+  sourceSans('Source Sans 3', 'Crisp on small screens'),
   poppins('Poppins', 'Bold and modern'),
+  montserrat('Montserrat', 'Wide, confident headings'),
+  ubuntu('Ubuntu', 'Warm and distinctive'),
+  robotoSlab('Roboto Slab', 'Sturdy, newspaper style'),
+  merriweather('Merriweather', 'Comfortable for long reading'),
   notoSerif('Noto Serif', 'Classic, like a book');
 
   final String label;
@@ -131,18 +138,32 @@ final appearanceProvider = NotifierProvider<AppearanceNotifier, AppearanceSettin
 /// Text theme for [font]; the default font keeps [base] unchanged.
 TextTheme fontTextTheme(AppFont font, TextTheme base) => switch (font) {
       AppFont.system => base,
+      AppFont.atkinson => GoogleFonts.atkinsonHyperlegibleTextTheme(base),
       AppFont.nunito => GoogleFonts.nunitoTextTheme(base),
+      AppFont.openSans => GoogleFonts.openSansTextTheme(base),
       AppFont.lato => GoogleFonts.latoTextTheme(base),
+      AppFont.sourceSans => GoogleFonts.sourceSans3TextTheme(base),
       AppFont.poppins => GoogleFonts.poppinsTextTheme(base),
+      AppFont.montserrat => GoogleFonts.montserratTextTheme(base),
+      AppFont.ubuntu => GoogleFonts.ubuntuTextTheme(base),
+      AppFont.robotoSlab => GoogleFonts.robotoSlabTextTheme(base),
+      AppFont.merriweather => GoogleFonts.merriweatherTextTheme(base),
       AppFont.notoSerif => GoogleFonts.notoSerifTextTheme(base),
     };
 
 /// Font family name for widgets that set their own TextStyle.
 String? fontFamilyFor(AppFont font) => switch (font) {
       AppFont.system => null,
+      AppFont.atkinson => GoogleFonts.atkinsonHyperlegible().fontFamily,
       AppFont.nunito => GoogleFonts.nunito().fontFamily,
+      AppFont.openSans => GoogleFonts.openSans().fontFamily,
       AppFont.lato => GoogleFonts.lato().fontFamily,
+      AppFont.sourceSans => GoogleFonts.sourceSans3().fontFamily,
       AppFont.poppins => GoogleFonts.poppins().fontFamily,
+      AppFont.montserrat => GoogleFonts.montserrat().fontFamily,
+      AppFont.ubuntu => GoogleFonts.ubuntu().fontFamily,
+      AppFont.robotoSlab => GoogleFonts.robotoSlab().fontFamily,
+      AppFont.merriweather => GoogleFonts.merriweather().fontFamily,
       AppFont.notoSerif => GoogleFonts.notoSerif().fontFamily,
     };
 

@@ -339,9 +339,9 @@ class TermsAndConditionsScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10.0),
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF9E6),
+        color: const Color(0xFFE6F4F1),
         borderRadius: BorderRadius.circular(8.0),
-        border: const Border(left: BorderSide(color: Color(0xFFE6A817), width: 3)),
+        border: const Border(left: BorderSide(color: Color(0xFF00897B), width: 3)),
       ),
       child: Text(text, style: const TextStyle(fontSize: 15, height: 1.6, color: Color(0xFF333333))),
     );

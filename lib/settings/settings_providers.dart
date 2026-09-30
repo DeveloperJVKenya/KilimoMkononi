@@ -84,17 +84,21 @@ class ProfileSummary {
   }
 }
 
-final settingsAuthProvider = StreamProvider<User?>((ref) => FirebaseAuth.instance.authStateChanges());
+/// userChanges (not authStateChanges) so profile updates such as a newly
+/// verified email reach the UI.
+final settingsAuthProvider = StreamProvider<User?>((ref) => FirebaseAuth.instance.userChanges());
 
 /// The profile document for this mode (`true` = education).
 final settingsProfileProvider = StreamProvider.autoDispose.family<ProfileSummary?, bool>((ref, isEducation) {
-  final user = ref.watch(settingsAuthProvider).value;
-  if (user == null) return Stream.value(null);
+  // Only re-subscribe when the account changes, not on every token refresh.
+  final uid = ref.watch(settingsAuthProvider.select((a) => a.value?.uid));
+  if (uid == null) return Stream.value(null);
   return FirebaseFirestore.instance
       .collection(isEducation ? 'EducationUsers' : 'Users')
-      .doc(user.uid)
+      .doc(uid)
       .snapshots()
-      .map((s) => ProfileSummary.fromMap(user.uid, s.data() ?? const {}, fallbackEmail: user.email ?? ''));
+      .map((s) => ProfileSummary.fromMap(uid, s.data() ?? const {},
+          fallbackEmail: FirebaseAuth.instance.currentUser?.email ?? ''));
 });
 
 /// How this user signs in: 'password', 'google.com', …

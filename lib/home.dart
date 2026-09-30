@@ -14,7 +14,6 @@ import 'package:kilimomkononi/screens/manuals_screen.dart';
 import 'package:kilimomkononi/screens/pests_diseases_home.dart';
 import 'package:kilimomkononi/screens/weather_screen.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
-import 'package:kilimomkononi/settings/contact_us_screen.dart';
 import 'package:kilimomkononi/settings/profile_edit_screen.dart';
 import 'package:kilimomkononi/settings/widgets/settings_kit.dart';
 import 'package:kilimomkononi/authentication/login.dart';
@@ -207,6 +206,9 @@ class _HomePageState extends State<HomePage> {
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
+  /// Notifications live behind the app-bar bell (not a tab or menu item).
+  void _openNotifications() => _open(const NotificationsScreen());
+
   /// Asks first (a mis-tap no longer logs you out), stops the listeners so
   /// they don't hit permission errors, then signs out and opens sign-in.
   Future<void> _handleLogout() => confirmAndLogOut(context, beforeSignOut: _cancelSubscriptions);
@@ -236,9 +238,12 @@ class _HomePageState extends State<HomePage> {
       key: _scaffoldKey,
       backgroundColor: _kPage,
       appBar: AppBar(
-        title: const Text('Kilimo Mkononi', style: TextStyle(fontWeight: FontWeight.w800)),
-        backgroundColor: _kGreen,
+        title: Text(const ['Kilimo Mkononi', 'Farming manuals', 'Settings'][_selectedIndex],
+            style: const TextStyle(fontWeight: FontWeight.w800)),
         foregroundColor: Colors.white,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF0B3D1E), _kGreen])),
+        ),
         actions: [
           if (_isMainAdmin)
             IconButton(
@@ -249,15 +254,15 @@ class _HomePageState extends State<HomePage> {
                 MaterialPageRoute(builder: (_) => const AdminManagementScreen()),
               ),
             ),
-          _NotificationBell(onTap: () => _onItemTapped(2)),
+          _NotificationBell(onTap: _openNotifications),
           const SizedBox(width: 4),
         ],
       ),
       drawer: _buildDrawer(fullName),
       body: [
         _buildHomeContent(fullName),
+        const ManualsScreen(embedded: true),
         const SettingsScreen(isEducation: false, embedded: true),
-        const NotificationsScreen(),
       ][_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -270,13 +275,13 @@ class _HomePageState extends State<HomePage> {
           NavigationDestination(
               icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded, color: _kGreen), label: 'Home'),
           NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined),
+              selectedIcon: Icon(Icons.menu_book_rounded, color: _kGreen),
+              label: 'Manuals'),
+          NavigationDestination(
               icon: Icon(Icons.settings_outlined),
               selectedIcon: Icon(Icons.settings_rounded, color: _kGreen),
               label: 'Settings'),
-          NavigationDestination(
-              icon: Icon(Icons.notifications_outlined),
-              selectedIcon: Icon(Icons.notifications_rounded, color: _kGreen),
-              label: 'Notifications'),
         ],
       ),
     );
@@ -543,33 +548,34 @@ class _HomePageState extends State<HomePage> {
         ),
         Expanded(
           child: ListView(padding: const EdgeInsets.fromLTRB(10, 8, 10, 12), children: [
-            const _DrawerLabel('Farm'),
-            _DrawerItem(Icons.home_rounded, 'Home', selected: _selectedIndex == 0, onTap: () => _goTab(0)),
-            _DrawerItem(Icons.wb_cloudy_rounded, 'Weather forecast', onTap: () => _navigateTo(const WeatherScreen())),
+            const _DrawerLabel('Farm', Color(0xFF2E7D32)),
+            _DrawerItem(Icons.home_rounded, 'Home',
+                color: const Color(0xFF2E7D32), selected: _selectedIndex == 0, onTap: () => _goTab(0)),
+            _DrawerItem(Icons.wb_cloudy_rounded, 'Weather forecast',
+                color: const Color(0xFF1E88E5), onTap: () => _navigateTo(const WeatherScreen())),
             _DrawerItem(Icons.edit_note_rounded, 'Field data input',
-                subtitle: 'Plots, crops & weather station', onTap: () => _navigateTo(const FieldDataInputHomePage())),
+                color: const Color(0xFF00897B),
+                subtitle: 'Plots, crops & weather station',
+                onTap: () => _navigateTo(const FieldDataInputHomePage())),
             _DrawerItem(Icons.bug_report_rounded, 'Pests & diseases',
-                onTap: () => _navigateTo(const PestDiseaseHomePage())),
+                color: const Color(0xFFE53935), onTap: () => _navigateTo(const PestDiseaseHomePage())),
             _DrawerItem(Icons.account_balance_wallet_rounded, 'Farm management',
-                subtitle: 'Costs, harvests & loans', onTap: () => _navigateTo(const FarmManagementScreen())),
-            const _DrawerLabel('Insights & learning'),
-            _DrawerItem(Icons.insights_rounded, 'Season analysis', onTap: () {
+                color: const Color(0xFF8E24AA),
+                subtitle: 'Costs, harvests & loans',
+                onTap: () => _navigateTo(const FarmManagementScreen())),
+            const _DrawerLabel('Insights & learning', Color(0xFF3949AB)),
+            _DrawerItem(Icons.insights_rounded, 'Season analysis', color: const Color(0xFF3949AB), onTap: () {
               Navigator.pop(context);
               _openSeasonAnalysis();
             }),
-            _DrawerItem(Icons.menu_book_rounded, 'Manuals', onTap: () => _navigateTo(const ManualsScreen())),
-            const _DrawerLabel('Account'),
-            Consumer(builder: (context, ref, _) {
-              final unread = ref.watch(unreadCountProvider);
-              return _DrawerItem(Icons.notifications_rounded, 'Notifications',
-                  selected: _selectedIndex == 2, badge: unread, onTap: () => _goTab(2));
-            }),
-            _DrawerItem(Icons.settings_rounded, 'Settings', selected: _selectedIndex == 1, onTap: () => _goTab(1)),
-            _DrawerItem(Icons.support_agent_rounded, 'Help & support',
-                onTap: () => _navigateTo(const ContactUsScreen())),
+            _DrawerItem(Icons.menu_book_rounded, 'Manuals',
+                color: const Color(0xFF6D4C41), selected: _selectedIndex == 1, onTap: () => _goTab(1)),
+            const _DrawerLabel('Account', Color(0xFF546E7A)),
+            _DrawerItem(Icons.settings_rounded, 'Settings',
+                color: const Color(0xFF546E7A), selected: _selectedIndex == 2, onTap: () => _goTab(2)),
             if (_isMainAdmin)
               _DrawerItem(Icons.admin_panel_settings_rounded, 'Admin panel',
-                  onTap: () => _navigateTo(const AdminManagementScreen())),
+                  color: const Color(0xFFF4511E), onTap: () => _navigateTo(const AdminManagementScreen())),
           ]),
         ),
         const Divider(height: 1),
@@ -578,7 +584,8 @@ class _HomePageState extends State<HomePage> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
             child: Column(children: [
-              _DrawerItem(Icons.logout_rounded, 'Log out', danger: true, onTap: _handleLogout),
+              _DrawerItem(Icons.logout_rounded, 'Log out',
+                  color: const Color(0xFFB3261E), danger: true, onTap: _handleLogout),
               const Padding(
                 padding: EdgeInsets.only(top: 2, bottom: 4),
                 child: Text('Kilimo Mkononi v$kAppVersion', style: TextStyle(color: Colors.black45, fontSize: 11.5)),
@@ -590,7 +597,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Close the drawer and show a bottom-nav tab (Home / Settings / Notifications).
+  /// Close the drawer and show a bottom-nav tab (Home / Manuals / Settings).
   void _goTab(int index) {
     Navigator.pop(context);
     setState(() => _selectedIndex = index);
@@ -943,63 +950,69 @@ class _NotificationBell extends ConsumerWidget {
 
 class _DrawerLabel extends StatelessWidget {
   final String text;
-  const _DrawerLabel(this.text);
+  final Color color;
+  const _DrawerLabel(this.text, this.color);
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-        child: Text(text.toUpperCase(),
-            style: const TextStyle(color: Colors.black45, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.9)),
+        padding: const EdgeInsets.fromLTRB(14, 16, 14, 6),
+        child: Row(children: [
+          Container(width: 4, height: 14, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text(text.toUpperCase(),
+              style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.9)),
+        ]),
       );
 }
 
-/// Menu row: rounded highlight for the current page, optional subtitle and
-/// unread badge; red for Log out.
+/// Menu row: coloured icon tile, rounded highlight for the current page,
+/// optional subtitle; red for Log out.
 class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color color;
   final String? subtitle;
   final bool selected;
   final bool danger;
-  final int badge;
   final VoidCallback onTap;
   const _DrawerItem(this.icon, this.label,
-      {required this.onTap, this.subtitle, this.selected = false, this.danger = false, this.badge = 0});
+      {required this.onTap, required this.color, this.subtitle, this.selected = false, this.danger = false});
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? const Color(0xFFB3261E) : (selected ? _kGreen : const Color(0xFF374151));
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: selected ? const Color(0xFFDDEFDF) : Colors.transparent,
+        color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(width: 14),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: selected ? color : color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, color: selected ? Colors.white : color, size: 20),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(label,
                       style: TextStyle(
-                          color: color,
+                          color: danger || selected ? color : const Color(0xFF1F2937),
                           fontSize: 14.5,
                           fontWeight: selected || danger ? FontWeight.w800 : FontWeight.w600)),
                   if (subtitle != null)
-                    Text(subtitle!, style: const TextStyle(color: Colors.black45, fontSize: 11.5)),
+                    Text(subtitle!, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 11.5)),
                 ]),
               ),
-              if (badge > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(color: const Color(0xFFB3261E), borderRadius: BorderRadius.circular(10)),
-                  child: Text(badge > 99 ? '99+' : '$badge',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
-                ),
+              if (selected) Icon(Icons.chevron_right_rounded, color: color),
             ]),
           ),
         ),

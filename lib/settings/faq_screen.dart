@@ -92,6 +92,20 @@ const kEducationFaqs = <Faq>[
   Faq('Display', Icons.text_fields_rounded, 'Can I make the text bigger?', 'Yes — Settings → Appearance.'),
 ];
 
+/// Each help topic's colour.
+Color faqColor(String category) => switch (category) {
+      'Getting started' => const Color(0xFF2E7D32),
+      'Weather & stations' => const Color(0xFF1E88E5),
+      'Field data' => const Color(0xFF00897B),
+      'Pests & diseases' => const Color(0xFFE53935),
+      'Market prices' => const Color(0xFF2E6A5E),
+      'Notifications' => const Color(0xFF8E24AA),
+      'Account & privacy' => const Color(0xFF3949AB),
+      'Display' => const Color(0xFFEF8F00),
+      'Learning' => const Color(0xFF6D4C41),
+      _ => kSetGreen,
+    };
+
 class FAQScreen extends StatefulWidget {
   final bool isEducation;
   const FAQScreen({super.key, this.isEducation = false});
@@ -103,6 +117,7 @@ class FAQScreen extends StatefulWidget {
 class _FAQScreenState extends State<FAQScreen> {
   final _search = TextEditingController();
   String? _category;
+  String? _open; // question currently expanded
 
   @override
   void dispose() {
@@ -113,59 +128,88 @@ class _FAQScreenState extends State<FAQScreen> {
   @override
   Widget build(BuildContext context) {
     final all = widget.isEducation ? kEducationFaqs : kFarmerFaqs;
-    final categories = <String, IconData>{for (final f in all) f.category: f.icon};
+    final categories = <String, (IconData, int)>{};
+    for (final f in all) {
+      categories[f.category] = (f.icon, (categories[f.category]?.$2 ?? 0) + 1);
+    }
     final q = _search.text;
     final shown = all.where((f) => (_category == null || f.category == _category) && f.matches(q)).toList();
 
     return SettingsPage(
       title: 'Help centre',
-      subtitle: 'Frequently asked questions',
+      subtitle: 'Answers to common questions',
       children: [
-        TextField(
-          controller: _search,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: 'Search help (e.g. alerts, password, offline)',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: q.isEmpty
-                ? null
-                : IconButton(tooltip: 'Clear', icon: const Icon(Icons.close_rounded), onPressed: () => setState(_search.clear)),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kSetBorder)),
-            enabledBorder:
-                OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kSetBorder)),
+        // Hero with search.
+        Container(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0B3D1E), Color(0xFF1B5E20), Color(0xFF00897B)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 40,
-          child: ListView(scrollDirection: Axis.horizontal, children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: const Text('All'),
-                selected: _category == null,
-                showCheckmark: false,
-                selectedColor: const Color(0xFFD8EFD9),
-                onSelected: (_) => setState(() => _category = null),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('How can we help?', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text('${all.length} answers about using Kilimo Mkononi',
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search (e.g. alerts, password, offline)',
+                prefixIcon: const Icon(Icons.search_rounded, color: kSetGreen),
+                suffixIcon: q.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear', icon: const Icon(Icons.close_rounded), onPressed: () => setState(_search.clear)),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
             ),
-            for (final e in categories.entries)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  avatar: Icon(e.value, size: 16, color: kSetGreen),
-                  label: Text(e.key),
-                  selected: _category == e.key,
-                  showCheckmark: false,
-                  selectedColor: const Color(0xFFD8EFD9),
-                  onSelected: (_) => setState(() => _category = _category == e.key ? null : e.key),
-                ),
-              ),
           ]),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
+        // Topics.
+        LayoutBuilder(builder: (context, c) {
+          final cols = c.maxWidth >= 560 ? 4 : 2;
+          final w = (c.maxWidth - (cols - 1) * 10) / cols;
+          return Wrap(spacing: 10, runSpacing: 10, children: [
+            for (final e in categories.entries)
+              SizedBox(
+                width: w,
+                child: _TopicTile(
+                  label: e.key,
+                  icon: e.value.$1,
+                  count: e.value.$2,
+                  color: faqColor(e.key),
+                  selected: _category == e.key,
+                  onTap: () => setState(() => _category = _category == e.key ? null : e.key),
+                ),
+              ),
+          ]);
+        }),
+        const SizedBox(height: 18),
+        Row(children: [
+          Expanded(
+            child: Text(
+              _category ?? (q.isEmpty ? 'All questions' : 'Search results'),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: kSetInk),
+            ),
+          ),
+          if (_category != null)
+            TextButton.icon(
+              onPressed: () => setState(() => _category = null),
+              icon: const Icon(Icons.close_rounded, size: 16),
+              label: const Text('Show all'),
+            ),
+        ]),
+        const SizedBox(height: 8),
         if (shown.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
@@ -176,42 +220,170 @@ class _FAQScreenState extends State<FAQScreen> {
             ]),
           )
         else
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            clipBehavior: Clip.antiAlias,
-            child: Container(
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: kSetBorder)),
-              child: Column(children: [
-                for (var i = 0; i < shown.length; i++) ...[
-                  if (i > 0) const Divider(height: 1, color: kSetBorder),
-                  Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      key: PageStorageKey(shown[i].q),
-                      leading: SettingsIcon(shown[i].icon),
-                      title: Text(shown[i].q, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
-                      subtitle: Text(shown[i].category, style: const TextStyle(color: kSetMuted, fontSize: 12)),
-                      childrenPadding: const EdgeInsets.fromLTRB(66, 0, 16, 16),
-                      expandedCrossAxisAlignment: CrossAxisAlignment.start,
-                      children: [Text(shown[i].a, style: const TextStyle(height: 1.5, color: kSetInk))],
-                    ),
-                  ),
-                ],
+          for (final f in shown)
+            _FaqCard(
+              faq: f,
+              color: faqColor(f.category),
+              open: _open == f.q,
+              onTap: () => setState(() => _open = _open == f.q ? null : f.q),
+            ),
+        const SizedBox(height: 16),
+        // Still need help?
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(colors: [Color(0xFFFFF4E0), Color(0xFFFFE6C2)]),
+          ),
+          child: Row(children: [
+            const CircleAvatar(
+              radius: 24,
+              backgroundColor: Color(0xFFB26A00),
+              child: Icon(Icons.support_agent_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Still need help?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: Color(0xFF7A4A00))),
+                Text('Call, WhatsApp or message our team.', style: TextStyle(color: Color(0xFF7A4A00), fontSize: 12.5)),
               ]),
             ),
-          ),
-        const SizedBox(height: 18),
-        SettingsSection(title: 'Still need help?', children: [
-          SettingsTile(
-            icon: Icons.support_agent_rounded,
-            color: const Color(0xFFB26A00),
-            title: 'Contact the Kilimo Mkononi team',
-            subtitle: 'Call, WhatsApp, email or send a message',
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactUsScreen())),
-          ),
-        ]),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB26A00)),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactUsScreen())),
+              child: const Text('Contact'),
+            ),
+          ]),
+        ),
       ],
     );
   }
+}
+
+class _TopicTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final int count;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TopicTile({
+    required this.label,
+    required this.icon,
+    required this.count,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: selected ? color : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        elevation: selected ? 3 : 0.5,
+        shadowColor: color.withValues(alpha: 0.4),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: selected ? Colors.white.withValues(alpha: 0.2) : color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: selected ? Colors.white : color, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 12.5, color: selected ? Colors.white : kSetInk)),
+                  Text('$count question${count == 1 ? '' : 's'}',
+                      style: TextStyle(fontSize: 11, color: selected ? Colors.white70 : kSetMuted)),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _FaqCard extends StatelessWidget {
+  final Faq faq;
+  final Color color;
+  final bool open;
+  final VoidCallback onTap;
+  const _FaqCard({required this.faq, required this.color, required this.open, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: open ? color.withValues(alpha: 0.5) : Colors.transparent, width: 1.4),
+            boxShadow: const [BoxShadow(color: Color(0x12000000), blurRadius: 10, offset: Offset(0, 3))],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: open ? color : color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Icon(Icons.question_mark_rounded, color: open ? Colors.white : color, size: 19),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(faq.q, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: kSetInk)),
+                        Text(faq.category, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                    AnimatedRotation(
+                      turns: open ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(Icons.expand_more_rounded, color: open ? color : kSetMuted),
+                    ),
+                  ]),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    alignment: Alignment.topCenter,
+                    child: !open
+                        ? const SizedBox(width: double.infinity)
+                        : Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.fromLTRB(48, 10, 6, 2),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(faq.a, style: const TextStyle(height: 1.5, color: kSetInk)),
+                          ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
 }

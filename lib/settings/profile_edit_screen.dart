@@ -43,6 +43,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   bool _loaded = false;
   bool _saving = false;
   bool _dirty = false;
+  int _generation = 0; // bumped by Undo so the pickers reset too
 
   @override
   void dispose() {
@@ -168,22 +169,22 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         true;
   }
 
-  InputDecoration _dec(String label, IconData icon, {String? hint, String? helper}) => InputDecoration(
+  InputDecoration _dec(String label, IconData icon, Color color, {String? hint, String? helper}) => InputDecoration(
         labelText: label,
         hintText: hint,
         helperText: helper,
-        prefixIcon: Icon(icon, size: 20),
+        prefixIcon: Icon(icon, size: 20, color: color),
         filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kSetBorder)),
+        fillColor: const Color(0xFFF5F8F5),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: color, width: 1.6)),
       );
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(settingsProfileProvider(false));
-    final p = async.value;
+    final p = ref.watch(settingsProfileProvider(false)).value;
     if (p != null) _fill(p);
     Uint8List? bytes;
     if (_image != null && _image!.isNotEmpty) {
@@ -193,6 +194,8 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     }
     final counties = kenyaLocations.keys.toList()..sort();
     final constituencies = _county == null ? const <String>[] : (kenyaLocations[_county]!.toList()..sort());
+    const blue = Color(0xFF1565C0);
+    const teal = Color(0xFF00897B);
 
     return PopScope(
       canPop: !_dirty,
@@ -203,152 +206,269 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           Navigator.pop(context);
         }
       },
-      child: SettingsPage(
-        title: 'Edit profile',
-        subtitle: 'How you appear in Kilimo Mkononi',
-        children: [
-          if (!_loaded)
-            const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
-          else
-            EnterToSubmit(
-              onSubmit: _save,
-              enabled: !_saving,
-              child: Form(
-                key: _form,
-                onChanged: _changed,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Center(
-                    child: Stack(children: [
-                      CircleAvatar(
-                        radius: 54,
-                        backgroundColor: const Color(0xFFD8EFD9),
-                        backgroundImage: bytes != null ? MemoryImage(bytes) : null,
-                        child: bytes == null
-                            ? Text(p?.initials ?? '',
-                                style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: kSetGreen))
-                            : null,
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Material(
-                          color: kSetGreen,
-                          shape: const CircleBorder(side: BorderSide(color: Colors.white, width: 3)),
-                          child: IconButton(
-                            tooltip: 'Change photo',
-                            icon: const Icon(Icons.photo_camera_rounded, color: Colors.white, size: 20),
-                            onPressed: _photoOptions,
+      child: Scaffold(
+        backgroundColor: kSetPage,
+        appBar: AppBar(
+          foregroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.white),
+          elevation: 0,
+          backgroundColor: kSetGreenDark,
+          title: const Text('Edit profile', style: TextStyle(fontWeight: FontWeight.w800)),
+        ),
+        bottomNavigationBar: AnimatedSlide(
+          offset: _dirty ? Offset.zero : const Offset(0, 1.2),
+          duration: const Duration(milliseconds: 220),
+          child: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Color(0x1A000000), blurRadius: 12, offset: Offset(0, -2))],
+              ),
+              child: Row(children: [
+                const Icon(Icons.edit_note_rounded, color: kSetMuted),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Unsaved changes', style: TextStyle(color: kSetMuted, fontWeight: FontWeight.w600))),
+                TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                            _loaded = false;
+                            _dirty = false;
+                            _generation++;
+                          }),
+                  child: const Text('Undo'),
+                ),
+                const SizedBox(width: 6),
+                CompactButton(icon: Icons.check_rounded, label: 'Save', busy: _saving, onPressed: _save),
+              ]),
+            ),
+          ),
+        ),
+        body: !_loaded
+            ? const Center(child: CircularProgressIndicator(color: kSetGreen))
+            : EnterToSubmit(
+                key: ValueKey(_generation),
+                onSubmit: _save,
+                enabled: !_saving,
+                child: Form(
+                  key: _form,
+                  onChanged: _changed,
+                  child: ListView(padding: EdgeInsets.zero, children: [
+                    // Header: gradient band with the photo overlapping it.
+                    SizedBox(
+                      height: 210,
+                      child: Stack(clipBehavior: Clip.none, children: [
+                        Container(
+                          height: 130,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [kSetGreenDark, kSetGreen, Color(0xFF43A047)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
                           ),
                         ),
-                      ),
-                    ]),
-                  ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: TextButton(onPressed: _photoOptions, child: const Text('Change photo')),
-                  ),
-                  const SizedBox(height: 12),
-                  const _Label('Personal details'),
-                  TextFormField(
-                    controller: _name,
-                    textCapitalization: TextCapitalization.words,
-                    textInputAction: TextInputAction.next,
-                    decoration: _dec('Full name', Icons.person_rounded),
-                    validator: (v) {
-                      final t = (v ?? '').trim();
-                      if (t.isEmpty) return 'Enter your name';
-                      if (t.length < 3) return 'Enter your full name';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _phone,
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]'))],
-                    decoration: _dec('Phone number', Icons.phone_rounded, hint: '0712 345 678'),
-                    validator: validateKenyanPhone,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    initialValue: p?.email ?? '',
-                    readOnly: true,
-                    enabled: false,
-                    decoration: _dec('Email', Icons.email_rounded,
-                        helper: 'Change your email in Account & security'),
-                  ),
-                  const SizedBox(height: 20),
-                  const _Label('Farm location'),
-                  DropdownButtonFormField<String>(
-                    initialValue: _county,
-                    isExpanded: true,
-                    menuMaxHeight: 380,
-                    decoration: _dec('County', Icons.map_rounded),
-                    items: [for (final c in counties) DropdownMenuItem(value: c, child: Text(c))],
-                    onChanged: (v) => setState(() {
-                      _county = v;
-                      _constituency = null;
-                      _dirty = true;
-                    }),
-                    validator: (v) => v == null ? 'Choose your county' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(_county),
-                    initialValue: _constituency,
-                    isExpanded: true,
-                    menuMaxHeight: 380,
-                    decoration: _dec('Constituency (sub-county)', Icons.location_city_rounded),
-                    items: [for (final c in constituencies) DropdownMenuItem(value: c, child: Text(c))],
-                    onChanged: _county == null
-                        ? null
-                        : (v) => setState(() {
-                              _constituency = v;
-                              _dirty = true;
-                            }),
-                    validator: (v) => v == null ? 'Choose your constituency' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _ward,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: _dec('Ward', Icons.place_rounded),
-                    validator: (v) => (v ?? '').trim().isEmpty ? 'Enter your ward' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: kSetGreen,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: _saving ? null : _save,
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.check_rounded),
-                      label: Text(_saving ? 'Saving…' : 'Save changes'),
+                        Positioned(
+                          top: 60,
+                          left: 0,
+                          right: 0,
+                          child: Column(children: [
+                            GestureDetector(
+                              onTap: _photoOptions,
+                              child: Stack(children: [
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 14, offset: Offset(0, 4))],
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 56,
+                                    backgroundColor: const Color(0xFFD8EFD9),
+                                    backgroundImage: bytes != null ? MemoryImage(bytes) : null,
+                                    child: bytes == null
+                                        ? Text(p?.initials ?? '',
+                                            style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: kSetGreen))
+                                        : null,
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 4,
+                                  bottom: 4,
+                                  child: Material(
+                                    color: const Color(0xFFFFB300),
+                                    shape: const CircleBorder(side: BorderSide(color: Colors.white, width: 3)),
+                                    child: IconButton(
+                                      tooltip: 'Change photo',
+                                      icon: const Icon(Icons.photo_camera_rounded, color: Colors.white, size: 20),
+                                      onPressed: _photoOptions,
+                                    ),
+                                  ),
+                                ),
+                              ]),
+                            ),
+                          ]),
+                        ),
+                      ]),
                     ),
-                  ),
-                ]),
+                    Center(
+                      child: Column(children: [
+                        Text(_name.text.trim().isEmpty ? 'Your name' : _name.text.trim(),
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kSetInk)),
+                        if ((p?.email ?? '').isNotEmpty)
+                          Text(p!.email, style: const TextStyle(color: kSetMuted)),
+                      ]),
+                    ),
+                    const SizedBox(height: 18),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 640),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                            _FormCard(
+                              icon: Icons.person_rounded,
+                              color: blue,
+                              title: 'Personal details',
+                              subtitle: 'Shown on your profile and used by our support team',
+                              children: [
+                                TextFormField(
+                                  controller: _name,
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: _dec('Full name', Icons.badge_rounded, blue),
+                                  validator: (v) {
+                                    final t = (v ?? '').trim();
+                                    if (t.isEmpty) return 'Enter your name';
+                                    if (t.length < 3) return 'Enter your full name';
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _phone,
+                                  keyboardType: TextInputType.phone,
+                                  textInputAction: TextInputAction.next,
+                                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]'))],
+                                  decoration: _dec('Phone number', Icons.phone_rounded, blue, hint: '0712 345 678'),
+                                  validator: validateKenyanPhone,
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  initialValue: p?.email ?? '',
+                                  readOnly: true,
+                                  enabled: false,
+                                  decoration: _dec('Email', Icons.email_rounded, blue,
+                                      helper: 'Change it in Settings → Account & security'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _FormCard(
+                              icon: Icons.agriculture_rounded,
+                              color: teal,
+                              title: 'Farm location',
+                              subtitle: 'Used for local weather, advice and prices',
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  initialValue: _county,
+                                  isExpanded: true,
+                                  menuMaxHeight: 380,
+                                  borderRadius: BorderRadius.circular(14),
+                                  decoration: _dec('County', Icons.map_rounded, teal),
+                                  items: [for (final c in counties) DropdownMenuItem(value: c, child: Text(c))],
+                                  onChanged: (v) => setState(() {
+                                    _county = v;
+                                    _constituency = null;
+                                    _dirty = true;
+                                  }),
+                                  validator: (v) => v == null ? 'Choose your county' : null,
+                                ),
+                                const SizedBox(height: 12),
+                                DropdownButtonFormField<String>(
+                                  key: ValueKey(_county),
+                                  initialValue: _constituency,
+                                  isExpanded: true,
+                                  menuMaxHeight: 380,
+                                  borderRadius: BorderRadius.circular(14),
+                                  decoration: _dec('Constituency (sub-county)', Icons.location_city_rounded, teal),
+                                  items: [for (final c in constituencies) DropdownMenuItem(value: c, child: Text(c))],
+                                  onChanged: _county == null
+                                      ? null
+                                      : (v) => setState(() {
+                                            _constituency = v;
+                                            _dirty = true;
+                                          }),
+                                  validator: (v) => v == null ? 'Choose your constituency' : null,
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _ward,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: _dec('Ward', Icons.place_rounded, teal),
+                                  validator: (v) => (v ?? '').trim().isEmpty ? 'Enter your ward' : null,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            Center(
+                              child: CompactButton(
+                                icon: Icons.check_rounded,
+                                label: _saving ? 'Saving…' : 'Save changes',
+                                busy: _saving,
+                                onPressed: _save,
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
               ),
-            ),
-        ],
       ),
     );
   }
 }
 
-class _Label extends StatelessWidget {
-  final String text;
-  const _Label(this.text);
+/// A white card with a coloured icon heading, grouping related fields.
+class _FormCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+  const _FormCard({required this.icon, required this.color, required this.title, required this.subtitle, required this.children});
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 10),
-        child: Text(text.toUpperCase(),
-            style: const TextStyle(color: kSetMuted, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 14, offset: Offset(0, 4))],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: kSetInk)),
+                Text(subtitle, style: const TextStyle(color: kSetMuted, fontSize: 12.5)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          ...children,
+        ]),
       );
 }

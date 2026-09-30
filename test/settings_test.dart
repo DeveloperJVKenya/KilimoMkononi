@@ -9,6 +9,7 @@ import 'package:kilimomkononi/screens/manuals_screen.dart';
 import 'package:kilimomkononi/settings/appearance/appearance.dart';
 import 'package:kilimomkononi/settings/appearance/appearance_screen.dart';
 import 'package:kilimomkononi/settings/faq_screen.dart';
+import 'package:kilimomkononi/settings/licenses_screen.dart';
 import 'package:kilimomkononi/settings/profile_edit_screen.dart';
 import 'package:kilimomkononi/settings/settings_providers.dart';
 import 'package:kilimomkononi/settings/widgets/legal_kit.dart';
@@ -82,13 +83,18 @@ void main() {
       expect(find.text('Reset'), findsOneWidget);
 
       await t.scrollUntilVisible(find.text('Bold text'), 300, scrollable: find.byType(Scrollable).first);
-      await t.ensureVisible(find.text('Bold text'));
-      await t.tap(find.text('Bold text'));
+      await t.drag(find.byType(Scrollable).first, const Offset(0, -200)); // clear of the edge
+      await t.pumpAndSettle();
+      final boldSwitch = find.descendant(of: find.widgetWithText(SettingsSwitchTile, 'Bold text'), matching: find.byType(Switch));
+      await t.tap(boldSwitch);
       await t.pumpAndSettle();
       expect(container.read(appearanceProvider).boldText, isTrue);
       expect((await SharedPreferences.getInstance()).getBool('appearance_boldText'), isTrue);
 
       await t.tap(find.text('Reset'));
+      await t.pumpAndSettle();
+      expect(find.text('Reset appearance?'), findsOneWidget); // asks first
+      await t.tap(find.widgetWithText(FilledButton, 'Reset'));
       await t.pumpAndSettle();
       expect(container.read(appearanceProvider).isDefault, isTrue);
       expect(t.takeException(), isNull);
@@ -121,6 +127,15 @@ void main() {
       expect(kFarmerFaqs.where((f) => f.matches('offline')).length, greaterThanOrEqualTo(1));
       expect(kFarmerFaqs.where((f) => f.matches('KAMIS')).single.category, 'Market prices');
       expect(kFarmerFaqs.every((f) => f.matches('')), isTrue);
+    });
+
+    test('licences are grouped by package, A–Z', () {
+      final g = groupLicenses([
+        (['zeta', 'alpha'], 'MIT'),
+        (['alpha'], 'BSD'),
+      ]);
+      expect(g.keys, ['alpha', 'zeta']);
+      expect(g['alpha'], ['MIT', 'BSD']);
     });
 
     test('legal contents link to sections by number', () {
