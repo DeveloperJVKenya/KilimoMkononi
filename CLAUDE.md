@@ -162,6 +162,11 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
 - Home navigation: bottom tabs Home / Manuals / Settings under ONE Home app bar (tab screens take
   `embedded: true` and drop their own app bar). Notifications open from the app-bar bell only —
   not a tab or menu item; Help & support lives in Settings, not the menu.
+- Field Data Input (`field_data_input_home_page.dart`) is a hub with bottom tabs Record / Weather /
+  History / Analysis (Weather Station, Plot history, Season analysis screens keep their own app
+  bars; tabs build on first open, then stay alive). Farm alerts (`farm_alerts_home_widget.dart`)
+  show the day plan + verified advisories only; the AI Farm Advisor lives on the Weather Station.
+  The legacy `agronomist_notes` card was removed — verified advisories replace it.
 - Farmer auth screens (login, registration, Google "finish setup") share
   `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
   width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),

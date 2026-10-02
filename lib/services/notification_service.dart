@@ -480,10 +480,13 @@ class NotificationService {
   }
 
   /// Call once the signed-in home screen is showing; opens the screen of a
-  /// notification that launched the app.
-  static void consumePendingRoute() {
+  /// notification that launched the app. [currentRoute] is the screen that
+  /// is already showing (e.g. [KmRoute.eduHome]) — a tap for it is just
+  /// dropped instead of opening a second copy.
+  static void consumePendingRoute({String? currentRoute}) {
     final tap = _pendingRoute;
     _pendingRoute = null;
+    if (tap != null && tap.route == currentRoute) return;
     _handleTap(tap);
   }
 

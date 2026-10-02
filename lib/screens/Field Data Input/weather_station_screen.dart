@@ -1,7 +1,7 @@
 // lib/screens/Field Data Input/weather_station_screen.dart
 //
 // "Today on this farm" weather view:
-// status → main advice → Do/Avoid chips → conditions →
+// status → conditions → main advice → Do/Avoid chips →
 // Verified advice (published by Field Agronomists for this crop + weather) →
 // AI Farm Advisor (clearly labelled unverified) → 24h history.
 // Field Agronomists also get an entry into their panel from here.
@@ -13,11 +13,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/services/nuasense_service.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
-import 'package:kilimomkononi/models/agronomist_note.dart';
-import 'package:kilimomkononi/services/agronomist_note_service.dart';
 import 'package:kilimomkononi/services/weather_day_plan.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/admin_advisory_preview.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart';
@@ -44,6 +41,9 @@ class _C {
   static const border = Color(0xFFE0E4DF);
 }
 
+/// Default weight for this screen's text (medium, not regular).
+const _kBodyWeight = TextStyle(fontWeight: FontWeight.w500);
+
 // ── Outdoor condition chip styling ───────────────────────────────────────────
 
 class _LabelStyle {
@@ -53,15 +53,21 @@ class _LabelStyle {
 }
 
 _LabelStyle _styleForLabel(String label) {
-  final warn = label.contains('Hot') ||
+  final warn =
+      label.contains('Hot') ||
       label.contains('Windy') ||
       label.contains('very humid') ||
       label.contains('Raining now');
-  final caution = label.contains('Cool') ||
+  final caution =
+      label.contains('Cool') ||
       label.contains('Breezy') ||
       label.contains('Recent rain') ||
       label.contains('wet');
-  final color = warn ? _C.red : caution ? _C.amber : _C.midGreen;
+  final color = warn
+      ? _C.red
+      : caution
+      ? _C.amber
+      : _C.midGreen;
 
   final IconData icon;
   if (label.contains('Temp') ||
@@ -119,9 +125,6 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   bool _aiLoading = false;
   bool _aiUsedFallback = false;
 
-  AgronomistNote? _agronomistNote;
-  bool _agronomistLoading = false;
-
   // Google's area forecast, shown alongside (never instead of) the station.
   GoogleWeather? _google;
   String? _googlePlace;
@@ -172,25 +175,13 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   Future<void> _loadFarmerCrops() async {
     if (_userId.isEmpty) return;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('fielddata')
-          .where('userId', isEqualTo: _userId)
-          .orderBy('timestamp', descending: true)
-          .limit(30)
-          .get();
-      final forPlot = <String>{};
-      final all = <String>{};
-      for (final d in snap.docs) {
-        final data = d.data();
-        final types = ((data['crops'] as List?) ?? const [])
-            .map((c) => (c is Map ? c['type'] : null)?.toString().trim() ?? '')
-            .where((t) => t.isNotEmpty);
-        all.addAll(types);
-        if (data['plotId'] == _selectedPlotId) forPlot.addAll(types);
-      }
+      final crops = await AgronomicAdvisoryService.farmerCrops(
+        _userId,
+        plotId: _selectedPlotId,
+      );
       if (!mounted) return;
       setState(() {
-        _farmerCrops = (forPlot.isNotEmpty ? forPlot : all).toList();
+        _farmerCrops = crops;
         _farmerCropsKnown = true;
       });
     } catch (e) {
@@ -204,17 +195,20 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   /// applies then).
   String? get _effectiveStationId => _selectedStationId;
 
+  /// Without a station there are no live conditions, but farmers still get
+  /// "Any conditions" advice for their crops pushed to them (crop topics) —
+  /// so that advice must be here when they tap the push.
   Future<void> _loadVerifiedAdvice() async {
     final r = _reading;
-    if (!mounted || r == null || !r.isProvisioned) return;
+    if (!mounted || r == null) return;
     final request = ++_verifiedRequest;
     setState(() => _verifiedLoading = true);
     try {
       await _loadFarmerCrops();
       final list = await AgronomicAdvisoryService.publishedFor(
-        conditions: activeConditionKeys(r),
+        conditions: r.isProvisioned ? activeConditionKeys(r) : {'general'},
         farmerCrops: _farmerCropsKnown ? _farmerCrops : null,
-        gatewayId: _effectiveStationId,
+        gatewayId: r.isProvisioned ? _effectiveStationId : null,
         includeTest: _adminTestMode,
       );
       if (!mounted || request != _verifiedRequest) return;
@@ -338,7 +332,8 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
             _aiLoading = false;
           });
         }
-        _loadAgronomistNote();
+      } else {
+        _loadVerifiedAdvice(); // all-station advice for their crops
       }
     } catch (e) {
       if (!mounted) return;
@@ -369,7 +364,9 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
       setState(() {
         _google = w;
         _googlePlace = useStation
-            ? (station!.name.isNotEmpty ? '${station.name} (station area)' : 'your station area')
+            ? (station!.name.isNotEmpty
+                  ? '${station.name} (station area)'
+                  : 'your station area')
             : farm.displayLabel;
         _googleLoading = false;
       });
@@ -388,7 +385,9 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
         weather: _google!,
         place: _googlePlace,
         onOpenFull: () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const WeatherScreen())),
+          context,
+          MaterialPageRoute(builder: (_) => const WeatherScreen()),
+        ),
       );
     }
     return Container(
@@ -399,30 +398,21 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.border),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const WeatherSourceBadge(WeatherSource.google),
-        const SizedBox(height: 10),
-        if (_googleLoading)
-          const LinearProgressIndicator(minHeight: 2)
-        else
-          Text(_googleError ?? 'Forecast not available.',
-              style: const TextStyle(fontSize: 12, color: Colors.black54)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const WeatherSourceBadge(WeatherSource.google),
+          const SizedBox(height: 10),
+          if (_googleLoading)
+            const LinearProgressIndicator(minHeight: 2)
+          else
+            Text(
+              _googleError ?? 'Forecast not available.',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+        ],
+      ),
     );
-  }
-
-  Future<void> _loadAgronomistNote() async {
-    if (!mounted) return;
-    setState(() => _agronomistLoading = true);
-    final note = await AgronomistNoteService.getLatestForStation(
-      gatewayId: _selectedStationId,
-      platform: 'km',
-    );
-    if (!mounted) return;
-    setState(() {
-      _agronomistNote = note;
-      _agronomistLoading = false;
-    });
   }
 
   Future<void> _refresh() async {
@@ -449,8 +439,7 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
         _aiLoading = false;
       });
     } catch (e) {
-      debugPrint(
-          '[WeatherStationScreen] askGemini failed, local fallback: $e');
+      debugPrint('[WeatherStationScreen] askGemini failed, local fallback: $e');
       if (!mounted) return;
       setState(() {
         _aiAdvice = _planToStructured(plan);
@@ -516,229 +505,288 @@ Farm conditions (context only — do not list these back):
         ? buildKmDayPlan(_reading!, cropNames: _cropNames)
         : null;
 
-    return Scaffold(
-      backgroundColor: _C.pageBg,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Weather Station',
+    // Heavier body text for readability outdoors / on low-end screens; text
+    // that sets its own weight keeps it.
+    return DefaultTextStyle.merge(
+      style: _kBodyWeight,
+      child: Scaffold(
+        backgroundColor: _C.pageBg,
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Weather Station',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600)),
-            Text(
-              _stationLabel,
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                _stationLabel,
+                style: const TextStyle(fontSize: 11, color: Colors.white70),
+              ),
+            ],
+          ),
+          backgroundColor: _C.darkGreen,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          actions: [
+            if (_isFieldAgronomist)
+              IconButton(
+                icon: const Icon(Icons.fact_check_rounded),
+                tooltip: 'Field Agronomist panel',
+                onPressed: _openAgronomistPanel,
+              ),
+            if (_stations.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _StationSwitcherButton(
+                  stations: _stations,
+                  selectedStationId: _selectedStationId,
+                  onSelect: _switchStation,
+                ),
+              ),
+            if (_plots.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _PlotSwitcherButton(
+                  plots: _plots,
+                  selectedPlotId: _selectedPlotId,
+                  onSelect: _switchPlot,
+                ),
+              ),
+            if (!_loading)
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Refresh',
+                onPressed: _refresh,
+              ),
+            IconButton(
+              icon: const Icon(Icons.info_outline_rounded),
+              tooltip: 'About this data',
+              onPressed: _showAbout,
             ),
           ],
         ),
-        backgroundColor: _C.darkGreen,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          if (_isFieldAgronomist)
-            IconButton(
-              icon: const Icon(Icons.fact_check_rounded),
-              tooltip: 'Field Agronomist panel',
-              onPressed: _openAgronomistPanel,
-            ),
-          if (_stations.length > 1)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: _StationSwitcherButton(
-                stations: _stations,
-                selectedStationId: _selectedStationId,
-                onSelect: _switchStation,
-              ),
-            ),
-          if (_plots.length > 1)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: _PlotSwitcherButton(
-                plots: _plots,
-                selectedPlotId: _selectedPlotId,
-                onSelect: _switchPlot,
-              ),
-            ),
-          if (!_loading)
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Refresh',
-              onPressed: _refresh,
-            ),
-          IconButton(
-            icon: const Icon(Icons.info_outline_rounded),
-            tooltip: 'About this data',
-            onPressed: _showAbout,
-          ),
-        ],
-      ),
-      body: _loading
-          ? _buildLoading()
-          : _error != null
-              ? _buildError()
-              : (_reading != null && !_reading!.isProvisioned)
-                  ? (_adminTestMode
-                      ? _buildNotProvisionedWithPreview()
-                      : _buildNotProvisioned())
-                  : RefreshIndicator(
-                      color: _C.midGreen,
-                      onRefresh: _refresh,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          if (_isFieldAgronomist) _buildAgronomistEntry(),
-                          _noGpsBanner(),
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: WeatherSourceBadge(WeatherSource.station),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildStatusBar(),
-                          const SizedBox(height: 14),
-                          if (_reading!.hasData) ...[
-                            _buildMainAdviceCard(plan!),
-                            const SizedBox(height: 14),
-                            _buildDoAvoidChips(plan),
-                            const SizedBox(height: 16),
-                            _buildConditionsSummary(plan),
-                          ] else
-                            _buildOfflineCard(),
-                          const SizedBox(height: 16),
-                          _sectionLabel('Forecast for your area'),
-                          _buildGoogleForecast(),
-                          const SizedBox(height: 16),
-                          if (_adminTestMode) ...[
-                            _buildAdminPreview(),
-                            const SizedBox(height: 16),
-                          ],
-                          _sectionLabel('Verified advice'),
-                          _buildVerifiedAdviceSection(),
-                          const SizedBox(height: 10),
-                          _sectionLabel('AI Farm Advisor'),
-                          _buildAiAdviceCard(),
-                          const SizedBox(height: 20),
-                          _sectionLabel('Last 24 hours'),
-                          _buildHistoryStrip(),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
+        body: _loading
+            ? _buildLoading()
+            : _error != null
+            ? _buildError()
+            : (_reading != null && !_reading!.isProvisioned)
+            ? (_adminTestMode
+                  ? _buildNotProvisionedWithPreview()
+                  : _buildNotProvisionedWithAdvice())
+            : RefreshIndicator(
+                color: _C.midGreen,
+                onRefresh: _refresh,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_isFieldAgronomist) _buildAgronomistEntry(),
+                    _noGpsBanner(),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: WeatherSourceBadge(WeatherSource.station),
                     ),
+                    const SizedBox(height: 8),
+                    _buildStatusBar(),
+                    const SizedBox(height: 14),
+                    if (_reading!.hasData) ...[
+                      // Station conditions first, so the advice below reads
+                      // as a response to what the farmer can see.
+                      _buildConditionsSummary(plan!),
+                      const SizedBox(height: 14),
+                      _buildMainAdviceCard(plan),
+                      const SizedBox(height: 14),
+                      _buildDoAvoidChips(plan),
+                    ] else
+                      _buildOfflineCard(),
+                    const SizedBox(height: 16),
+                    _sectionLabel('Forecast for your area'),
+                    _buildGoogleForecast(),
+                    const SizedBox(height: 16),
+                    if (_adminTestMode) ...[
+                      _buildAdminPreview(),
+                      const SizedBox(height: 16),
+                    ],
+                    _sectionLabel('Verified advice'),
+                    _buildVerifiedAdviceSection(),
+                    const SizedBox(height: 10),
+                    _sectionLabel('AI Farm Advisor'),
+                    _buildAiAdviceCard(),
+                    const SizedBox(height: 20),
+                    _sectionLabel('Last 24 hours'),
+                    _buildHistoryStrip(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 
   Widget _buildLoading() => const Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CircularProgressIndicator(color: _C.midGreen),
-          SizedBox(height: 16),
-          Text('Loading weather station data…',
-              style: TextStyle(color: Colors.black45, fontSize: 13)),
-        ]),
-      );
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircularProgressIndicator(color: _C.midGreen),
+        SizedBox(height: 16),
+        Text(
+          'Loading weather station data…',
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildError() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('Could not reach weather station',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            const SizedBox(height: 8),
-            Text(_error ?? '',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.black45)),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _refresh,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _C.midGreen, foregroundColor: Colors.white),
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'Could not reach weather station',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _error ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _refresh,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _C.midGreen,
+              foregroundColor: Colors.white,
             ),
-          ]),
-        ),
-      );
+          ),
+        ],
+      ),
+    ),
+  );
 
   // ── Admin test-mode preview ─────────────────────────────────────────────
 
   Widget _buildAdminPreview() => AdminAdvisoryPreview(
-        reading: _reading,
-        farmerCrops: _farmerCrops,
-        onOpenPanel: _openAgronomistPanel,
-      );
+    reading: _reading,
+    farmerCrops: _farmerCrops,
+    onOpenPanel: _openAgronomistPanel,
+  );
 
   /// Admins usually have no station of their own — still show the preview.
   Widget _buildNotProvisionedWithPreview() => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      _buildAgronomistEntry(),
+      _buildNotProvisioned(),
+      const SizedBox(height: 8),
+      _buildAdminPreview(),
+      ..._noStationAdvice(),
+    ],
+  );
+
+  /// No station: the explanation, then any verified advice that applies
+  /// anyway (what a tapped advice push should lead to).
+  Widget _buildNotProvisionedWithAdvice() {
+    final advice = _noStationAdvice();
+    if (advice.isEmpty) return _buildNotProvisioned();
+    return RefreshIndicator(
+      color: _C.midGreen,
+      onRefresh: _refresh,
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        children: [
-          _buildAgronomistEntry(),
-          _buildNotProvisioned(),
-          const SizedBox(height: 8),
-          _buildAdminPreview(),
-        ],
-      );
+        children: [_buildNotProvisioned(), ...advice],
+      ),
+    );
+  }
+
+  List<Widget> _noStationAdvice() {
+    if (!_verifiedLoading && _verifiedAdvice.isEmpty) return const [];
+    return [
+      const SizedBox(height: 8),
+      _sectionLabel('Verified advice'),
+      _buildVerifiedAdviceSection(),
+    ];
+  }
 
   Widget _buildNotProvisioned() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.sensors_off_rounded, size: 48, color: _C.midGreen),
-            const SizedBox(height: 16),
-            const Text('No weather station installed yet',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: Color(0xFF032704))),
-            const SizedBox(height: 8),
-            const Text(
-              'Once a NuaSense weather station is installed on your farm, '
-              'live conditions and advice will appear here automatically.',
-              textAlign: TextAlign.center,
-              style:
-                  TextStyle(fontSize: 12.5, color: Colors.black54, height: 1.4),
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.sensors_off_rounded, size: 48, color: _C.midGreen),
+          const SizedBox(height: 16),
+          const Text(
+            'No weather station installed yet',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: Color(0xFF032704),
             ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: _refresh,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Check again'),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: _C.midGreen,
-                  side: const BorderSide(color: _C.midGreen)),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Once a NuaSense weather station is installed on your farm, '
+            'live conditions and advice will appear here automatically.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: Colors.black54,
+              height: 1.4,
             ),
-          ]),
-        ),
-      );
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: _refresh,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Check again'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _C.midGreen,
+              side: const BorderSide(color: _C.midGreen),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   /// Shown instead of the day plan when the station sent nothing in the
   /// last 2 hours: its values are placeholders, not real weather.
   Widget _buildOfflineCard() => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _C.lightAmber,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _C.amber.withValues(alpha: 0.3)),
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: _C.lightAmber,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: _C.amber.withValues(alpha: 0.3)),
+    ),
+    child: const Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.sensors_off_rounded, color: _C.amber),
+        SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Your weather station has not sent any readings in the last '
+            '2 hours, so there is no live advice for today. Check that '
+            'the station has power and signal, then pull down to refresh. '
+            'Only general verified advice is shown below.',
+            style: TextStyle(fontSize: 12.5, height: 1.4),
+          ),
         ),
-        child: const Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.sensors_off_rounded, color: _C.amber),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Your weather station has not sent any readings in the last '
-                '2 hours, so there is no live advice for today. Check that '
-                'the station has power and signal, then pull down to refresh. '
-                'Only general verified advice is shown below.',
-                style: TextStyle(fontSize: 12.5, height: 1.4),
-              ),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 
   Widget _buildStatusBar() {
     final r = _reading!;
@@ -750,32 +798,45 @@ Farm conditions (context only — do not list these back):
         color: stale ? _C.lightAmber : _C.lightGreen,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: stale
-                ? _C.amber.withValues(alpha: 0.3)
-                : _C.midGreen.withValues(alpha: 0.3)),
+          color: stale
+              ? _C.amber.withValues(alpha: 0.3)
+              : _C.midGreen.withValues(alpha: 0.3),
+        ),
       ),
-      child: Row(children: [
-        Icon(stale ? Icons.access_time_rounded : Icons.sensors_rounded,
-            size: 14, color: stale ? _C.amber : _C.midGreen),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            !r.hasData
-                ? 'No readings in the last 2 hours · station may be offline'
-                : stale
-                    ? 'Cached data · Last updated $timeAgo'
-                    : 'Live · Updated $timeAgo',
-            style: TextStyle(
+      child: Row(
+        children: [
+          Icon(
+            stale ? Icons.access_time_rounded : Icons.sensors_rounded,
+            size: 14,
+            color: stale ? _C.amber : _C.midGreen,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              !r.hasData
+                  ? 'No readings in the last 2 hours · station may be offline'
+                  : stale
+                  ? 'Cached data · Last updated $timeAgo'
+                  : 'Live · Updated $timeAgo',
+              style: TextStyle(
                 fontSize: 12,
                 color: stale ? _C.amber : _C.midGreen,
-                fontWeight: FontWeight.w500),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-        ),
-        const Icon(Icons.location_on_outlined, size: 12, color: Colors.black38),
-        const SizedBox(width: 3),
-        Text(_county,
-            style: const TextStyle(fontSize: 11, color: Colors.black45)),
-      ]),
+          const Icon(
+            Icons.location_on_outlined,
+            size: 12,
+            color: Colors.black54,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            _county,
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          ),
+        ],
+      ),
     );
   }
 
@@ -821,16 +882,24 @@ Farm conditions (context only — do not list these back):
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("TODAY'S MAIN ADVICE",
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                        color: iconColor)),
+                Text(
+                  "TODAY'S MAIN ADVICE",
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: iconColor,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text(plan.mainAdvice,
-                    style: const TextStyle(
-                        fontSize: 14, height: 1.45, color: Colors.black87)),
+                Text(
+                  plan.mainAdvice,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: Colors.black87,
+                  ),
+                ),
               ],
             ),
           ),
@@ -844,12 +913,15 @@ Farm conditions (context only — do not list these back):
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (plan.doToday.isNotEmpty) ...[
-          const Text('DO TODAY',
-              style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: _C.midGreen)),
+          const Text(
+            'DO TODAY',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: _C.midGreen,
+            ),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -861,12 +933,15 @@ Farm conditions (context only — do not list these back):
           const SizedBox(height: 12),
         ],
         if (plan.avoidToday.isNotEmpty) ...[
-          const Text('AVOID TODAY',
-              style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                  color: _C.red)),
+          const Text(
+            'AVOID TODAY',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: _C.red,
+            ),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -881,16 +956,17 @@ Farm conditions (context only — do not list these back):
   }
 
   Widget _chip(String text, Color bg, Color fg) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: fg.withValues(alpha: 0.35)),
-        ),
-        child: Text(text,
-            style:
-                TextStyle(fontSize: 12, color: fg, fontWeight: FontWeight.w600)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: fg.withValues(alpha: 0.35)),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 12, color: fg, fontWeight: FontWeight.w700),
+    ),
+  );
 
   Widget _buildConditionsSummary(WeatherDayPlan plan) {
     final r = _reading!;
@@ -905,70 +981,82 @@ Farm conditions (context only — do not list these back):
         // Tiles draw ink/ripples on the nearest Material; it must sit above the colour.
         type: MaterialType.transparency,
         child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-          title: const Text('Conditions',
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+            title: const Text(
+              'Conditions',
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87)),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: plan.conditionLabels.map((label) {
-                final s = _styleForLabel(label);
-                return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: s.color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: s.color.withValues(alpha: 0.35)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(s.icon, size: 12, color: s.color),
-                      const SizedBox(width: 4),
-                      Text(label,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: plan.conditionLabels.map((label) {
+                  final s = _styleForLabel(label);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: s.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: s.color.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(s.icon, size: 12, color: s.color),
+                        const SizedBox(width: 4),
+                        Text(
+                          label,
                           style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: s.color)),
-                    ],
-                  ),
-                );
-              }).toList(),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: s.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-          children: [
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Sensor details',
+            childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Sensor details',
                   style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black45,
-                      letterSpacing: 0.5)),
-            ),
-            const SizedBox(height: 8),
-            _sensorRow('Air temperature',
-                '${r.airTemp.toStringAsFixed(1)}°C'),
-            _sensorRow('Humidity', '${r.humidity.toStringAsFixed(0)}%'),
-            _sensorRow(
-                'Wind', '${r.windSpeed.toStringAsFixed(1)} m/s'),
-            _sensorRow(
-                'Rainfall', '${r.rainfall.toStringAsFixed(1)} mm'),
-            _sensorRow('VPD', '${r.vpd.toStringAsFixed(2)} kPa'),
-            _sensorRow(
-                'Leaves', r.leafIsWet ? 'Wet' : 'Dry'),
-          ],
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black54,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _sensorRow(
+                'Air temperature',
+                '${r.airTemp.toStringAsFixed(1)}°C',
+              ),
+              _sensorRow('Humidity', '${r.humidity.toStringAsFixed(0)}%'),
+              _sensorRow('Wind', '${r.windSpeed.toStringAsFixed(1)} m/s'),
+              _sensorRow('Rainfall', '${r.rainfall.toStringAsFixed(1)} mm'),
+              _sensorRow('VPD', '${r.vpd.toStringAsFixed(2)} kPa'),
+              _sensorRow('Leaves', r.leafIsWet ? 'Wet' : 'Dry'),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -979,11 +1067,19 @@ Farm conditions (context only — do not list these back):
       child: Row(
         children: [
           Expanded(
-              child: Text(label,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54))),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black87)),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
         ],
       ),
     );
@@ -1003,39 +1099,60 @@ Farm conditions (context only — do not list these back):
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            const Icon(Icons.auto_awesome_rounded,
-                size: 16, color: _C.midGreen),
-            const SizedBox(width: 6),
-            const Expanded(
-              child: Text('AI Farm Advisor',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-            ),
-            // Farmers must be able to tell this apart from verified advice.
-            Pill(_aiUsedFallback ? 'Offline advice' : 'AI-generated · not verified',
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                size: 16,
+                color: _C.midGreen,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'AI Farm Advisor',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+              // Farmers must be able to tell this apart from verified advice.
+              Pill(
+                _aiUsedFallback
+                    ? 'Offline advice'
+                    : 'AI-generated · not verified',
                 icon: _aiUsedFallback
                     ? Icons.cloud_off_rounded
                     : Icons.info_outline_rounded,
                 fg: _C.amber,
-                bg: _C.lightAmber),
-          ]),
+                bg: _C.lightAmber,
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           if (_aiLoading)
-            const Row(children: [
-              SizedBox(
+            const Row(
+              children: [
+                SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: _C.midGreen)),
-              SizedBox(width: 8),
-              Text("Thinking through today's conditions…",
-                  style: TextStyle(fontSize: 12, color: Colors.black45)),
-            ])
+                    strokeWidth: 2,
+                    color: _C.midGreen,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  "Thinking through today's conditions…",
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            )
           else if (advice == null)
             const Text(
               "Today's plan above already covers the essentials.",
               style: TextStyle(
-                  fontSize: 13, height: 1.4, color: Colors.black87),
+                fontSize: 13,
+                height: 1.4,
+                color: Colors.black87,
+              ),
             )
           else ...[
             AdviceBody(advice: advice),
@@ -1043,7 +1160,11 @@ Farm conditions (context only — do not list these back):
             const Text(
               'Generated automatically from live station data and not reviewed '
               'by an agronomist. Where verified advice is shown above, follow it first.',
-              style: TextStyle(fontSize: 10.5, color: Colors.black45, height: 1.35),
+              style: TextStyle(
+                fontSize: 10.5,
+                color: Colors.black54,
+                height: 1.35,
+              ),
             ),
           ],
         ],
@@ -1063,179 +1184,140 @@ Farm conditions (context only — do not list these back):
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _C.border),
         ),
-        child: const Row(children: [
-          SizedBox(
+        child: const Row(
+          children: [
+            SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2)),
-          SizedBox(width: 10),
-          Text('Checking for verified advice…',
-              style: TextStyle(fontSize: 12, color: Colors.black45)),
-        ]),
-      );
-    }
-    if (_verifiedAdvice.isEmpty) {
-      // Nothing verified for these conditions — fall back to the legacy
-      // station note (if any), else an explanatory empty state.
-      return _buildAgronomistCard();
-    }
-    return Column(children: [
-      for (final a in _verifiedAdvice.take(3)) ...[
-        VerifiedAdvisoryCard.fromAdvisory(a),
-        const SizedBox(height: 10),
-      ],
-    ]);
-  }
-
-  Widget _buildAgronomistEntry() => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Material(
-          color: AdvisoryColors.verifiedBg,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: _openAgronomistPanel,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AdvisoryColors.verifiedBorder),
-              ),
-              child: Row(children: [
-                const Icon(Icons.fact_check_rounded, color: AdvisoryColors.verified),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                          _adminTestMode
-                              ? 'Field Agronomist panel · admin test mode'
-                              : 'Field Agronomist panel',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AdvisoryColors.verified)),
-                      const Text('Draft, verify and publish advice for these conditions',
-                          style: TextStyle(fontSize: 11.5, color: Colors.black54)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded, color: AdvisoryColors.verified),
-              ]),
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          ),
-        ),
-      );
-
-  Widget _buildAgronomistCard() {
-    if (_agronomistLoading) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _C.border),
-        ),
-        child: const Row(children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          SizedBox(width: 10),
-          Text('Loading agronomist note…',
-              style: TextStyle(fontSize: 12, color: Colors.black45)),
-        ]),
-      );
-    }
-
-    final note = _agronomistNote;
-    if (note == null || note.body.trim().isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _C.border),
-        ),
-        child: const Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.support_agent_rounded, size: 20, color: Colors.black54),
             SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Field Agronomist',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87)),
-                  SizedBox(height: 3),
-                  Text('No verified advice for today\'s conditions yet.',
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w600)),
-                  SizedBox(height: 3),
-                  Text(
-                    'When a Field Agronomist verifies advice for your crop '
-                    'and this weather, it will appear here. Until then, use '
-                    'the plan above and the AI advice below with care.',
-                    style: TextStyle(
-                        fontSize: 11.5, color: Colors.black54, height: 1.4),
-                  ),
-                ],
-              ),
+            Text(
+              'Checking for verified advice…',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ],
         ),
       );
     }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3E5F5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFCE93D8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.support_agent_rounded,
-                size: 18, color: Color(0xFF6A1B9A)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(note.title,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF4A148C))),
-            ),
-            Text(note.timeLabel,
-                style: const TextStyle(fontSize: 10, color: Colors.black45)),
-          ]),
-          const SizedBox(height: 8),
-          Text(note.body,
-              style: const TextStyle(
-                  fontSize: 13, height: 1.45, color: Colors.black87)),
-          const SizedBox(height: 8),
-          Text('${note.authorName} · ${note.authorOrg}',
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6A1B9A))),
+    if (_verifiedAdvice.isEmpty) {
+      return _buildNoVerifiedAdviceCard();
+    }
+    return Column(
+      children: [
+        for (final a in _verifiedAdvice.take(3)) ...[
+          VerifiedAdvisoryCard.fromAdvisory(a),
+          const SizedBox(height: 10),
         ],
-      ),
+      ],
     );
   }
+
+  Widget _buildAgronomistEntry() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Material(
+      color: AdvisoryColors.verifiedBg,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _openAgronomistPanel,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AdvisoryColors.verifiedBorder),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.fact_check_rounded,
+                color: AdvisoryColors.verified,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _adminTestMode
+                          ? 'Field Agronomist panel · admin test mode'
+                          : 'Field Agronomist panel',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AdvisoryColors.verified,
+                      ),
+                    ),
+                    const Text(
+                      'Draft, verify and publish advice for these conditions',
+                      style: TextStyle(fontSize: 11.5, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AdvisoryColors.verified,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  /// Shown when no published advisory matches the crop + today's weather.
+  Widget _buildNoVerifiedAdviceCard() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.grey[50],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: _C.border),
+    ),
+    child: const Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.support_agent_rounded, size: 20, color: Colors.black54),
+        SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Field Agronomist',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                "No verified advice for today's conditions yet.",
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                'When a Field Agronomist verifies advice for your crop '
+                'and this weather, it will appear here. Until then, use '
+                'the plan above and the AI advice below with care.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: Colors.black54,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildHistoryStrip() {
     if (_history.isEmpty) {
@@ -1247,13 +1329,16 @@ Farm conditions (context only — do not list these back):
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _C.border),
         ),
-        child: const Text('No history data available',
-            style: TextStyle(color: Colors.black38, fontSize: 12)),
+        child: const Text(
+          'No history data available',
+          style: TextStyle(color: Colors.black54, fontSize: 12),
+        ),
       );
     }
 
-    final pts =
-        _history.length > 24 ? _history.sublist(_history.length - 24) : _history;
+    final pts = _history.length > 24
+        ? _history.sublist(_history.length - 24)
+        : _history;
     final maxTemp = pts.map((p) => p.airTemp).reduce((a, b) => a > b ? a : b);
     final minTemp = pts.map((p) => p.airTemp).reduce((a, b) => a < b ? a : b);
     final range = (maxTemp - minTemp).clamp(1.0, double.infinity);
@@ -1268,26 +1353,41 @@ Farm conditions (context only — do not list these back):
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            const Icon(Icons.thermostat_rounded, size: 12, color: _C.midGreen),
-            const SizedBox(width: 4),
-            Text(
+          Row(
+            children: [
+              const Icon(
+                Icons.thermostat_rounded,
+                size: 12,
+                color: _C.midGreen,
+              ),
+              const SizedBox(width: 4),
+              Text(
                 'Temperature  ${minTemp.toStringAsFixed(1)}°–${maxTemp.toStringAsFixed(1)}°C',
-                style: const TextStyle(fontSize: 11, color: Colors.black45)),
-            const Spacer(),
-            const Icon(Icons.water_drop_outlined, size: 12, color: _C.skyBlue),
-            const SizedBox(width: 3),
-            const Text('Humidity',
-                style: TextStyle(fontSize: 11, color: Colors.black45)),
-          ]),
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              const Spacer(),
+              const Icon(
+                Icons.water_drop_outlined,
+                size: 12,
+                color: _C.skyBlue,
+              ),
+              const SizedBox(width: 3),
+              const Text(
+                'Humidity',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           SizedBox(
             height: 60,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: pts.map((p) {
-                final heightFrac =
-                    ((p.airTemp - minTemp) / range).clamp(0.1, 1.0);
+                final heightFrac = ((p.airTemp - minTemp) / range).clamp(
+                  0.1,
+                  1.0,
+                );
                 final isWet = p.lwdHour == 1;
                 return Expanded(
                   child: Padding(
@@ -1296,8 +1396,11 @@ Farm conditions (context only — do not list these back):
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         if (isWet)
-                          const Icon(Icons.water_drop_rounded,
-                              size: 6, color: _C.skyBlue),
+                          const Icon(
+                            Icons.water_drop_rounded,
+                            size: 6,
+                            color: _C.skyBlue,
+                          ),
                         Expanded(
                           flex: (heightFrac * 10).round(),
                           child: Container(
@@ -1318,22 +1421,34 @@ Farm conditions (context only — do not list these back):
             ),
           ),
           const SizedBox(height: 6),
-          Row(children: [
-            Text(_hourLabel(pts.first.time),
-                style: const TextStyle(fontSize: 9, color: Colors.black38)),
-            const Spacer(),
-            Text(_hourLabel(pts[pts.length ~/ 4].time),
-                style: const TextStyle(fontSize: 9, color: Colors.black38)),
-            const Spacer(),
-            Text(_hourLabel(pts[pts.length ~/ 2].time),
-                style: const TextStyle(fontSize: 9, color: Colors.black38)),
-            const Spacer(),
-            Text(_hourLabel(pts[pts.length * 3 ~/ 4].time),
-                style: const TextStyle(fontSize: 9, color: Colors.black38)),
-            const Spacer(),
-            const Text('Now',
-                style: TextStyle(fontSize: 9, color: Colors.black38)),
-          ]),
+          Row(
+            children: [
+              Text(
+                _hourLabel(pts.first.time),
+                style: const TextStyle(fontSize: 9, color: Colors.black54),
+              ),
+              const Spacer(),
+              Text(
+                _hourLabel(pts[pts.length ~/ 4].time),
+                style: const TextStyle(fontSize: 9, color: Colors.black54),
+              ),
+              const Spacer(),
+              Text(
+                _hourLabel(pts[pts.length ~/ 2].time),
+                style: const TextStyle(fontSize: 9, color: Colors.black54),
+              ),
+              const Spacer(),
+              Text(
+                _hourLabel(pts[pts.length * 3 ~/ 4].time),
+                style: const TextStyle(fontSize: 9, color: Colors.black54),
+              ),
+              const Spacer(),
+              const Text(
+                'Now',
+                style: TextStyle(fontSize: 9, color: Colors.black54),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1344,42 +1459,62 @@ Farm conditions (context only — do not list these back):
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.55,
-        builder: (_, ctrl) => SingleChildScrollView(
-          controller: ctrl,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
+        builder: (_, ctrl) => DefaultTextStyle.merge(
+          style: _kBodyWeight,
+          child: SingleChildScrollView(
+            controller: ctrl,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
                       color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2)),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text('About Weather Station Data',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              _aboutRow(Icons.checklist_rounded, "Today's plan",
-                  'Computed on this device from live readings — leads with what to do, not raw numbers.'),
-              _aboutRow(Icons.sensors_rounded, 'Data source',
-                  'NuaSense Partner API — physical weather station.'),
-              _aboutRow(Icons.auto_awesome_rounded, 'AI Farm Advisor',
-                  'Structured MAIN / DO / AVOID advice; falls back to local plan if unavailable.'),
-              _aboutRow(Icons.verified_rounded, 'Verified advice',
-                  'Written or checked by a Field Agronomist for your crop and today\'s weather.'),
-              _aboutRow(Icons.auto_awesome_rounded, 'AI Farm Advisor',
-                  'Generated automatically from live station data — not reviewed by a person.'),
-              _aboutRow(Icons.water_drop_outlined, 'Leaf wetness',
-                  'Wet hours from humidity, dew-point, or rainfall — drives fungal risk advice.'),
-            ],
+                const SizedBox(height: 16),
+                const Text(
+                  'About Weather Station Data',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                _aboutRow(
+                  Icons.checklist_rounded,
+                  "Today's plan",
+                  'Computed on this device from live readings — leads with what to do, not raw numbers.',
+                ),
+                _aboutRow(
+                  Icons.sensors_rounded,
+                  'Data source',
+                  'NuaSense Partner API — physical weather station.',
+                ),
+                _aboutRow(
+                  Icons.verified_rounded,
+                  'Verified advice',
+                  'Written or checked by a Field Agronomist for your crop and today\'s weather.',
+                ),
+                _aboutRow(
+                  Icons.auto_awesome_rounded,
+                  'AI Farm Advisor',
+                  'Generated automatically from live station data — not reviewed by a person.',
+                ),
+                _aboutRow(
+                  Icons.water_drop_outlined,
+                  'Leaf wetness',
+                  'Wet hours from humidity, dew-point, or rainfall — drives fungal risk advice.',
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1398,13 +1533,22 @@ Farm conditions (context only — do not list these back):
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(body,
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.black54, height: 1.45)),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                    height: 1.45,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1414,14 +1558,17 @@ Farm conditions (context only — do not list these back):
   }
 
   Widget _sectionLabel(String label) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(label.toUpperCase(),
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: _C.midGreen,
-                letterSpacing: 0.8)),
-      );
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      label.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: _C.midGreen,
+        letterSpacing: 0.8,
+      ),
+    ),
+  );
 
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
@@ -1430,8 +1577,7 @@ Farm conditions (context only — do not list these back):
     return '${diff.inHours}h ago';
   }
 
-  String _hourLabel(DateTime dt) =>
-      '${dt.hour.toString().padLeft(2, '0')}:00';
+  String _hourLabel(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:00';
 
   Widget _noGpsBanner() {
     if (_isPlotGps || _plots.isEmpty) return const SizedBox.shrink();
@@ -1442,21 +1588,30 @@ Farm conditions (context only — do not list these back):
         color: const Color(0xFFFFF8E1),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: const Color(0xFFE65100).withValues(alpha: 0.35)),
-      ),
-      child: Row(children: [
-        const Icon(Icons.add_location_alt_outlined,
-            size: 17, color: Color(0xFFE65100)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Using $_county county — add a GPS pin to your plot '
-            'in Field Data → Plot Setup to match this station to your exact farm.',
-            style: const TextStyle(
-                fontSize: 12, color: Color(0xFFE65100), height: 1.4),
-          ),
+          color: const Color(0xFFE65100).withValues(alpha: 0.35),
         ),
-      ]),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.add_location_alt_outlined,
+            size: 17,
+            color: Color(0xFFE65100),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Using $_county county — add a GPS pin to your plot '
+              'in Field Data → Plot Setup to match this station to your exact farm.',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFFE65100),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1476,7 +1631,7 @@ class _StationSwitcherButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final current =
         stations.where((s) => s.id == selectedStationId).firstOrNull ??
-            stations.firstOrNull;
+        stations.firstOrNull;
     return GestureDetector(
       onTap: () => _showPicker(context),
       child: Container(
@@ -1485,22 +1640,30 @@ class _StationSwitcherButton extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.sensors_rounded,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.sensors_rounded,
               size: 14,
-              color: current?.online == true ? Colors.white : Colors.white54),
-          const SizedBox(width: 5),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 90),
-            child: Text(current?.name ?? 'Station',
+              color: current?.online == true ? Colors.white : Colors.white54,
+            ),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 90),
+              child: Text(
+                current?.name ?? 'Station',
                 style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis),
-          ),
-          const Icon(Icons.expand_more, size: 14, color: Colors.white70),
-        ]),
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.expand_more, size: 14, color: Colors.white70),
+          ],
+        ),
       ),
     );
   }
@@ -1509,7 +1672,8 @@ class _StationSwitcherButton extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
       builder: (_) => Material(
         color: Colors.white,
         child: SafeArea(
@@ -1519,28 +1683,37 @@ class _StationSwitcherButton extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
-                child: Text('Switch weather station',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF032704))),
+                child: Text(
+                  'Switch weather station',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF032704),
+                  ),
+                ),
               ),
               const Divider(height: 1),
               ...stations.map((s) {
-                final isSelected = s.id == selectedStationId ||
+                final isSelected =
+                    s.id == selectedStationId ||
                     (selectedStationId == null && s == stations.first);
                 return ListTile(
-                  leading: Icon(Icons.sensors_rounded,
-                      color: s.online
-                          ? (isSelected
+                  leading: Icon(
+                    Icons.sensors_rounded,
+                    color: s.online
+                        ? (isSelected
                               ? const Color(0xFF2A6B2A)
                               : Colors.black54)
-                          : Colors.grey),
-                  title: Text(s.name,
-                      style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500)),
+                        : Colors.grey,
+                  ),
+                  title: Text(
+                    s.name,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Text(s.online ? 'Online' : 'Offline'),
                   trailing: isSelected
                       ? const Icon(Icons.check_circle, color: Color(0xFF2A6B2A))
@@ -1575,7 +1748,7 @@ class _PlotSwitcherButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final current =
         plots.where((p) => p.id == selectedPlotId).firstOrNull ??
-            plots.firstOrNull;
+        plots.firstOrNull;
     return GestureDetector(
       onTap: () => _showPicker(context),
       child: Container(
@@ -1584,26 +1757,32 @@ class _PlotSwitcherButton extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(
-            current?.hasGps == true
-                ? Icons.location_on_rounded
-                : Icons.location_searching_rounded,
-            size: 14,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 5),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 100),
-            child: Text(current?.name ?? 'Select farm',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              current?.hasGps == true
+                  ? Icons.location_on_rounded
+                  : Icons.location_searching_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 100),
+              child: Text(
+                current?.name ?? 'Select farm',
                 style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis),
-          ),
-          const Icon(Icons.expand_more, size: 14, color: Colors.white70),
-        ]),
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.expand_more, size: 14, color: Colors.white70),
+          ],
+        ),
       ),
     );
   }
@@ -1612,7 +1791,8 @@ class _PlotSwitcherButton extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
       builder: (_) => Material(
         color: Colors.white,
         child: SafeArea(
@@ -1622,11 +1802,14 @@ class _PlotSwitcherButton extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
-                child: Text('Switch farm',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF032704))),
+                child: Text(
+                  'Switch farm',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF032704),
+                  ),
+                ),
               ),
               const Divider(height: 1),
               ...plots.map((p) {
@@ -1638,11 +1821,14 @@ class _PlotSwitcherButton extends StatelessWidget {
                         : Icons.location_searching_rounded,
                     color: isSelected ? const Color(0xFF2A6B2A) : Colors.grey,
                   ),
-                  title: Text(p.name,
-                      style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500)),
+                  title: Text(
+                    p.name,
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Text(
                     p.hasGps
                         ? p.locationLabel

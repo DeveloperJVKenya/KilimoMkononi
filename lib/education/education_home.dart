@@ -41,6 +41,7 @@ import 'package:kilimomkononi/education/education_chat.dart';
 import 'package:kilimomkononi/education/tutor/tutor_chat_screen.dart';
 import 'package:kilimomkononi/education/tutor/tutor_fab.dart';
 import 'package:kilimomkononi/education/analysis/education_plot_analysis_screen.dart';
+import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/services/session_service.dart';
 
 enum ScreenType { mobile, tablet, desktop }
@@ -133,6 +134,11 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
     super.initState();
     _animCtrl = AnimationController(vsync: this);
     _fetchUserData();
+    // An approval push that launched the app opens this screen — the splash
+    // already brought us here, so just clear it (it must not resurface later
+    // in farmer mode).
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => NotificationService.consumePendingRoute(currentRoute: KmRoute.eduHome));
 
     classIdNotifier.addListener(() {
       if (mounted) {

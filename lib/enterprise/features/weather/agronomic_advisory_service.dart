@@ -74,6 +74,30 @@ class AgronomicAdvisoryService {
 
   // ── Farmer view ───────────────────────────────────────────────────────────
 
+  /// The farmer's crops from their field records (fielddata.crops[].type) —
+  /// those of [plotId] when it has any, else all their recorded crops. The
+  /// same source the push functions use. Throws if the records can't load
+  /// (callers then pass `farmerCrops: null` = 'All crops' advice only).
+  static Future<List<String>> farmerCrops(String uid, {String? plotId}) async {
+    final snap = await _db
+        .collection('fielddata')
+        .where('userId', isEqualTo: uid)
+        .orderBy('timestamp', descending: true)
+        .limit(30)
+        .get();
+    final forPlot = <String>{};
+    final all = <String>{};
+    for (final d in snap.docs) {
+      final data = d.data();
+      final types = ((data['crops'] as List?) ?? const [])
+          .map((c) => (c is Map ? c['type'] : null)?.toString().trim() ?? '')
+          .where((t) => t.isNotEmpty);
+      all.addAll(types);
+      if (plotId != null && data['plotId'] == plotId) forPlot.addAll(types);
+    }
+    return (forPlot.isNotEmpty ? forPlot : all).toList();
+  }
+
   /// Published advisories for the conditions active right now, filtered to
   /// the farmer's crops and station. Most specific first: station-scoped
   /// before all-stations, a specific condition before 'general', then newest.
