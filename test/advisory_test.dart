@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
+import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
 
@@ -129,6 +130,28 @@ WHY: Wet leaves spread blight.
 
     test('empty input → null', () {
       expect(parseStructuredAdvice('   '), isNull);
+    });
+  });
+
+  group('aiReplyText', () {
+    test('reads candidates[0].content.parts[0].text', () {
+      expect(
+        AgronomicAdvisoryService.aiReplyText({
+          'candidates': [
+            {'content': {'parts': [{'text': ' MAIN: Scout '}]}},
+          ],
+        }),
+        'MAIN: Scout',
+      );
+    });
+    test('falls back to {text}', () {
+      expect(AgronomicAdvisoryService.aiReplyText({'text': 'hi'}), 'hi');
+    });
+    test('empty / blocked replies give "" instead of throwing', () {
+      expect(AgronomicAdvisoryService.aiReplyText({'candidates': []}), '');
+      expect(AgronomicAdvisoryService.aiReplyText({'candidates': [{}]}), '');
+      expect(AgronomicAdvisoryService.aiReplyText(null), '');
+      expect(AgronomicAdvisoryService.aiReplyText([1, 2]), '');
     });
   });
 }

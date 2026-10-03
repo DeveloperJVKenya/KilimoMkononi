@@ -1,7 +1,7 @@
 // lib/screens/disease management/intervention_page.dart
 //
 // Saves to:
-//   • farmer_issues/{userId}/records  (new unified collection via FarmerIssueService)
+//   • farmer_issues/{userId}/records  (new unified collection, same path as FarmerIssueService)
 //   • diseaseinterventiondata          (legacy write kept for backward compat)
 //   • field_costs                      (if cost amount > 0 and saveToCosts = true)
 //   • field_reminders                  (if follow-up reminder is enabled)
@@ -17,7 +17,6 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:kilimomkononi/screens/disease%20management/disease_model.dart';
 import 'package:kilimomkononi/screens/disease%20management/user_disease_history_page.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
-import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
@@ -353,39 +352,22 @@ active ingredient in "why", dosage per litre and timing in "how".
         aiAdvice:         _aiAdvice != null ? jsonEncode({'problem': _aiAdvice!.problem, 'summary': _aiAdvice!.summary}) : null,
       );
 
-      bool savedOnline = false;
-      try {
-        await FarmerIssueService.saveRecord(record);
-        savedOnline = true;
-      } catch (_) {
-        await OfflineQueueService.enqueue(
-          id:         'disease_${user.uid}_${now.millisecondsSinceEpoch}',
-          // Same place FarmerIssueService.saveRecord writes — the old
-          // root 'farmer_issue_records' collection was never read, so
-          // offline-saved disease records silently disappeared.
-          collection: 'farmer_issues/${user.uid}/records',
-          payload:    record.toMap(),
-        );
-      }
+      // Each record waits a limited time, then saves offline (same doc id,
+      // so a write that also gets through on its own is not duplicated).
+      final issues = 'farmer_issues/${user.uid}/records';
+      final savedOnline = await OfflineQueueService.saveOrQueue(
+        collection: issues,
+        docId:      OfflineQueueService.newDocId(issues),
+        payload:    record.toMap(),
+        queueId:    'disease_${user.uid}_${now.millisecondsSinceEpoch}',
+      );
 
       // ── 2. Legacy write ─────────────────────────────────────────────────
-      if (savedOnline) {
-        try {
-          await FirebaseFirestore.instance.collection('diseaseinterventiondata').add({
-            'diseaseName': widget.diseaseData.name, 'cropType': widget.cropType,
-            'cropStage': widget.cropStage, 'cycle': 'A',
-            'intervention': _interventionCtrl.text, 'dosage': dosage,
-            'unit': _unitCtrl.text.isNotEmpty ? _unitCtrl.text : null,
-            'area': record.area, 'areaUnit': _areaUnit,
-            'timestamp': now, 'userId': user.uid, 'isDeleted': false,
-            'plotId': _selectedPlotId,
-          });
-        } catch (_) {} // non-fatal legacy write
-      } else {
-        // Queue the legacy record too
-        await OfflineQueueService.enqueue(
-          id:         'disease_legacy_${user.uid}_${now.millisecondsSinceEpoch}',
+      try {
+        await OfflineQueueService.saveOrQueue(
           collection: 'diseaseinterventiondata',
+          docId:      OfflineQueueService.newDocId('diseaseinterventiondata'),
+          queueId:    'disease_legacy_${user.uid}_${now.millisecondsSinceEpoch}',
           payload: {
             'diseaseName': widget.diseaseData.name, 'cropType': widget.cropType,
             'cropStage': widget.cropStage, 'cycle': 'A',
@@ -396,7 +378,7 @@ active ingredient in "why", dosage per litre and timing in "how".
             'plotId': _selectedPlotId,
           },
         );
-      }
+      } catch (_) {} // non-fatal legacy write
 
       // ── 3. Cost capture ─────────────────────────────────────────────────
       final cost = double.tryParse(_costCtrl.text) ?? 0.0;
@@ -412,15 +394,12 @@ active ingredient in "why", dosage per litre and timing in "how".
           source:          'disease_management',
           interventionType:'disease',
         );
-        try {
-          await FieldCostService.saveFromFieldData(entry);
-        } catch (_) {
-          await OfflineQueueService.enqueue(
-            id:         'diseasecost_${user.uid}_${now.millisecondsSinceEpoch}',
-            collection: 'field_costs',
-            payload:    entry.toMap(),
-          );
-        }
+        await OfflineQueueService.saveOrQueue(
+          collection: 'field_costs',
+          docId:      entry.id,
+          payload:    entry.toMap(),
+          queueId:    'diseasecost_${user.uid}_${now.millisecondsSinceEpoch}',
+        );
       }
 
       // ── 4. All reminders — scheduled locally regardless of connectivity ──

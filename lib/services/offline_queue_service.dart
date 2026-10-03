@@ -338,11 +338,17 @@ class OfflineQueueService {
   //
   // Firestore Timestamps are not JSON-serialisable. We convert them to
   // ISO strings when queuing and back to Timestamps when syncing.
+  // FieldValue.serverTimestamp() (the only FieldValue queued payloads use,
+  // e.g. FarmerIssueRecord.createdAt) is stored as a marker and becomes a
+  // server timestamp again — set when it finally syncs.
 
   static Map<String, dynamic> _sanitiseForJson(Map<String, dynamic> map) {
     return map.map((k, v) {
       if (v is Timestamp) {
         return MapEntry(k, {'_type': 'Timestamp', 'iso': v.toDate().toIso8601String()});
+      }
+      if (v is FieldValue) {
+        return MapEntry(k, {'_type': 'ServerTimestamp'});
       }
       if (v is Map<String, dynamic>) {
         return MapEntry(k, _sanitiseForJson(v));
@@ -364,6 +370,9 @@ class OfflineQueueService {
         final iso = v['iso'] as String?;
         final dt  = iso != null ? DateTime.tryParse(iso) : null;
         return MapEntry(k, dt != null ? Timestamp.fromDate(dt) : Timestamp.now());
+      }
+      if (v is Map<String, dynamic> && v['_type'] == 'ServerTimestamp') {
+        return MapEntry(k, FieldValue.serverTimestamp());
       }
       if (v is Map<String, dynamic>) {
         return MapEntry(k, _restoreTimestamps(v));

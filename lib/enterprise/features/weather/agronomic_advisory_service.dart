@@ -306,6 +306,20 @@ class AgronomicAdvisoryService {
     await batch.commit();
   }
 
+  /// The text of a Gemini response body (`candidates[0].content.parts[0]
+  /// .text`, or a plain `{text}`); '' when it has none — e.g. a blocked
+  /// reply with an empty `candidates` list.
+  static String aiReplyText(dynamic data) {
+    dynamic first(dynamic list) =>
+        list is List && list.isNotEmpty ? list.first : null;
+    if (data is! Map) return '';
+    final candidate = first(data['candidates']);
+    final content = candidate is Map ? candidate['content'] : null;
+    final part = first(content is Map ? content['parts'] : null);
+    final text = (part is Map ? part['text'] : null) ?? data['text'];
+    return (text ?? '').toString().trim();
+  }
+
   // ── AI drafting ───────────────────────────────────────────────────────────
 
   /// Asks Gemini for a draft the agronomist then reviews. Returns the parsed
@@ -372,13 +386,7 @@ Rules:
     if (res.statusCode != 200) {
       throw Exception('AI draft failed (HTTP ${res.statusCode})');
     }
-    final data = jsonDecode(res.body);
-    final raw =
-        (data['candidates']?[0]?['content']?['parts']?[0]?['text'] ??
-                data['text'] ??
-                '')
-            .toString()
-            .trim();
+    final raw = aiReplyText(jsonDecode(res.body));
     final advice = parseStructuredAdvice(raw);
     if (advice == null) throw Exception('AI returned an empty draft');
     return (advice: advice, raw: raw);

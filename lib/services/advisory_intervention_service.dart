@@ -10,12 +10,16 @@
 //   Disease  → farmer_issues/{uid}/records + diseaseinterventiondata (as
 //              Disease Management's save)
 //
-// Offline, each write falls back to OfflineQueueService like the screens do.
+// Offline, each write is kept by Firestore and backed up in OfflineQueueService
+// under the same document id (OfflineQueueService.saveOrQueue), so a save
+// never hangs and is never written twice.
 // What the farmer answered per item (found / not found / logged) is kept in
 // advisoryResponses/{uid}_{advisoryId} so every device shows it.
 //
 // A farmer with no field record yet has nothing to attach an intervention
 // to — [FarmContext.isEmpty]; the UI asks them to set up their farm first.
+
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,7 +27,6 @@ import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart'
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/models/pest_disease_model.dart';
-import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/nutrient_levels.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 
@@ -34,7 +37,7 @@ class FarmCrop {
   final String crop;
   final String stage;
 
-  /// The whole field record (used to write it back offline).
+  /// The whole field record, as loaded.
   final Map<String, dynamic> record;
 
   /// Measured N/P/K bands on this plot (only what was tested).
@@ -207,26 +210,24 @@ class AdvisoryInterventionService {
       'method': chosen.method,
       'loggedBy': uid,
     };
+    // Appended in place (arrayUnion), never by rewriting the whole record —
+    // a stale copy would wipe interventions added since (e.g. on another
+    // phone). Offline, Firestore keeps this write on the device and sends
+    // it on reconnect, so there is nothing to queue.
     var online = true;
     try {
-      await _db.collection('fielddata').doc(plot.docId).update({
-        'interventions': FieldValue.arrayUnion([entry]),
-      });
-    } catch (_) {
+      await _db
+          .collection('fielddata')
+          .doc(plot.docId)
+          .update({
+            'interventions': FieldValue.arrayUnion([entry]),
+          })
+          .timeout(OfflineQueueService.saveTimeout);
+    } on TimeoutException {
       online = false;
-      // Offline: write the record back whole with the new entry (the queue
-      // only does set()), same doc id so nothing is duplicated.
-      final full = Map<String, dynamic>.from(plot.record);
-      full['interventions'] = [
-        ...((full['interventions'] as List?) ?? const []),
-        entry,
-      ];
-      await OfflineQueueService.enqueue(
-        id: 'fielddata_adv_${plot.docId}_${DateTime.now().millisecondsSinceEpoch}',
-        collection: 'fielddata',
-        docId: plot.docId,
-        payload: full,
-      );
+    } on FirebaseException catch (e) {
+      if (e.code != 'unavailable') rethrow;
+      online = false;
     }
     setResponse(
       advisory.id,
@@ -264,17 +265,11 @@ class AdvisoryInterventionService {
         'sourceLabel': _sourceLabel(advisory),
         'advisoryId': advisory.id,
       });
-    var online = true;
-    try {
-      await _db.collection('pestinterventiondata').add(map);
-    } catch (_) {
-      online = false;
-      await OfflineQueueService.enqueue(
-        id: 'pest_adv_${uid}_${now.millisecondsSinceEpoch}',
-        collection: 'pestinterventiondata',
-        payload: map,
-      );
-    }
+    final online = await OfflineQueueService.saveOrQueue(
+      collection: 'pestinterventiondata',
+      docId: OfflineQueueService.newDocId('pestinterventiondata'),
+      payload: map,
+    );
     setResponse(advisory.id, responseKey(AdviceSection.pests, check.name), 'logged');
     return online;
   }
@@ -320,23 +315,20 @@ class AdvisoryInterventionService {
       'sourceLabel': _sourceLabel(advisory),
       'advisoryId': advisory.id,
     };
-    var online = true;
-    try {
-      await FarmerIssueService.saveRecord(record);
-      await _db.collection('diseaseinterventiondata').add(legacy);
-    } catch (_) {
-      online = false;
-      await OfflineQueueService.enqueue(
-        id: 'disease_adv_${uid}_${now.millisecondsSinceEpoch}',
-        collection: 'farmer_issues/$uid/records',
-        payload: record.toMap(),
-      );
-      await OfflineQueueService.enqueue(
-        id: 'disease_adv_legacy_${uid}_${now.millisecondsSinceEpoch}',
-        collection: 'diseaseinterventiondata',
-        payload: legacy,
-      );
-    }
+    // Two records, each saved (or queued) on its own: queuing both because
+    // only the second failed would duplicate the first.
+    final issues = 'farmer_issues/$uid/records';
+    final savedIssue = await OfflineQueueService.saveOrQueue(
+      collection: issues,
+      docId: OfflineQueueService.newDocId(issues),
+      payload: record.toMap(),
+    );
+    final savedLegacy = await OfflineQueueService.saveOrQueue(
+      collection: 'diseaseinterventiondata',
+      docId: OfflineQueueService.newDocId('diseaseinterventiondata'),
+      payload: legacy,
+    );
+    final online = savedIssue && savedLegacy;
     setResponse(advisory.id, responseKey(AdviceSection.diseases, check.name), 'logged');
     return online;
   }

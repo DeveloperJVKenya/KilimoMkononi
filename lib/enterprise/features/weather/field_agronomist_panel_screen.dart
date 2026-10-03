@@ -45,10 +45,13 @@ class _FieldAgronomistPanelScreenState
     super.initState();
     _stationId = widget.initialStationId;
     _loadStations();
-    _loadReading();
+    // Without a station yet, wait for the list: loading now would show the
+    // account's default station while the picker shows the first one.
+    if (_stationId != null) _loadReading();
   }
 
   Future<void> _loadStations() async {
+    final picking = _stationId == null;
     try {
       final s = await NuaSenseService.getStations();
       if (!mounted) return;
@@ -57,6 +60,7 @@ class _FieldAgronomistPanelScreenState
         _stationId ??= s.isNotEmpty ? s.first.id : null;
       });
     } catch (_) {}
+    if (picking && mounted) _loadReading();
   }
 
   Future<void> _loadReading() async {

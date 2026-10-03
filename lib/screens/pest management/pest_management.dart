@@ -1178,19 +1178,13 @@ Include pre-harvest interval in warnings.
         isDeleted: false,
       );
 
-      bool savedOnline = false;
-      try {
-        await FirebaseFirestore.instance.collection('pestinterventiondata').add(record.toMap());
-        savedOnline = true;
-      } catch (_) {
-        // Offline — queue the record
-        final queueId = 'pest_${user.uid}_${now.millisecondsSinceEpoch}';
-        await OfflineQueueService.enqueue(
-          id:         queueId,
-          collection: 'pestinterventiondata',
-          payload:    record.toMap(),
-        );
-      }
+      // Waits a limited time, then saves offline (same doc id, no duplicate).
+      final savedOnline = await OfflineQueueService.saveOrQueue(
+        collection: 'pestinterventiondata',
+        docId:      OfflineQueueService.newDocId('pestinterventiondata'),
+        payload:    record.toMap(),
+        queueId:    'pest_${user.uid}_${now.millisecondsSinceEpoch}',
+      );
 
       // 2. Cost → pest_costs
       final cost = double.tryParse(_costCtrl.text) ?? 0.0;
@@ -1210,15 +1204,12 @@ Include pre-harvest interval in warnings.
           pestName: widget.pestData.name,
           interventionType: 'pest',
         );
-        try {
-          await PestCostService.saveFromPest(costEntry);
-        } catch (_) {
-          await OfflineQueueService.enqueue(
-            id:         'pestcost_${user.uid}_${now.millisecondsSinceEpoch}',
-            collection: 'pest_costs',
-            payload:    costEntry.toMap(),
-          );
-        }
+        await OfflineQueueService.saveOrQueue(
+          collection: 'pest_costs',
+          docId:      costEntry.id,
+          payload:    costEntry.toMap(),
+          queueId:    'pestcost_${user.uid}_${now.millisecondsSinceEpoch}',
+        );
       }
 
       // 3. Reminders — schedule locally regardless of connectivity

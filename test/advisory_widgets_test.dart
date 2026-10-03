@@ -106,6 +106,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('read-only advice: crop / condition chips are locked; other crops kept', (tester) async {
+    await phone(tester);
+    final live = AgronomicAdvisory(
+      id: 'a3',
+      title: 't',
+      advice: const StructuredAdvice(main: 'Scout for blight', doList: ['Check leaves']),
+      crops: const ['Maize', 'Cassava'], // Cassava isn't a standard crop
+      condition: 'wet_leaves',
+      status: AdvisoryStatus.archived,
+      version: 4,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: AdvisoryEditorScreen(existing: live),
+    ));
+    await tester.pump();
+    expect(find.widgetWithText(FilterChip, 'Cassava'), findsOneWidget);
+    for (final chip in tester.widgetList<FilterChip>(find.byType(FilterChip))) {
+      expect(chip.onSelected, isNull);
+    }
+    for (final chip in tester.widgetList<ChoiceChip>(find.byType(ChoiceChip))) {
+      expect(chip.onSelected, isNull);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('editing published advice offers "notify farmers" (off by default)', (tester) async {
     await phone(tester);
     final published = AgronomicAdvisory(

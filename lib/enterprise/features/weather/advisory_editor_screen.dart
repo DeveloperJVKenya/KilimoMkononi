@@ -159,9 +159,14 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
     why: _whyCtrl.text.trim(),
   );
 
+  // Standard crops in list order, then any others already on the advisory
+  // (e.g. a name no longer in kAdvisoryCrops) — never silently dropped.
   List<String> get _cropList => _crops.contains(kAllCrops)
       ? [kAllCrops]
-      : (kAdvisoryCrops.where(_crops.contains).toList());
+      : [
+          ...kAdvisoryCrops.where(_crops.contains),
+          ..._crops.where((c) => !kAdvisoryCrops.contains(c)),
+        ];
 
   String get _autoTitle {
     final crops = _cropList.join(', ');
@@ -522,7 +527,13 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: [_cropChip(kAllCrops), ...kAdvisoryCrops.map(_cropChip)],
+          children: [
+            _cropChip(kAllCrops),
+            ...kAdvisoryCrops.map(_cropChip),
+            ..._crops
+                .where((c) => c != kAllCrops && !kAdvisoryCrops.contains(c))
+                .map(_cropChip),
+          ],
         ),
         const SizedBox(height: 14),
         _label('Show when the station reads'),
@@ -547,10 +558,12 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                 fontWeight: FontWeight.w600,
               ),
               tooltip: c.description,
-              onSelected: (_) {
-                setState(() => _condition = c.key);
-                _touched();
-              },
+              onSelected: _readOnly
+                  ? null
+                  : (_) {
+                      setState(() => _condition = c.key);
+                      _touched();
+                    },
             );
           }).toList(),
         ),
@@ -581,7 +594,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
             ),
           ],
           selected: {_gatewayId != null},
-          onSelectionChanged: (s) {
+          onSelectionChanged: _readOnly ? null : (s) {
             final scoped = s.first;
             setState(() {
               _gatewayId = scoped ? stationChoiceId : null;
@@ -606,7 +619,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
         fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
         color: sel ? AdvisoryColors.verified : Colors.black87,
       ),
-      onSelected: (on) {
+      onSelected: _readOnly ? null : (on) {
         setState(() {
           if (crop == kAllCrops) {
             _crops = on ? {kAllCrops} : {};
