@@ -147,6 +147,10 @@ service cloud.firestore {
                d.doList is list && d.doList.size() <= 10 &&
                d.avoidList is list && d.avoidList.size() <= 10 &&
                d.why is string && d.why.size() <= 600 &&
+               // What farmers act on, by section (advisory_actions.dart).
+               (!('soilActions' in d) || (d.soilActions is list && d.soilActions.size() <= 8)) &&
+               (!('pestChecks' in d) || (d.pestChecks is list && d.pestChecks.size() <= 10)) &&
+               (!('diseaseChecks' in d) || (d.diseaseChecks is list && d.diseaseChecks.size() <= 10)) &&
                d.status in ['draft', 'published', 'archived'] &&
                d.platform == 'km' &&
                // Test-mode advisories are created by admins (via the admin
@@ -256,6 +260,18 @@ service cloud.firestore {
       allow read, delete: if signedIn() && uid() == ownerId;
       allow update: if signedIn() && uid() == ownerId &&
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+    // A farmer's answers on an advisory (found / not found / logged per
+    // pest, disease or soil item) — lib/services/advisory_intervention_service.dart.
+    // Doc id: {uid}_{advisoryId}; the owner only.
+    match /advisoryResponses/{docId} {
+      function ownResponse() { return signedIn() && docId.matches(uid() + '_.+'); }
+      allow read, delete: if ownResponse();
+      allow create, update: if ownResponse() &&
+                               request.resource.data.userId == uid() &&
+                               request.resource.data.keys().hasOnly(['userId', 'advisoryId', 'items', 'updatedAt']) &&
+                               request.resource.data.items is map &&
+                               request.resource.data.items.size() <= 100;
     }
 
     // ════════════════════════════════════════════════════════════════

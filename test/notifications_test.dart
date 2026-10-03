@@ -6,6 +6,8 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/services/farm_advice_service.dart';
+import 'package:kilimomkononi/settings/notifications/advice_providers.dart';
 import 'package:kilimomkononi/settings/notifications/farm_alerts.dart';
 import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
@@ -161,8 +163,11 @@ void main() {
                 id: 't', title: 'Weed plot A', description: '', plotId: '', priority: 'high',
                 category: 'weeding', dueDate: DateTime.now().subtract(const Duration(days: 2)), isDone: false),
           ], const {}, DateTime.now())),
-      farmAlertsProvider.overrideWith((ref) async =>
-          computeFarmAlerts(ws: station(humidity: 90, lwdHour: 1), checkedAt: DateTime.now())),
+      farmAdviceProvider.overrideWith((ref) async => FarmAdvice(
+            alerts: computeFarmAlerts(ws: station(humidity: 90, lwdHour: 1), checkedAt: DateTime.now()),
+            loadedAt: DateTime.now(),
+          )),
+      aiAdviceProvider.overrideWith((ref) async => null),
     ];
 
     testWidgets('Notifications: every tab renders with exact times', (tester) async {
@@ -193,11 +198,16 @@ void main() {
       expect(find.text('Weed plot A'), findsOneWidget);
       expect(find.textContaining('overdue by 2 days'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Farm alerts'));
+      await tester.ensureVisible(find.text('Farm advice'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Farm alerts'));
+      await tester.tap(find.text('Farm advice'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Checked'), findsOneWidget);
+      // Categorised like Home: farm alerts, verified advice, AI advice.
+      expect(find.textContaining('Farm alerts'), findsWidgets);
+      expect(find.text('Verified advice'), findsOneWidget);
+      expect(find.text('AI advice'), findsOneWidget);
+      expect(find.textContaining('Leaf Wetness Alert'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

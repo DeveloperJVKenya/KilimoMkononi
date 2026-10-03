@@ -8,6 +8,8 @@ import 'package:kilimomkononi/screens/disease%20management/user_disease_history_
 import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/offline_sync_banner.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
+import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
 
 class DiseaseManagementHomePage extends StatefulWidget {
   const DiseaseManagementHomePage({super.key});
@@ -134,6 +136,13 @@ class _DiseaseManagementHomePageState extends State<DiseaseManagementHomePage> {
             const SizedBox(height: 4),
             // ── Summary Stats ─────────────────────────────────
             _buildStatsRow(),
+
+            // ── Disease alerts & advice (weather station, agronomists, AI) ──
+            const SizedBox(height: 16),
+            const SectionAlertsPanel(
+              sections: {AdviceSection.diseases},
+              title: 'Disease alerts & advice',
+            ),
 
             // ── Identify & Protect ──────────────────────────────────
             _sectionLabel('Identify & Protect'),

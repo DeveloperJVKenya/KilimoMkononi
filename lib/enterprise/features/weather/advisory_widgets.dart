@@ -6,6 +6,7 @@
 // Agronomist panel uses.
 
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
@@ -75,7 +76,8 @@ class AdviceBody extends StatelessWidget {
           Text(
             advice.why,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
               color: Colors.black54,
               height: 1.35,
             ),
@@ -143,12 +145,17 @@ class Pill extends StatelessWidget {
   final Color fg;
   final Color bg;
   final IconData? icon;
+
+  /// Ellipsize instead of overflowing — only where the width is bounded
+  /// (e.g. inside a Wrap), never as a plain child of a Row.
+  final bool flexible;
   const Pill(
     this.text, {
     super.key,
     required this.fg,
     required this.bg,
     this.icon,
+    this.flexible = false,
   });
 
   @override
@@ -165,16 +172,19 @@ class Pill extends StatelessWidget {
           Icon(icon, size: 11, color: fg),
           const SizedBox(width: 3),
         ],
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: fg,
-          ),
-        ),
+        if (flexible)
+          Flexible(child: _label)
+        else
+          _label,
       ],
     ),
+  );
+
+  Widget get _label => Text(
+    text,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
   );
 }
 
@@ -256,6 +266,12 @@ class VerifiedAdvisoryCard extends StatelessWidget {
   final bool preview;
   final bool testOnly;
 
+  /// Soil / pest / disease content, summarised under the advice.
+  final AdviceActions actions;
+
+  /// Opens the action screen ("Check & log"); null hides the button.
+  final VoidCallback? onOpen;
+
   const VerifiedAdvisoryCard({
     super.key,
     required this.advice,
@@ -266,10 +282,16 @@ class VerifiedAdvisoryCard extends StatelessWidget {
     this.stationScoped = false,
     this.preview = false,
     this.testOnly = false,
+    this.actions = AdviceActions.empty,
+    this.onOpen,
   });
 
-  factory VerifiedAdvisoryCard.fromAdvisory(AgronomicAdvisory a) =>
-      VerifiedAdvisoryCard(
+  factory VerifiedAdvisoryCard.fromAdvisory(
+    AgronomicAdvisory a, {
+    VoidCallback? onOpen,
+  }) => VerifiedAdvisoryCard(
+        onOpen: onOpen,
+        actions: a.actions,
         advice: a.advice,
         crops: a.crops,
         condition: a.condition,
@@ -281,7 +303,7 @@ class VerifiedAdvisoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
@@ -334,6 +356,10 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                   const SizedBox(height: 10),
                 ],
                 AdviceBody(advice: advice),
+                if (!actions.isEmpty) ...[
+                  const SizedBox(height: 10),
+                  AdviceActionsSummary(actions),
+                ],
                 const SizedBox(height: 10),
                 const Divider(height: 1, color: AdvisoryColors.border),
                 const SizedBox(height: 8),
@@ -360,17 +386,79 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                     Text(
                       stationScoped ? 'This station' : 'All stations',
                       style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.black45,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
                       ),
                     ),
                   ],
                 ),
+                if (onOpen != null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AdvisoryColors.verified,
+                      ),
+                      onPressed: onOpen,
+                      icon: const Icon(Icons.playlist_add_check_rounded, size: 18),
+                      label: Text(
+                        actions.isEmpty ? 'Open advice' : 'Check my farm & log actions',
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
+    );
+    return card;
+  }
+}
+
+/// "Soil: N, P · Check for: Aphids, Late blight" — what an advice asks the
+/// farmer to act on, by section.
+class AdviceActionsSummary extends StatelessWidget {
+  final AdviceActions actions;
+  const AdviceActionsSummary(this.actions, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(AdviceSection s, String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(s.icon, size: 14, color: s.color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                  text: s == AdviceSection.soil ? 'Soil: ' : '${s.short} to check: ',
+                  style: TextStyle(fontWeight: FontWeight.w800, color: s.color),
+                ),
+                TextSpan(text: text),
+              ]),
+              style: const TextStyle(fontSize: 12.5, color: Colors.black87, height: 1.3),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (actions.soil.isNotEmpty)
+          row(AdviceSection.soil, actions.soil.map((a) => a.label).join(', ')),
+        if (actions.pests.isNotEmpty)
+          row(AdviceSection.pests, actions.pests.map((c) => c.name).join(', ')),
+        if (actions.diseases.isNotEmpty)
+          row(AdviceSection.diseases, actions.diseases.map((c) => c.name).join(', ')),
+      ],
     );
   }
 }

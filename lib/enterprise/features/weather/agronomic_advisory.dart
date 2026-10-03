@@ -13,11 +13,15 @@
 //   version, created*/updated*/published*    — who did what, when
 //   testOnly                                 — created by an admin in test
 //                                              mode; never shown to farmers
+//   soilActions / pestChecks / diseaseChecks — what farmers act on, filed
+//                                              under Soil / Pests / Diseases
+//                                              (advisory_actions.dart)
 //
 // agronomic_advisories/{id}/history/v{version} — immutable audit trail; one
 // entry per version, enforced by firestore.rules.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
 
 enum AdvisoryStatus { draft, published, archived }
@@ -51,6 +55,10 @@ class AgronomicAdvisory {
   final String? publishedByName;
   final DateTime? publishedAt;
   final bool testOnly;
+  final AdviceActions actions;
+
+  /// Built from the AI advisor (not verified, never stored as an advisory).
+  final bool isAi;
 
   const AgronomicAdvisory({
     required this.id,
@@ -71,7 +79,11 @@ class AgronomicAdvisory {
     this.publishedByName,
     this.publishedAt,
     this.testOnly = false,
+    this.actions = AdviceActions.empty,
+    this.isAi = false,
   });
+
+  Set<AdviceSection> get sections => actions.sections;
 
   bool get isStationScoped => gatewayId != null && gatewayId!.isNotEmpty;
   bool get wasEverPublished => publishedAt != null;
@@ -104,8 +116,32 @@ class AgronomicAdvisory {
       publishedByName: d['publishedByName'] as String?,
       publishedAt: _date(d['publishedAt']),
       testOnly: d['testOnly'] == true,
+      actions: AdviceActions.fromDoc(d),
     );
   }
+
+  /// Today's AI advice as an advisory-shaped object, so the action screen
+  /// treats it like verified advice (clearly labelled as AI).
+  factory AgronomicAdvisory.fromAi({
+    required String id,
+    required StructuredAdvice advice,
+    required List<String> crops,
+    required String condition,
+    String? gatewayId,
+  }) => AgronomicAdvisory(
+    id: id,
+    title: 'AI advice',
+    advice: advice,
+    crops: crops.isEmpty ? const ['All crops'] : crops,
+    condition: condition,
+    gatewayId: gatewayId,
+    status: AdvisoryStatus.published,
+    source: 'ai',
+    version: 1,
+    publishedAt: DateTime.now(),
+    actions: advice.actions,
+    isAi: true,
+  );
 }
 
 /// What an agronomist edits — the content part of an advisory.
@@ -119,6 +155,7 @@ class AdvisoryContent {
   final String source;
   final String? aiDraft;
   final bool testOnly;
+  final AdviceActions actions;
 
   const AdvisoryContent({
     required this.title,
@@ -130,6 +167,7 @@ class AdvisoryContent {
     this.source = 'manual',
     this.aiDraft,
     this.testOnly = false,
+    this.actions = AdviceActions.empty,
   });
 
   Map<String, dynamic> toMap() => {
@@ -145,6 +183,7 @@ class AdvisoryContent {
     'source': source,
     'aiDraft': aiDraft,
     'testOnly': testOnly,
+    ...actions.toMap(),
   };
 }
 

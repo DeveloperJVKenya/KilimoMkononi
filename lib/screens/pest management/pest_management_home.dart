@@ -8,6 +8,8 @@ import 'package:kilimomkononi/screens/pest%20management/user_pest_history_page.d
 import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/offline_sync_banner.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
+import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
 
 class PestManagementHomePage extends StatefulWidget {
   const PestManagementHomePage({super.key});
@@ -133,6 +135,13 @@ class _PestManagementHomePageState extends State<PestManagementHomePage> {
             const SizedBox(height: 4),
             // ── Summary Stats ─────────────────────────────────
             _buildStatsRow(),
+
+            // ── Pest alerts & advice (weather station, agronomists, AI) ──
+            const SizedBox(height: 16),
+            const SectionAlertsPanel(
+              sections: {AdviceSection.pests},
+              title: 'Pest alerts & advice',
+            ),
 
             // ── Start Recording ──────────────────────────────────
             _sectionLabel('Start Recording'),

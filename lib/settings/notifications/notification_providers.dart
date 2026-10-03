@@ -4,13 +4,14 @@
 //
 //   inboxProvider              — live userNotifications/{uid}/items (pushes
 //                                the server sent, with exact times)
-//   inboxFilterProvider        — All / Unread / Weather / Advice / Approvals
+//   inboxFilterProvider        — All / Unread / Weather / Advice / Soil /
+//                                Pests / Diseases / Approvals
 //   filteredInboxProvider, unreadCountProvider
 //   inboxControllerProvider    — mark read / all read, delete
 //   remindersProvider          — live field_reminders for the user
 //   reminderFilterProvider     — by section
 //   farmTasksProvider          — Farm Management tasks (device storage)
-//   farmAlertsProvider         — live farm condition alerts (refreshable)
+//   (farm alerts / advice: advice_providers.dart)
 //   notificationPrefsProvider  — Notification Settings; saving applies them
 //                                (server push filter, reminders, topics)
 
@@ -21,10 +22,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
-import 'package:kilimomkononi/settings/notifications/farm_alerts.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -106,6 +107,27 @@ class InboxItem {
   Color get color => kind == InboxKind.weather && severity == 'critical' ? KmColors.red : kind.color;
 
   bool get isTest => args['testOnly'] == 'true';
+
+  String? get advisoryId {
+    final id = args['advisoryId'];
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  /// Farm sections this notification is about: what the server attached
+  /// (from the advisory's soil / pest / disease content), else the weather
+  /// alert's category.
+  Set<AdviceSection> get sections {
+    final s = AdviceSection.parseList(args['sections']);
+    if (s.isNotEmpty) return s;
+    return kAlertCategorySections[args['category']] ?? const {};
+  }
+
+  /// Crops it targets (empty = everyone / unknown).
+  List<String> get crops => (args['crops'] ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .where((c) => c.isNotEmpty)
+      .toList();
 }
 
 final inboxProvider = StreamProvider.autoDispose<List<InboxItem>>((ref) {
@@ -126,6 +148,9 @@ enum InboxFilter {
   unread('Unread'),
   weather('Weather'),
   advice('Advice'),
+  soil('Soil'),
+  pests('Pests'),
+  diseases('Diseases'),
   approvals('Approvals');
 
   final String label;
@@ -136,6 +161,9 @@ enum InboxFilter {
         InboxFilter.unread => !i.read,
         InboxFilter.weather => i.kind == InboxKind.weather,
         InboxFilter.advice => i.kind == InboxKind.advice,
+        InboxFilter.soil => i.sections.contains(AdviceSection.soil),
+        InboxFilter.pests => i.sections.contains(AdviceSection.pests),
+        InboxFilter.diseases => i.sections.contains(AdviceSection.diseases),
         InboxFilter.approvals => i.kind == InboxKind.approval,
       };
 }
@@ -378,12 +406,6 @@ final farmTasksProvider = FutureProvider.autoDispose<FarmTasksSnapshot>((ref) as
   } catch (_) {}
   return splitFarmTasks(tasks, plots, now);
 });
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  Farm alerts
-// ═════════════════════════════════════════════════════════════════════════════
-
-final farmAlertsProvider = FutureProvider.autoDispose<FarmAlertsResult>((ref) => loadFarmAlerts());
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  Notification Settings

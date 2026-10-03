@@ -483,3 +483,29 @@ test("push: device tokens and inbox are private to their owner", async () => {
   await assertFails(addDoc(collection(as("farmer"), "userNotifications/farmer/items"), { title: "self-made" }));
   await assertFails(getDoc(doc(as("farmer"), "alertState/gw1_heat")));
 });
+
+test("advisories: soil / pest / disease actions are allowed but bounded", async () => {
+  await seedAgronomist();
+  const actions = {
+    soilActions: [{ nutrient: "N", low: { action: "Top-dress CAN", rate: "50 kg/acre" } }],
+    pestChecks: [{ name: "Aphids", signs: "Curled leaves", ifFound: "Spray neem" }],
+    diseaseChecks: [{ name: "Late Blight", signs: "Dark lesions", ifFound: "Remove infected leaves" }],
+  };
+  await assertSucceeds(writeAdvisory(as("agro"), "act1", advisoryData("agro", { extra: actions })));
+  const tooMany = Array.from({ length: 11 }, (_, i) => ({ name: `Pest ${i}` }));
+  await assertFails(writeAdvisory(as("agro"), "act2", advisoryData("agro", { extra: { pestChecks: tooMany } })));
+  await assertFails(writeAdvisory(as("agro"), "act3", advisoryData("agro", { extra: { soilActions: "N low" } })));
+});
+
+test("advisory responses: farmers keep their own answers only", async () => {
+  const mine = doc(as("farmer"), "advisoryResponses/farmer_adv1");
+  const ok = { userId: "farmer", advisoryId: "adv1", items: { "pests:Aphids": "found" }, updatedAt: serverTimestamp() };
+  await assertSucceeds(setDoc(mine, ok));
+  await assertSucceeds(getDoc(mine));
+  await assertSucceeds(setDoc(mine, { items: { "soil:N@SingleCrop": "logged:low" } }, { merge: true }));
+  await assertFails(getDoc(doc(as("student"), "advisoryResponses/farmer_adv1")));
+  // Someone else's id, a forged owner, or extra fields are rejected.
+  await assertFails(setDoc(doc(as("student"), "advisoryResponses/farmer_adv2"), { ...ok, userId: "student" }));
+  await assertFails(setDoc(doc(as("farmer"), "advisoryResponses/farmer_adv3"), { ...ok, userId: "student" }));
+  await assertFails(setDoc(doc(as("farmer"), "advisoryResponses/farmer_adv4"), { ...ok, isAdmin: true }));
+});

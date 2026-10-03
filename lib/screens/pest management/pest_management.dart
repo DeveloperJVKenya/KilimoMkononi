@@ -3,6 +3,7 @@
 // Architecture mirrors disease_management_page.dart + intervention_page.dart exactly...
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/services/pest_disease_catalog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -161,55 +162,7 @@ class _PestManagementPageState extends State<PestManagementPage> {
     'Irish Potatoes': ['Early Growth','Tuber Initiation','Tuber Bulking','Maturation/Harvesting'],
   };
 
-  final Map<String, Map<String, List<String>>> _cropStagePests = {
-    'Beans': {
-      'Germination/Seedling':      ['Bean Fly','Cutworms','Rodents','Termites'],
-      'Vegetative Growth/Weeding': ['Aphids','Leafhoppers','Thrips','Whiteflies','Beetles','Rodents'],
-      'Flowering/Reproductive':    ['Aphids','Leafhoppers','Thrips','Pod Borers','Whiteflies'],
-      'Maturation/Harvesting':     ['Pod Borers','Beetles','Bean Weevil','Bruchid Beetles','Rodents'],
-      'Storage':                   ['Bean Weevil','Bruchid Beetles','Rodents'],
-    },
-    'Maize': {
-      'Germination/Seedling':      ['Termites','Cutworms','Maize Shoot Fly','Rodents'],
-      'Vegetative Growth/Weeding': ['Aphids','Stem Borers','Armyworms','Leafhoppers','Grasshoppers','Thrips','Rodents'],
-      'Flowering/Reproductive':    ['Aphids','Stem Borers','Armyworms','Leafhoppers','Grasshoppers','Earworms','Thrips','Birds'],
-      'Maturation/Harvesting':     ['Earworms','Weevils','Birds','Rodents'],
-      'Storage':                   ['Larger Grain Borer','Angoumois Grain Moth','Weevils','Rodents'],
-    },
-    'Cabbages/Kales': {
-      'Germination/Seedling':      ['Termites','Cutworms','Root Maggots','Flea Beetles'],
-      'Vegetative Growth/Weeding': ['Aphids','Whiteflies','Diamondback Moth','Cabbage Looper','Cutworms','Flea Beetles','Armyworms','Rodents'],
-      'Flowering/Reproductive':    ['Aphids','Whiteflies','Thrips','Diamondback Moth','Stink Bug'],
-      'Maturation/Harvesting':     ['Diamondback Moth','Cabbage Looper','Leafminers','Stink Bug','Rodents'],
-      'Storage':                   ['Rodents','Aphids'],
-    },
-    'Carrots': {
-      'Germination/Seedling':      ['Termites','Cutworms','Nematodes','Wireworms','Rodents'],
-      'Vegetative Growth/Weeding': ['Aphids','Whiteflies','Thrips','Leafminers','Carrot Rust Fly','Nematodes','Armyworms','Rodents'],
-      'Maturation/Harvesting':     ['Aphids','Thrips','Carrot Rust Fly','Nematodes','Wireworms','Rodents'],
-      'Storage':                   ['Carrot Rust Fly','Nematodes','Rodents'],
-    },
-    'Tomatoes': {
-      'Germination/Seedling':      ['Cutworms','Termites','Rodents','Nematodes'],
-      'Vegetative Growth/Weeding': ['Aphids','Whiteflies','Thrips','Leafminers','Spider Mites','Nematodes','Rodents'],
-      'Flowering/Reproductive':    ['Aphids','Whiteflies','Thrips','Spider Mites','Stink Bugs','Fruit Borers','Bollworms','Nematodes','Rodents'],
-      'Maturation/Harvesting':     ['Fruitflies','Stink Bugs','Rodents','Fruit Borers','Bollworms','Leafminers','Spider Mites','Nematodes'],
-      'Storage':                   ['Fruit Flies','Stink Bugs','Rodents'],
-    },
-    'Onions': {
-      'Germination/Seedling':      ['Aphids','Thrips'],
-      'Vegetative Growth/Weeding': ['Thrips','Aphids'],
-      'Bulb Formation/Reproductive':['Bulb Fly','Maggots'],
-      'Bulbing/Maturation':        ['Maggots','Thrips','Bulb Fly'],
-      'Harvesting/Storage':        ['Maggots','Rodents','Bulb Fly'],
-    },
-    'Irish Potatoes': {
-      'Early Growth':           ['Wireworms','Cutworms'],
-      'Tuber Initiation':       ['Colorado Potato Beetle','Aphids','Spider Mites'],
-      'Tuber Bulking':          ['Aphids','Leaf Hoppers','Flea Beetles','Spider Mites'],
-      'Maturation/Harvesting':  ['Colorado Potato Beetle','Aphids','Wireworms','Cutworms','Spider Mites'],
-    },
-  };
+  final Map<String, Map<String, List<String>>> _cropStagePests = kCropStagePests;
 
   @override
   void initState() {

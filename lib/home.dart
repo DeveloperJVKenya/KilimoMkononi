@@ -26,7 +26,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
-import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
+import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
@@ -334,11 +334,16 @@ class _HomePageState extends State<HomePage> {
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(side, 22, side, 10),
-          sliver: const SliverToBoxAdapter(child: _SectionTitle('Farm alerts', Icons.warning_amber_rounded)),
+          sliver: const SliverToBoxAdapter(child: _SectionTitle('Farm advice', Icons.tips_and_updates_rounded)),
         ),
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: side),
-          sliver: const SliverToBoxAdapter(child: FarmAlertsHomeWidget()),
+          sliver: SliverToBoxAdapter(
+            child: FarmAdvicePanel(
+              compact: true,
+              onSeeAll: () => _open(const NotificationsScreen(initialTab: NotificationsTab.advice)),
+            ),
+          ),
         ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(side, 22, side, 10),
@@ -564,10 +569,12 @@ class _HomePageState extends State<HomePage> {
                 subtitle: 'Costs, harvests & loans',
                 onTap: () => _navigateTo(const FarmManagementScreen())),
             const _DrawerLabel('Insights & learning', Color(0xFF3949AB)),
-            _DrawerItem(Icons.insights_rounded, 'Season analysis', color: const Color(0xFF3949AB), onTap: () {
-              Navigator.pop(context);
-              _openSeasonAnalysis();
-            }),
+            _DrawerItem(Icons.insights_rounded, 'Season analysis',
+                color: const Color(0xFF3949AB),
+                onTap: () => _navigateTo(FarmerPlotAnalysisScreen(
+                      plotId: 'All',
+                      cycleName: 'Season ${DateTime.now().year}',
+                    ))),
             _DrawerItem(Icons.menu_book_rounded, 'Manuals',
                 color: const Color(0xFF6D4C41), selected: _selectedIndex == 1, onTap: () => _goTab(1)),
             const _DrawerLabel('Account', Color(0xFF546E7A)),
@@ -603,9 +610,14 @@ class _HomePageState extends State<HomePage> {
     setState(() => _selectedIndex = index);
   }
 
-  void _navigateTo(Widget page) {
+  /// Opens a page from the menu. Coming back lands on Home with the menu
+  /// open again (not on whichever tab was showing behind the menu).
+  Future<void> _navigateTo(Widget page) async {
     Navigator.pop(context);
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (!mounted) return;
+    setState(() => _selectedIndex = 0);
+    _scaffoldKey.currentState?.openDrawer();
   }
 
   void _openUserProfile(String fullName) {

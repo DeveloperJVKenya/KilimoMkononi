@@ -161,12 +161,19 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   the label, never full width); important changes ask first via `confirmAction`.
 - Home navigation: bottom tabs Home / Manuals / Settings under ONE Home app bar (tab screens take
   `embedded: true` and drop their own app bar). Notifications open from the app-bar bell only —
-  not a tab or menu item; Help & support lives in Settings, not the menu.
-- Field Data Input (`field_data_input_home_page.dart`) is a hub with bottom tabs Record / Weather /
-  History / Analysis (Weather Station, Plot history, Season analysis screens keep their own app
-  bars; tabs build on first open, then stay alive). Farm alerts (`farm_alerts_home_widget.dart`)
-  show the day plan + verified advisories only; the AI Farm Advisor lives on the Weather Station.
-  The legacy `agronomist_notes` card was removed — verified advisories replace it.
+  not a tab or menu item; Help & support lives in Settings, not the menu. Pages opened from the
+  menu return to the Home tab with the menu open (`_navigateTo`).
+- Field Data Input (`field_data_input_home_page.dart`) is a hub with TOP tabs (in the app bar)
+  Record / Weather station / Plot history / Season analysis — the app-wide bottom navigation stays on
+  Home. Those screens take `embedded: true` (no app bar of their own); tabs build on first open, then
+  stay alive. Record = start cards, then "Your plots this season". No advice on this screen.
+- Weather Station screen = station data only (status, Conditions card always open with every sensor
+  value, last 24 h) + a link to the advice. No day plan / verified / AI advice and no Google forecast
+  there (the forecast is on the Weather forecast screen).
+- Farm advice lives on Home (`FarmAdvicePanel(compact: true)`) and Notifications → "Farm advice"
+  tab, categorised the same way: Farm alerts (day plan + `loadFarmAlerts`), Verified advice, AI
+  advice (`lib/widgets/farm_advice_panel.dart`, `lib/services/farm_advice_service.dart`, Riverpod in
+  `lib/settings/notifications/advice_providers.dart`; AI cached per station + crops + hour).
 - Farmer auth screens (login, registration, Google "finish setup") share
   `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
   width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),
@@ -189,9 +196,26 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
     locked by the rules except when publishing. Deleting a never-published draft deletes its
     history in the same batch; agronomists never see or edit admin TEST advisories.
   - Farmers see published advisories matching their crops (from `fielddata.crops[].type`) and the
-    station's live conditions in the Weather Station screen's "Verified advice" section; the AI
-    Farm Advisor card below it is labelled "AI-generated · not verified".
+    station's live conditions on Home / Notifications (see Farm advice above); AI advice is always
+    labelled "AI-generated · not verified".
+  - Advisories also carry actions by farm section (`advisory_actions.dart`): `soilActions`
+    (per nutrient: general + optional Low / Moderate / High action with product, rate, how/when —
+    the farmer's level is never required), `pestChecks` / `diseaseChecks` (name, signs, what to do
+    if found). Agronomists edit them in the editor (`advisory_actions_editor.dart`; names come from
+    `lib/services/pest_disease_catalog.dart`); AI replies carry the same via PESTS / DISEASES / SOIL
+    sections (`parseStructuredAdvice`). Bands use `lib/services/nutrient_levels.dart` (shared with
+    the Field Data form).
+  - `AdvisoryDetailScreen` is where farmers act (push route `advisory`, inbox, Home, section lists):
+    confirm pests / diseases (Photo ID + guide links), pick a soil level, and log. Logging goes
+    through `AdvisoryInterventionService` and writes the SAME records as the section screens
+    (fielddata interventions / pestinterventiondata / farmer_issues + diseaseinterventiondata, with
+    the offline queue); no field record → "set up your farm first". Answers per item:
+    `advisoryResponses/{uid}_{advisoryId}` (owner only, rules-validated).
+  - Push `data.sections` / `data.crops` file each notification under Soil / Pests / Diseases.
+    Alert categories map via `ALERT_SECTIONS` (functions) = `kAlertCategorySections` (app) —
+    checked by the contract test. Each plot form shows `SectionAlertsStrip`; Pest / Disease
+    Management and the Pests & Diseases home show `SectionAlertsPanel`.
   - An offline station (no points in the last 2h) gives `NuaSenseReading.hasData == false` —
     values are placeholder zeros, so only "general" advice applies and no AI/day plan is shown.
-  - Tests: `test/advisory_test.dart`, `test/advisory_widgets_test.dart` (layout at 360px),
-    advisory cases in `rules-tests/`.
+  - Tests: `test/advisory_test.dart`, `test/advisory_widgets_test.dart`,
+    `test/advisory_actions_test.dart` (layout at 360px), advisory cases in `rules-tests/`.

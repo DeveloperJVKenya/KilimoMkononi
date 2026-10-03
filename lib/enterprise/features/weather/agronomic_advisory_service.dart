@@ -74,6 +74,18 @@ class AgronomicAdvisoryService {
 
   // ── Farmer view ───────────────────────────────────────────────────────────
 
+  /// One advisory (e.g. the one a notification points to); null if it was
+  /// removed or isn't visible to this user (unpublished / test).
+  static Future<AgronomicAdvisory?> byId(String id) async {
+    try {
+      final d = await _col.doc(id).get();
+      return d.exists ? AgronomicAdvisory.fromDoc(d) : null;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      rethrow;
+    }
+  }
+
   /// The farmer's crops from their field records (fielddata.crops[].type) —
   /// those of [plotId] when it has any, else all their recorded crops. The
   /// same source the push functions use. Throws if the records can't load
@@ -274,6 +286,7 @@ class AgronomicAdvisoryService {
       source: a.source,
       aiDraft: a.aiDraft,
       testOnly: a.testOnly,
+      actions: a.actions,
     ),
     status: status,
     action: action,
@@ -330,12 +343,23 @@ DO:
 AVOID:
 - <action>
 WHY: <one short sentence>
+PESTS:
+- <pest name> — <signs to look for> — <what to do if found>
+DISEASES:
+- <disease name> — <signs to look for> — <what to do if found>
+SOIL:
+- <N|P|K|pH|general> | Low: <action> | Moderate: <action> | High: <action>
 
 Rules:
 - Advice must be specific to the crop(s) and this weather condition.
 - DO and AVOID: max 3 bullets each, short phrases starting with a verb.
+- PESTS / DISEASES: at most 3 each that these crops commonly get in this
+  condition; write "none" if none apply.
+- SOIL: fertiliser / soil decisions this condition affects (e.g. leaching
+  after heavy rain, delaying top-dressing). Farmers may not know their soil
+  level, so give an action per level; write "none" if not relevant.
 - No chemical brand names; name active ingredients only if essential.
-- Do not invent numbers you were not given.
+- Do not invent numbers you were not given; leave rates to the agronomist.
 ''';
 
     final res = await http

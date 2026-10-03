@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:kilimomkononi/screens/Field%20Data%20Input/plot_input_form.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/plot_summary_tab.dart';
+import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
 
 class FieldDataInputPage extends StatefulWidget {
   final String structureType;
@@ -236,7 +237,16 @@ class _FieldDataInputPageState extends State<FieldDataInputPage>
     );
   }
 
-  Widget _buildPlotForm(String plotId) {
+  /// The plot's form, under its own alerts (soil / pests / diseases for the
+  /// crops recorded on it — received notifications and advice in effect).
+  Widget _buildPlotForm(String plotId) => Column(
+        children: [
+          SectionAlertsStrip(key: ValueKey('alerts_$plotId'), plotId: plotId),
+          Expanded(child: _plotForm(plotId)),
+        ],
+      );
+
+  Widget _plotForm(String plotId) {
     final userId = FirebaseAuth.instance.currentUser!.uid;
     switch (_farmingScenario) {
       case 'multiple':

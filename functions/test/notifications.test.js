@@ -149,9 +149,37 @@ describe("advisory pushes", () => {
     assert.match(msg.title, /^TEST · Verified advice · Wet leaves$/);
     assert.equal(msg.body, "Maize: Hold spraying");
   });
-  test("station advice carries the station, so a tap opens it", () => {
+  test("station advice carries the station and crops, and opens the advisory", () => {
     const msg = n.advisoryNotification({ __id: "a1", condition: "raining", crops: ["Maize"], main: "x" }, "condition", "gw1");
-    assert.deepEqual(msg.data, { advisoryId: "a1", testOnly: "false", gatewayId: "gw1" });
+    assert.deepEqual(msg.data, { advisoryId: "a1", testOnly: "false", gatewayId: "gw1", crops: "Maize" });
+    assert.equal(msg.route, "advisory");
+  });
+  test("advice with soil / pest / disease actions is filed under those sections", () => {
+    const a = {
+      __id: "a2", condition: "wet_leaves", crops: ["Tomatoes"], main: "Scout for blight",
+      soilActions: [{ nutrient: "N", low: { action: "Top-dress CAN" } }],
+      pestChecks: [{ name: "Whiteflies" }],
+      diseaseChecks: [{ name: "Late Blight" }, { name: "Early Blight" }],
+    };
+    assert.deepEqual(n.advisorySections(a), ["soil", "pests", "diseases"]);
+    assert.equal(n.advisoryChecksLine(a), "Check for: Whiteflies, Late Blight, Early Blight · Soil: N");
+    const msg = n.advisoryNotification(a, "new");
+    assert.equal(msg.data.sections, "soil,pests,diseases");
+    assert.equal(msg.body, "Tomatoes: Scout for blight\nCheck for: Whiteflies, Late Blight, Early Blight · Soil: N");
+    assert.deepEqual(n.advisorySections({ crops: ["Maize"], main: "x" }), []);
+  });
+  test("alerts open their advice when they carry some, else the station", () => {
+    const alert = { category: "fungal", title: "High fungal disease risk" };
+    assert.deepEqual(n.alertPayload(alert, "gw1", null),
+      { route: "weather_station", data: { category: "fungal", gatewayId: "gw1", sections: "diseases" } });
+    const advice = { __id: "adv", crops: ["Maize"], pestChecks: [{ name: "Aphids" }] };
+    assert.deepEqual(n.alertPayload(alert, "gw1", advice), {
+      route: "advisory",
+      data: {
+        category: "fungal", gatewayId: "gw1", sections: "diseases,pests",
+        advisoryId: "adv", alertTitle: "High fungal disease risk", crops: "Maize",
+      },
+    });
   });
   test("topic conditions are chunked at 5 (FCM limit)", () => {
     const c = n.topicConditions(["a", "b", "c", "d", "e", "f"]);

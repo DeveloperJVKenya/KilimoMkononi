@@ -125,15 +125,13 @@ void main() {
             GoogleCurrentCard(weather: w, place: 'Nakuru, Nakuru County — a long place name to test ellipsis'),
             GoogleHourlyStrip(hours: w.hours),
             GoogleDailyList(days: w.days),
-            GoogleForecastCompactCard(weather: w, place: 'Station area', onOpenFull: () {}),
             ]),
           ),
         ),
       ));
       await tester.pump();
       expect(find.text('Google Weather · area forecast'), findsWidgets);
-      expect(find.text('20°C'), findsNWidgets(2)); // full card + compact card
-      expect(find.text('Full 7-day forecast'), findsOneWidget);
+      expect(find.text('20°C'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

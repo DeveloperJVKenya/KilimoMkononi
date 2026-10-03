@@ -1,4 +1,5 @@
 // main.dart
+import 'package:kilimomkononi/enterprise/features/weather/advisory_detail_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -93,6 +94,15 @@ void _openNotificationRoute(String route, Map<String, String> args) {
       nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
     case KmRoute.eduHome:
       nav.pushNamed('/edu_home');
+    case KmRoute.advisory:
+      final id = args['advisoryId'];
+      if (id == null || id.isEmpty) {
+        nav.push(MaterialPageRoute(
+            builder: (_) => const NotificationsScreen(initialTab: NotificationsTab.advice)));
+      } else {
+        nav.push(MaterialPageRoute(
+            builder: (_) => AdvisoryDetailScreen(advisoryId: id, alertTitle: args['alertTitle'])));
+      }
   }
 }
 

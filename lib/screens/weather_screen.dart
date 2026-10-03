@@ -370,7 +370,7 @@ class WeatherScreenState extends State<WeatherScreen> {
       );
 
   /// The station half of the pair: live measurements + a way into the full
-  /// Weather Station screen (plan, verified advice, 24 h history).
+  /// Weather Station screen (conditions, 24 h history).
   Widget _stationCard() {
     final r = _station;
     Widget body;

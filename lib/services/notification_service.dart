@@ -78,6 +78,10 @@ class KmRoute {
   static const weatherStation = 'weather_station';
   static const notifications = 'notifications';
   static const eduHome = 'edu_home';
+
+  /// An advisory (verified advice, or a weather alert carrying advice):
+  /// opens the action screen. Args: advisoryId, optional alertTitle.
+  static const advisory = 'advisory';
 }
 
 /// Background/terminated handler. The system already displays notification

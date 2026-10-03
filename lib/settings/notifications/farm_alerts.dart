@@ -9,6 +9,7 @@
 // so it contributes no alerts (see NuaSenseReading.hasData).
 
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen.dart'
     show computeConditionRisk, ConditionRisk;
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
@@ -37,6 +38,20 @@ class FarmAlert {
     required this.icon,
     this.source = FarmAlertSource.satellite,
   });
+
+  /// Which farm sections this alert is about (Soil / Pests / Diseases), so
+  /// each section's screen shows its own alerts.
+  Set<AdviceSection> get sections {
+    final t = title.toLowerCase();
+    final out = <AdviceSection>{};
+    if (RegExp(r'aphid|whitefly|moth|pest').hasMatch(t)) out.add(AdviceSection.pests);
+    if (RegExp(r'fungal|leaf wetness|disease|blight').hasMatch(t)) out.add(AdviceSection.diseases);
+    if (RegExp(r'soil|ph |salinity|drought|water stress|waterlogging|flood|heat|leaching|fertiliser').hasMatch(t)) {
+      out.add(AdviceSection.soil);
+    }
+    if (t.contains('spray window')) out.addAll({AdviceSection.pests, AdviceSection.diseases});
+    return out;
+  }
 }
 
 class FarmAlertsResult {
@@ -61,14 +76,15 @@ String riskLabel(ConditionRisk r) => switch (r) {
     };
 
 /// Fetches the sources and computes the alerts (most severe first).
-Future<FarmAlertsResult> loadFarmAlerts() async {
+/// [stationId]: the station the farmer is looking at (default: their first).
+Future<FarmAlertsResult> loadFarmAlerts({String? stationId}) async {
   IotSensorReading? iot;
   NuaSenseReading? ws;
   await Future.wait([
     IotSensorService.getReadingForFarm()
         .then<IotSensorReading?>((r) => iot = r)
         .catchError((_) => null),
-    NuaSenseService.getLatestReading()
+    NuaSenseService.getLatestReading(stationId: stationId)
         .then<NuaSenseReading?>((r) => ws = r)
         .catchError((_) => null),
   ]);

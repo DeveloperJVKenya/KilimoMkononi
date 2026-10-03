@@ -4,12 +4,15 @@
 //   1. Target — crops, weather condition, station scope
 //   2. AI assist — optional Gemini draft (kept for audit), always reviewed
 //   3. Advice — MAIN / DO / AVOID / WHY
-//   4. Farmer preview — exactly what farmers will see
-//   5. Verification + actions (save draft, publish/update, unpublish,
-//      archive, restore, delete draft)
-//   6. Audit history
+//   4. Soil & fertiliser actions — per nutrient, by Low / Moderate / High
+//   5. Pests to check  6. Diseases to check — signs, what to do if found
+//   7. Farmer preview — exactly what farmers will see
+//   Verification + actions (save draft, publish/update, unpublish,
+//   archive, restore, delete draft), audit history
 
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions_editor.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart';
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
@@ -54,6 +57,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
   String? _stationName;
   String _source = 'manual';
   String? _aiDraft;
+  AdviceActions _actions = AdviceActions.empty;
 
   bool _verified = false;
   // Editing already-published advice: re-notify farmers only if asked.
@@ -83,6 +87,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       _stationName = e.stationName;
       _source = e.source;
       _aiDraft = e.aiDraft;
+      _actions = e.actions;
       _fill(e.advice);
     } else {
       _crops = {kAllCrops};
@@ -173,6 +178,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
     source: _source,
     aiDraft: _aiDraft,
     testOnly: _testOnly,
+    actions: _actions,
   );
 
   String? _validate({required bool forPublish}) {
@@ -190,8 +196,12 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
     if (_advice.why.length > 600) {
       return 'Keep the WHY under 600 characters.';
     }
-    if (forPublish && _advice.doList.isEmpty && _advice.avoidList.isEmpty) {
-      return 'Add at least one DO or AVOID line before publishing.';
+    if (forPublish &&
+        _advice.doList.isEmpty &&
+        _advice.avoidList.isEmpty &&
+        _actions.isEmpty) {
+      return 'Add at least one DO or AVOID line, or a soil / pest / disease '
+          'action, before publishing.';
     }
     if (forPublish && !_verified) {
       return 'Tick the verification box to confirm you have reviewed this advice.';
@@ -221,6 +231,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       setState(() {
         _source = 'ai_assisted';
         _aiDraft = r.raw;
+        _actions = r.advice.actions;
       });
       _touched();
       _snack('AI draft added — review and edit every line before publishing.');
@@ -409,8 +420,27 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                 _aiSection(),
               ),
               _section('3 · Advice', Icons.edit_note_rounded, _adviceSection()),
+              for (final (i, s) in AdviceSection.values.indexed)
+                _section(
+                  '${4 + i} · ${switch (s) {
+                    AdviceSection.soil => 'Soil & fertiliser actions',
+                    AdviceSection.pests => 'Pests to check',
+                    AdviceSection.diseases => 'Diseases to check',
+                  }}',
+                  s.icon,
+                  AdvisoryActionsSection(
+                    section: s,
+                    value: _actions,
+                    crops: _cropList,
+                    readOnly: _readOnly,
+                    onChanged: (v) {
+                      setState(() => _actions = v);
+                      _touched();
+                    },
+                  ),
+                ),
               _section(
-                '4 · What farmers will see',
+                '7 · What farmers will see',
                 Icons.visibility_outlined,
                 VerifiedAdvisoryCard(
                   advice: _advice,
@@ -419,6 +449,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                   stationScoped: _gatewayId != null,
                   preview: true,
                   testOnly: _testOnly,
+                  actions: _actions,
                 ),
               ),
               if (!_readOnly) _verificationBox(),
@@ -980,6 +1011,7 @@ class _AuditHistory extends StatelessWidget {
               crops: list(s['crops']),
               condition: '${s['condition'] ?? 'general'}',
               stationScoped: s['gatewayId'] != null,
+              actions: AdviceActions.fromDoc(Map<String, dynamic>.from(s)),
               verifierName: h.byName,
               verifiedAt: h.at,
             ),

@@ -5,7 +5,11 @@ import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart'
 
 class PlotSummaryTab extends StatefulWidget {
   final String userId;
-  const PlotSummaryTab({required this.userId, super.key});
+
+  /// Inside the Field Data Input hub: no app bar, only the Records /
+  /// Timeline tabs.
+  final bool embedded;
+  const PlotSummaryTab({required this.userId, this.embedded = false, super.key});
 
   @override
   State<PlotSummaryTab> createState() => _PlotSummaryTabState();
@@ -85,11 +89,30 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
 
   // ─── Build ─────────────────────────────────────────────────────────────────
 
+  TabBar _tabBar() => TabBar(
+        controller: _tabController,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white54,
+        indicatorColor: const Color(0xFF6AB04C),
+        indicatorWeight: 2.5,
+        labelStyle:
+            const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        tabs: const [
+          Tab(text: 'Records'),
+          Tab(text: 'Timeline'),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F3),
-      appBar: AppBar(
+      appBar: widget.embedded
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(46),
+              child: Material(color: _darkGreen, child: _tabBar()),
+            )
+          : AppBar(
         backgroundColor: _darkGreen,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -102,19 +125,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
           style: TextStyle(
               color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-          indicatorColor: const Color(0xFF6AB04C),
-          indicatorWeight: 2.5,
-          labelStyle:
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-          tabs: const [
-            Tab(text: 'Records'),
-            Tab(text: 'Timeline'),
-          ],
-        ),
+        bottom: _tabBar(),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance

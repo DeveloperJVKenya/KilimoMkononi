@@ -25,6 +25,11 @@
 // userNotifications/{uid}/items (the in-app inbox), so the phone and the
 // Notifications screen always show the same thing.
 //
+// Advice pushes (and alerts carrying advice) open the advisory's action
+// screen (route "advisory") and carry `sections` (soil / pests / diseases,
+// from the advisory's soilActions / pestChecks / diseaseChecks or the alert
+// category) and `crops`, so the app files them under each farm section.
+//
 // Channels / routes / icon must match lib/services/notification_service.dart.
 
 const { createHash } = require("node:crypto");
@@ -48,6 +53,7 @@ const ROUTE = {
   weatherStation: "weather_station",
   notifications: "notifications",
   eduHome: "edu_home",
+  advisory: "advisory",
 };
 const ICON = "ic_stat_km";
 const COLOR = "#2A6B2A";
@@ -73,6 +79,16 @@ const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const ADVISORY_REPEAT_MS = 24 * 60 * 60 * 1000;
 // Ignore stations whose latest reading is older than this (offline).
 const STALE_READING_MS = 3 * 60 * 60 * 1000;
+
+// Farm sections a weather-alert category concerns. Mirrors
+// kAlertCategorySections in lib/enterprise/features/weather/advisory_actions.dart.
+const ALERT_SECTIONS = {
+  heavy_rain: ["soil"],
+  heat: ["soil"],
+  frost: ["soil"],
+  fungal: ["diseases"],
+  strong_wind: ["pests", "diseases"],
+};
 
 // Matches kAdvisoryConditions in lib/enterprise/features/weather/advisory_conditions.dart
 const CONDITION_LABELS = {
@@ -310,20 +326,58 @@ function advisoryAudience(a) {
   return { type: "topics", topics: [...new Set(crops.map(cropTopic))] };
 }
 
+/** Farm sections an advisory has actions for: ["soil", "pests", "diseases"]. */
+function advisorySections(a) {
+  const out = [];
+  if ((a.soilActions || []).length) out.push("soil");
+  if ((a.pestChecks || []).length) out.push("pests");
+  if ((a.diseaseChecks || []).length) out.push("diseases");
+  return out;
+}
+
+/** "Check for: Aphids, Late blight · Soil: N, P" — or "" without actions. */
+function advisoryChecksLine(a) {
+  const names = (list) => (list || []).map((c) => c && c.name).filter(Boolean);
+  const checks = [...names(a.pestChecks), ...names(a.diseaseChecks)];
+  const soil = (a.soilActions || []).map((x) => x && x.nutrient).filter(Boolean)
+    .map((n) => (n === "general" ? "soil care" : n));
+  const parts = [];
+  if (checks.length) parts.push(`Check for: ${checks.join(", ")}`);
+  if (soil.length) parts.push(`Soil: ${soil.join(", ")}`);
+  return parts.join(" · ");
+}
+
 function advisoryNotification(a, kind, gatewayId = a.gatewayId) {
   const label = CONDITION_LABELS[a.condition] || "Weather";
   const prefix = a.testOnly ? "TEST · " : "";
   const verb = kind === "updated" ? "Updated verified advice" : "Verified advice";
   const data = { advisoryId: a.__id || "", testOnly: a.testOnly ? "true" : "false" };
   if (gatewayId) data.gatewayId = gatewayId;
+  const sections = advisorySections(a);
+  if (sections.length) data.sections = sections.join(",");
+  if ((a.crops || []).length) data.crops = a.crops.join(",");
+  const checks = advisoryChecksLine(a);
   return {
     title: `${prefix}${verb} · ${label}`,
-    body: `${(a.crops || []).join(", ")}: ${a.main || ""}`.trim(),
+    body: `${(a.crops || []).join(", ")}: ${a.main || ""}`.trim() + (checks ? `\n${checks}` : ""),
     channel: CHANNEL.advisories,
-    route: ROUTE.weatherStation,
+    route: ROUTE.advisory,
     type: "advisory",
     data,
   };
+}
+
+/** Route + data for a weather alert; opens its advice when it carries some. */
+function alertPayload(alert, gatewayId, advice) {
+  const sections = new Set(ALERT_SECTIONS[alert.category] || []);
+  if (advice) advisorySections(advice).forEach((x) => sections.add(x));
+  const data = { category: alert.category, gatewayId };
+  if (sections.size) data.sections = [...sections].join(",");
+  if (!advice) return { route: ROUTE.weatherStation, data };
+  data.advisoryId = advice.__id;
+  data.alertTitle = alert.title;
+  if ((advice.crops || []).length) data.crops = advice.crops.join(",");
+  return { route: ROUTE.advisory, data };
 }
 
 /** Which EducationUsers must approve this new account. */
@@ -703,12 +757,14 @@ function createWeatherSweep({ PLATFORM, fetchReading }) {
           const groupUids = group.map((p) => p.uid);
           await deliverToUsers(groupUids, {
             title: `${alert.severity === "critical" ? "⚠ " : ""}${alert.title}`,
-            body: advice ? `${alert.body}\nVerified advice: ${advice.main}` : alert.body,
+            body: advice
+              ? `${alert.body}\nVerified advice: ${advice.main}` +
+                (advisoryChecksLine(advice) ? `\n${advisoryChecksLine(advice)}` : "")
+              : alert.body,
             channel: CHANNEL.weather,
-            route: ROUTE.weatherStation,
             type: "weather_alert",
             severity: alert.severity,
-            data: { category: alert.category, gatewayId, ...(advice ? { advisoryId: advice.__id } : {}) },
+            ...alertPayload(alert, gatewayId, advice),
           });
           if (advice) await markDelivered(groupUids, advice, gatewayId, nowMs);
           groupUids.forEach((u) => alert.advisoryConditions.forEach((c) => covered.get(u).add(c)));
@@ -886,6 +942,10 @@ module.exports = {
   pushesAtPublish,
   advisoryAudience,
   advisoryNotification,
+  advisorySections,
+  advisoryChecksLine,
+  alertPayload,
+  ALERT_SECTIONS,
   approverFilter,
   topicConditions,
   buildMessage,

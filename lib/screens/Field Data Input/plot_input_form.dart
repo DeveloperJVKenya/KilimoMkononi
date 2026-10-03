@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/services/nutrient_levels.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -250,77 +251,6 @@ class FT {
       );
 }
 
- const List<String> _kCropTypes = [
-  'Beans','Maize','Tomatoes','Cabbages/Kales','Carrots',
-  'Irish Potatoes','Wheat','Sugarcane','Rice','Onions',
-];
-
-const Map<String, List<String>> _kCropStages = {
-  'Beans':          ['Vegetative','Flowering','Pod Development'],
-  'Maize':          ['Emergence to V6','V6 to VT','Reproductive'],
-  'Tomatoes':       ['Early Growth','Flowering and Fruit Set','Fruit Development'],
-  'Cabbages/Kales': ['Early Growth','Leaf Development','Head Formation'],
-  'Carrots':        ['Early Growth','Root Expansion','Maturation'],
-  'Irish Potatoes': ['Early Growth','Tuber Initiation','Tuber Bulking'],
-  'Wheat':          ['Early Growth','Tillering and Stem Elongation','Grain Filling'],
-  'Sugarcane':      ['Early Growth','Grand Growth Phase','Maturity'],
-  'Rice':           ['Early Growth','Tillering to Panicle Initiation','Grain Filling'],
-  'Onions':         ['Early Growth','Bulb Formation','Maturation'],
-};
-
-const Map<String, Map<String, Map<String, double>>> _kOptimalNutrients = {
-  'Beans': {
-    'Vegetative':      {'N':28,'P':45,'K':56,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Flowering':       {'N':28,'P':0, 'K':56,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Pod Development': {'N':28,'P':0, 'K':56,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-  },
-  'Maize': {
-    'Emergence to V6': {'N':45,'P':28,'K':56,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-    'V6 to VT':        {'N':84,'P':28,'K':56,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-    'Reproductive':    {'N':0, 'P':0, 'K':28,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-  },
-  'Tomatoes': {
-    'Early Growth':             {'N':100,'P':50,'K':150,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-    'Flowering and Fruit Set':  {'N':80, 'P':60,'K':150,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-    'Fruit Development':        {'N':60, 'P':60,'K':200,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-  },
-  'Cabbages/Kales': {
-    'Early Growth':    {'N':120,'P':60,'K':100,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Leaf Development':{'N':100,'P':60,'K':100,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Head Formation':  {'N':80, 'P':60,'K':120,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-  },
-  'Carrots': {
-    'Early Growth':    {'N':80,'P':60,'K':120,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Root Expansion':  {'N':60,'P':80,'K':140,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Maturation':      {'N':40,'P':60,'K':140,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-  },
-  'Irish Potatoes': {
-    'Early Growth':    {'N':100,'P':80, 'K':150,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-    'Tuber Initiation':{'N':80, 'P':100,'K':180,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-    'Tuber Bulking':   {'N':60, 'P':80, 'K':200,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-  },
-  'Wheat': {
-    'Early Growth':                  {'N':100,'P':50,'K':60,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-    'Tillering and Stem Elongation': {'N':120,'P':50,'K':60,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-    'Grain Filling':                 {'N':80, 'P':40,'K':50,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-  },
-  'Sugarcane': {
-    'Early Growth':       {'N':120,'P':60,'K':150,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-    'Grand Growth Phase': {'N':150,'P':60,'K':180,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-    'Maturity':           {'N':80, 'P':40,'K':120,'Zn':2.5,'Fe':12.0,'Mn':5.5,'Cu':1.2,'B':0.7,'Mo':0.15},
-  },
-  'Rice': {
-    'Early Growth':                    {'N':100,'P':40,'K':80,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-    'Tillering to Panicle Initiation': {'N':120,'P':50,'K':80,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-    'Grain Filling':                   {'N':80, 'P':40,'K':60,'Zn':3.0,'Fe':15.0,'Mn':6.0,'Cu':1.5,'B':0.6,'Mo':0.2},
-  },
-  'Onions': {
-    'Early Growth':   {'N':90,'P':70,'K':105,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Bulb Formation': {'N':0, 'P':70,'K':105,'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-    'Maturation':     {'N':0, 'P':0, 'K':60, 'Zn':2.0,'Fe':10.0,'Mn':5.0,'Cu':1.0,'B':0.5,'Mo':0.1},
-  },
-};
-
 const Map<String, Map<String, List<Map<String, dynamic>>>> _kNutrientRecs = {
   'N': {
     'Low': [
@@ -465,8 +395,8 @@ class _PlotInputFormState<T extends PlotInputForm> extends State<T> {
         final type = c['type'] ?? '';
         final stage = c['stage'] ?? '';
         if (type.isNotEmpty && stage.isNotEmpty &&
-            _kOptimalNutrients[type]?[stage] != null) {
-          final opt = _kOptimalNutrients[type]![stage]!;
+            kOptimalNutrients[type]?[stage] != null) {
+          final opt = kOptimalNutrients[type]![stage]!;
           _optimalAvg.updateAll((k, v) => v + (opt[k] ?? 0.0));
           count++;
         }
@@ -1391,7 +1321,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
 
   Widget _cropCard(int idx) {
     final cropType = _crops[idx]['type'] ?? '';
-    final stages = _kCropStages[cropType] ?? [];
+    final stages = kFieldCropStages[cropType] ?? [];
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -1415,7 +1345,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
         const SizedBox(height: 6),
         Wrap(
           spacing: 8, runSpacing: 8,
-          children: _kCropTypes.map((c) => _chip(c, cropType == c, () {
+          children: kFieldCropTypes.map((c) => _chip(c, cropType == c, () {
             setState(() {
               _crops[idx]['type'] = c;
               _crops[idx]['stage'] = '';

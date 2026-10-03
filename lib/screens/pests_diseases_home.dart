@@ -1,4 +1,6 @@
 // lib/screens/pests_diseases_home.dart
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
+import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/screens/pest%20management/pest_management_home.dart';
 import 'package:kilimomkononi/screens/disease%20management/disease_management_home.dart';
@@ -85,6 +87,8 @@ class _MobileLayout extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const SymptomCheckerPage()),
             ),
           ),
+          const SizedBox(height: 28),
+          const _AlertsCard(),
           const SizedBox(height: 40),
         ],
       ),
@@ -154,12 +158,35 @@ class _WideLayout extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 32),
+              const _AlertsCard(),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// Pest and disease alerts / advice for the farmer's crops (from the
+/// weather station, Field Agronomists and the AI advisor).
+class _AlertsCard extends StatelessWidget {
+  const _AlertsCard();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Column(children: [
+          SectionAlertsPanel(sections: {AdviceSection.pests}, title: 'Pest alerts & advice', max: 3),
+          SizedBox(height: 16),
+          SectionAlertsPanel(sections: {AdviceSection.diseases}, title: 'Disease alerts & advice', max: 3),
+        ]),
+      );
 }
 
 // ── Page Header ─────────────────────────────────────────────────────────────

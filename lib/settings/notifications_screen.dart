@@ -1,11 +1,14 @@
 // lib/settings/notifications_screen.dart
 //
 // Notifications — four tabs, all live via Riverpod
-// (lib/settings/notifications/notification_providers.dart):
+// (lib/settings/notifications/notification_providers.dart, advice_providers.dart):
 //   Inbox        every push the server sent (weather alerts, verified advice,
-//                approvals), filterable, with the exact time received
-//   Farm alerts  current condition alerts from the station, soil sensor and
-//                satellite, with when each reading was taken
+//                approvals), filterable — also by farm section (Soil / Pests /
+//                Diseases) — with the exact time received. Advice opens the
+//                action screen (check pests / diseases, log soil actions).
+//   Farm advice  categorised like Home: Farm alerts (today's plan + condition
+//                alerts with when each reading was taken), Verified advice,
+//                AI advice
 //   Reminders    activity reminders (Field, Pest, Disease…), with when they
 //                are due and when they were set; muted sections are marked
 //   Farm tasks   Farm Management tasks by due date, with their reminder time
@@ -17,24 +20,30 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_detail_screen.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen.dart' show ConditionRisk;
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/settings/notifications/advice_providers.dart';
 import 'package:kilimomkononi/settings/notifications/farm_alerts.dart';
 import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
 import 'package:kilimomkononi/settings/notifications_settings_screen.dart';
+import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
+
+enum NotificationsTab { inbox, advice, reminders, tasks }
 
 class NotificationsScreen extends ConsumerStatefulWidget {
-  const NotificationsScreen({super.key});
+  final NotificationsTab initialTab;
+  const NotificationsScreen({super.key, this.initialTab = NotificationsTab.inbox});
 
   @override
   ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 4, vsync: this)
+  late final TabController _tab = TabController(length: 4, vsync: this, initialIndex: widget.initialTab.index)
     ..addListener(() {
       if (!_tab.indexIsChanging && mounted) setState(() {});
     });
@@ -52,7 +61,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> with 
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider);
     final upcoming = ref.watch(upcomingReminderCountProvider);
-    final alerts = ref.watch(farmAlertsProvider).value?.alerts.length ?? 0;
+    final advice = ref.watch(farmAdviceProvider).value;
+    final alerts = (advice?.alerts?.alerts.length ?? 0) + (advice?.verified.length ?? 0);
     final tasks = ref.watch(farmTasksProvider).value;
     final overdue = tasks?.overdue.length ?? 0;
 
@@ -96,7 +106,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> with 
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
           tabs: [
             _TabLabel(Icons.inbox_rounded, 'Inbox', unread, KmColors.blue),
-            _TabLabel(Icons.warning_amber_rounded, 'Farm alerts', alerts, KmColors.orange),
+            _TabLabel(Icons.tips_and_updates_rounded, 'Farm advice', alerts, KmColors.orange),
             _TabLabel(Icons.alarm_rounded, 'Reminders', upcoming, KmColors.purple),
             _TabLabel(Icons.task_alt_rounded, 'Farm tasks', overdue > 0 ? overdue : (tasks?.openCount ?? 0),
                 overdue > 0 ? KmColors.red : KmColors.teal),
@@ -107,7 +117,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> with 
         controller: _tab,
         children: [
           const _InboxTab(),
-          const _AlertsTab(),
+          const _AdviceTab(),
           _RemindersTab(onOpenSettings: _openSettings),
           _TasksTab(onOpenSettings: _openSettings),
         ],
@@ -274,6 +284,9 @@ class _InboxTab extends ConsumerWidget {
         InboxFilter.unread => KmColors.blue,
         InboxFilter.weather => KmColors.orange,
         InboxFilter.advice => KmColors.greenMid,
+        InboxFilter.soil => const Color(0xFF6D4C41),
+        InboxFilter.pests => KmColors.orange,
+        InboxFilter.diseases => KmColors.red,
         InboxFilter.approvals => KmColors.purple,
       };
 
@@ -349,6 +362,19 @@ class _InboxCard extends ConsumerWidget {
         color: c,
         onTap: () {
           if (!item.read) ctrl.setRead(item, true);
+          // Advice (or an alert that carries advice) opens the action screen.
+          if (item.advisoryId != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdvisoryDetailScreen(
+                  advisoryId: item.advisoryId,
+                  alertTitle: item.kind == InboxKind.weather ? item.title : null,
+                ),
+              ),
+            );
+            return;
+          }
           final route = item.route;
           if (route != null) NotificationService.routeHandler?.call(route, item.args);
         },
@@ -362,6 +388,7 @@ class _InboxCard extends ConsumerWidget {
                 if (item.severity == 'critical') const KmTag('Critical', KmColors.red, filled: true),
                 if (item.severity == 'high') const KmTag('High', KmColors.orange, filled: true),
                 if (item.isTest) const KmTag('TEST', KmColors.purple),
+                for (final s in item.sections) SectionChip(s, dense: true),
               ]),
               const SizedBox(height: 6),
               Text(item.title,
@@ -372,6 +399,11 @@ class _InboxCard extends ConsumerWidget {
               if (item.body.isNotEmpty) ...[
                 const SizedBox(height: 3),
                 Text(item.body, style: const TextStyle(fontSize: 12.5, height: 1.4, color: Color(0xFF374151))),
+              ],
+              if (item.advisoryId != null) ...[
+                const SizedBox(height: 6),
+                const Text('Tap to check your farm and log actions',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: KmColors.green)),
               ],
               const SizedBox(height: 8),
               if (item.createdAt != null)
@@ -426,36 +458,26 @@ Color _sourceColor(FarmAlertSource s) => switch (s) {
       FarmAlertSource.satellite => KmColors.purple,
     };
 
-class _AlertsTab extends ConsumerWidget {
-  const _AlertsTab();
+class _AdviceTab extends ConsumerWidget {
+  const _AdviceTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(farmAlertsProvider);
-    Future<void> refresh() async => ref.refresh(farmAlertsProvider.future);
-    return async.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
-      error: (e, _) => _error(e),
-      data: (r) => RefreshIndicator(
-        color: KmColors.green,
-        onRefresh: refresh,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-          children: [
-            _AlertsHeader(r, onRefresh: refresh),
-            if (r.alerts.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 24),
-                child: KmEmptyState(
-                  icon: Icons.check_circle_rounded,
-                  title: 'No active farm alerts',
-                  message: 'Station, soil sensor and satellite readings all look healthy right now.',
-                ),
-              )
-            else
-              for (final a in r.alerts) _AlertCard(a, r.readingTimeFor(a.source)),
-          ],
-        ),
+    final r = ref.watch(farmAdviceProvider).value?.alerts;
+    Future<void> refresh() async {
+      ref.invalidate(farmAdviceProvider);
+      await ref.read(farmAdviceProvider.future);
+    }
+
+    return RefreshIndicator(
+      color: KmColors.green,
+      onRefresh: refresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        children: [
+          if (r != null) _AlertsHeader(r, onRefresh: refresh),
+          const FarmAdvicePanel(),
+        ],
       ),
     );
   }
@@ -520,53 +542,6 @@ class _AlertsHeader extends StatelessWidget {
               ),
             ]),
           ),
-      ]),
-    );
-  }
-}
-
-class _AlertCard extends StatelessWidget {
-  final FarmAlert a;
-  final DateTime? readingAt;
-  const _AlertCard(this.a, this.readingAt);
-
-  @override
-  Widget build(BuildContext context) {
-    final c = riskColor(a.risk);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: c.withValues(alpha: 0.35)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          color: c,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          child: Row(children: [
-            Icon(a.icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(a.title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
-            ),
-            KmTag(riskLabel(a.risk), Colors.white),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(a.body, style: const TextStyle(fontSize: 12.5, height: 1.45)),
-            const SizedBox(height: 10),
-            KmTag(a.source.label, _sourceColor(a.source), icon: a.source.icon),
-            if (readingAt != null && a.source != FarmAlertSource.satellite) ...[
-              const SizedBox(height: 6),
-              KmTimestamp(readingAt!, prefix: 'Reading taken', icon: Icons.sensors_rounded),
-            ],
-          ]),
-        ),
       ]),
     );
   }

@@ -31,10 +31,14 @@ class FarmerPlotAnalysisScreen extends StatefulWidget {
   final String plotId;
   final String cycleName;
 
+  /// Inside the Field Data Input hub (no app bar of its own).
+  final bool embedded;
+
   const FarmerPlotAnalysisScreen({
     super.key,
     required this.plotId,
     required this.cycleName,
+    this.embedded = false,
   });
 
   @override
@@ -293,7 +297,7 @@ Return this exact JSON:
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
-      appBar: AppBar(
+      appBar: widget.embedded ? null : AppBar(
         backgroundColor: _appGreen,
         foregroundColor: Colors.white,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 
@@ -26,7 +27,22 @@ void main() {
         .allMatches(RegExp(r'const ROUTE = \{([^}]*)\}').firstMatch(server)!.group(1)!)
         .map((m) => m.group(1)!)
         .toSet();
-    expect({KmRoute.weatherStation, KmRoute.notifications, KmRoute.eduHome}, containsAll(routes));
+    expect({KmRoute.weatherStation, KmRoute.notifications, KmRoute.eduHome, KmRoute.advisory},
+        containsAll(routes));
+  });
+
+  test('weather-alert categories file under the same farm sections in the app and the functions', () {
+    final block = RegExp(r'const ALERT_SECTIONS = \{([^}]*)\}').firstMatch(server)!.group(1)!;
+    final fn = {
+      for (final m in RegExp(r'([a-z_]+): \[([^\]]*)\]').allMatches(block))
+        m.group(1)!: RegExp(r'"([a-z]+)"').allMatches(m.group(2)!).map((x) => x.group(1)!).toSet(),
+    };
+    final app = {
+      for (final e in kAlertCategorySections.entries) e.key: e.value.map((s) => s.name).toSet(),
+    };
+    expect(fn, app);
+    // Section names the server sends are the app's AdviceSection names.
+    expect(AdviceSection.values.map((s) => s.name).toSet(), containsAll(fn.values.expand((v) => v).toSet()));
   });
 
   test('crop topics use the same slug as the server', () {

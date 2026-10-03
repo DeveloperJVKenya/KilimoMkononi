@@ -1,13 +1,17 @@
 // lib/screens/Field Data Input/field_data_input_home_page.dart
 //
-// Field Data Input hub. Bottom tabs switch between:
-//   Record   — start a record, farm alerts (verified advice), recent plots
-//   Weather  — the Weather Station screen (live conditions, verified + AI advice)
-//   History  — Plot history
-//   Analysis — Season analysis
-// Each tab keeps its own app bar. Tabs are built the first time they're
-// opened (the Weather and Analysis screens call paid APIs) and then kept,
-// so switching back and forth doesn't reload them.
+// Field Data Input hub. Tabs at the top (under the app bar) switch between:
+//   Record           — start a record, then your plots this season
+//   Weather station  — the station's live conditions and last 24 h
+//   Plot history     — every saved record
+//   Season analysis  — AI season insights
+// The other screens run embedded (no app bar of their own). Tabs are built
+// the first time they're opened (Weather / Analysis call paid APIs) and then
+// kept, so switching back and forth doesn't reload them. The app-wide
+// bottom navigation stays on Home; back leaves the hub.
+//
+// Farm alerts and advice are on Home and in Notifications; each plot form
+// shows its own soil / pest / disease alerts (SectionAlertsStrip).
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,7 +21,6 @@ import 'package:kilimomkononi/screens/Field Data Input/field_data_input_page.dar
 import 'package:kilimomkononi/screens/Field Data Input/plot_summary_tab.dart';
 import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 import 'package:kilimomkononi/screens/Field Data Input/weather_station_screen.dart';
-import 'package:kilimomkononi/widgets/farm_alerts_home_widget.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/offline_sync_banner.dart';
 
@@ -30,7 +33,8 @@ class FieldDataInputHomePage extends StatefulWidget {
   State<FieldDataInputHomePage> createState() => _FieldDataInputHomePageState();
 }
 
-class _FieldDataInputHomePageState extends State<FieldDataInputHomePage> {
+class _FieldDataInputHomePageState extends State<FieldDataInputHomePage>
+    with SingleTickerProviderStateMixin {
   static const _darkGreen = Color.fromARGB(255, 3, 39, 4);
   static const _accentGreen = Color(0xFF2A6B2A);
 
@@ -38,7 +42,12 @@ class _FieldDataInputHomePageState extends State<FieldDataInputHomePage> {
   List<FieldData> _recentPlots = [];
   bool _isLoading = true;
 
-  late int _tab = widget.initialTab.clamp(0, 3);
+  late final TabController _tabs = TabController(
+    length: 4,
+    vsync: this,
+    initialIndex: widget.initialTab.clamp(0, 3),
+  )..addListener(() => _selectTab(_tabs.index));
+  late int _tab = _tabs.index;
   // Tabs opened so far — only these are built.
   late final Set<int> _opened = {_tab};
 
@@ -48,6 +57,12 @@ class _FieldDataInputHomePageState extends State<FieldDataInputHomePage> {
     _userId = FirebaseAuth.instance.currentUser!.uid;
     _loadRecentPlots();
     OfflineQueueService.init(); // start connectivity listener + attempt sync
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRecentPlots() async {
@@ -114,183 +129,152 @@ class _FieldDataInputHomePageState extends State<FieldDataInputHomePage> {
     return filled / 4;
   }
 
-  void _selectTab(int i) => setState(() {
-    _tab = i;
-    _opened.add(i);
-  });
+  void _selectTab(int i) {
+    if (i == _tab && _opened.contains(i)) return;
+    setState(() {
+      _tab = i;
+      _opened.add(i);
+    });
+  }
 
   Widget _tabPage(int i) {
     if (!_opened.contains(i)) return const SizedBox.shrink();
     switch (i) {
       case 1:
-        return const WeatherStationScreen();
+        return const WeatherStationScreen(embedded: true);
       case 2:
-        return PlotSummaryTab(userId: _userId);
+        return PlotSummaryTab(userId: _userId, embedded: true);
       case 3:
         return FarmerPlotAnalysisScreen(
           plotId: 'SingleCrop',
           cycleName: 'Season ${DateTime.now().year}',
+          embedded: true,
         );
       default:
         return _buildRecordTab();
     }
   }
 
+  static const _tabLabels = [
+    (Icons.edit_note_rounded, 'Record'),
+    (Icons.sensors_rounded, 'Weather station'),
+    (Icons.history_rounded, 'Plot history'),
+    (Icons.bar_chart_rounded, 'Season analysis'),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    // Back from another tab returns to Record first, then leaves.
-    return PopScope(
-      canPop: _tab == 0,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _selectTab(0);
-      },
-      child: Scaffold(
-        body: IndexedStack(
-          index: _tab,
-          children: [for (var i = 0; i < 4; i++) _tabPage(i)],
-        ),
-        bottomNavigationBar: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            labelTextStyle: WidgetStateProperty.resolveWith(
-              (states) => TextStyle(
-                fontSize: 12,
-                fontWeight: states.contains(WidgetState.selected)
-                    ? FontWeight.w800
-                    : FontWeight.w600,
-                color: states.contains(WidgetState.selected)
-                    ? _darkGreen
-                    : Colors.black54,
-              ),
-            ),
-          ),
-          child: NavigationBar(
-            selectedIndex: _tab,
-            onDestinationSelected: _selectTab,
-            height: 66,
-            backgroundColor: Colors.white,
-            indicatorColor: const Color(0xFFDCEDC8),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.edit_note_outlined),
-                selectedIcon: Icon(
-                  Icons.edit_note_rounded,
-                  color: _accentGreen,
-                ),
-                label: 'Record',
-                tooltip: 'Record field data',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.wb_cloudy_outlined),
-                selectedIcon: Icon(
-                  Icons.wb_cloudy_rounded,
-                  color: _accentGreen,
-                ),
-                label: 'Weather',
-                tooltip: 'Weather station',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.history_rounded),
-                selectedIcon: Icon(Icons.history_rounded, color: _accentGreen),
-                label: 'History',
-                tooltip: 'Plot history',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.bar_chart_outlined),
-                selectedIcon: Icon(
-                  Icons.bar_chart_rounded,
-                  color: _accentGreen,
-                ),
-                label: 'Analysis',
-                tooltip: 'Season analysis',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecordTab() {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F3),
       appBar: AppBar(
         backgroundColor: _darkGreen,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          'Field Data Input',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(36),
-          child: Container(
-            color: _darkGreen,
-            padding: const EdgeInsets.only(left: 16, bottom: 10),
-            alignment: Alignment.centerLeft,
-            child: Text(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Field Data Input',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
               'Season ${DateTime.now().year}  ·  ${_recentPlots.length} recent plot${_recentPlots.length == 1 ? '' : 's'}',
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
-          ),
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadRecentPlots,
-        color: _accentGreen,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          children: [
-            // ── Offline sync banner (hidden when queue is empty) ──────────
-            const OfflineSyncBanner(),
-            const SizedBox(height: 4),
-            // ── Start recording ──────────────────────────────
-            _sectionLabel('Start recording'),
-            _structureCard(
-              icon: Icons.grass,
-              iconBg: const Color(0xFFE8F5E9),
-              iconColor: _accentGreen,
-              title: 'Single crop',
-              description:
-                  'One crop, one plot — full nutrient & intervention tracking',
-              badge: 'Most common',
-              badgeColor: const Color(0xFF1B5E20),
-              badgeBg: const Color(0xFFE8F5E9),
-              onTap: () => _openEntry('single'),
-            ),
-            _structureCard(
-              icon: Icons.device_hub,
-              iconBg: const Color(0xFFFFF8E1),
-              iconColor: const Color(0xFFF57C00),
-              title: 'Intercropping',
-              description: 'Multiple crops in one plot',
-              onTap: () => _openEntry('intercrop'),
-            ),
-            _structureCard(
-              icon: Icons.grid_view_rounded,
-              iconBg: const Color(0xFFE3F2FD),
-              iconColor: const Color(0xFF1565C0),
-              title: 'Multiple plots',
-              description: 'Separate plots with individual tab tracking',
-              onTap: () => _openEntry('multiple'),
-            ),
-
-            // ── Farm alerts (IoT + satellite driven) ─────────────────────────
-            _sectionLabel('Farm alerts'),
-            FarmAlertsHomeWidget(onOpenWeatherStation: () => _selectTab(1)),
-
-            // ── Recent plots ─────────────────────────────────────────────────
-            if (!_isLoading && _recentPlots.isNotEmpty) ...[
-              _sectionLabel('Your plots this season'),
-              ..._recentPlots.map((plot) => _recentPlotCard(plot)),
-            ],
-
-            const SizedBox(height: 16),
           ],
         ),
+        bottom: TabBar(
+          controller: _tabs,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: const Color(0xFF8BC34A),
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w800,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+          ),
+          tabs: [
+            for (final (icon, label) in _tabLabels)
+              Tab(
+                height: 44,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18),
+                    const SizedBox(width: 6),
+                    Text(label),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      body: IndexedStack(
+        index: _tab,
+        children: [for (var i = 0; i < 4; i++) _tabPage(i)],
+      ),
+    );
+  }
+
+  Widget _buildRecordTab() {
+    return RefreshIndicator(
+      onRefresh: _loadRecentPlots,
+      color: _accentGreen,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        children: [
+          // ── Offline sync banner (hidden when queue is empty) ──────────
+          const OfflineSyncBanner(),
+          const SizedBox(height: 4),
+          // ── Start recording ──────────────────────────────
+          _sectionLabel('Start recording'),
+          _structureCard(
+            icon: Icons.grass,
+            iconBg: const Color(0xFFE8F5E9),
+            iconColor: _accentGreen,
+            title: 'Single crop',
+            description:
+                'One crop, one plot — full nutrient & intervention tracking',
+            badge: 'Most common',
+            badgeColor: const Color(0xFF1B5E20),
+            badgeBg: const Color(0xFFE8F5E9),
+            onTap: () => _openEntry('single'),
+          ),
+          _structureCard(
+            icon: Icons.device_hub,
+            iconBg: const Color(0xFFFFF8E1),
+            iconColor: const Color(0xFFF57C00),
+            title: 'Intercropping',
+            description: 'Multiple crops in one plot',
+            onTap: () => _openEntry('intercrop'),
+          ),
+          _structureCard(
+            icon: Icons.grid_view_rounded,
+            iconBg: const Color(0xFFE3F2FD),
+            iconColor: const Color(0xFF1565C0),
+            title: 'Multiple plots',
+            description: 'Separate plots with individual tab tracking',
+            onTap: () => _openEntry('multiple'),
+          ),
+
+          // ── Your plots this season (right under the start cards) ──────
+          if (!_isLoading && _recentPlots.isNotEmpty) ...[
+            _sectionLabel('Your plots this season'),
+            ..._recentPlots.map((plot) => _recentPlotCard(plot)),
+          ],
+
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

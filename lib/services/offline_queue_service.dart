@@ -174,6 +174,61 @@ class OfflineQueueService {
     await _notifyPending(count + 1);
   }
 
+  /// How long a save waits for the server before it counts as offline.
+  static const saveTimeout = Duration(seconds: 12);
+
+  /// A fresh document id for [collection], so a write can be retried (or
+  /// queued) without creating a second document.
+  static String newDocId(String collection) =>
+      FirebaseFirestore.instance.collection(collection).doc().id;
+
+  /// Writes [payload] to [collection]/[docId] and returns true once the
+  /// server has it, or false when it was saved offline.
+  ///
+  /// Offline, Firestore keeps the write on the device and its future never
+  /// completes, so a plain `await` would hang the Save button. After
+  /// [saveTimeout] (or a network error) the write is also queued here,
+  /// under the SAME [docId], so whichever copy reaches the server second
+  /// rewrites the same document instead of adding a duplicate.
+  ///
+  /// Errors that retrying can't fix (rules rejected it, bad data) are
+  /// rethrown instead of queued.
+  static Future<bool> saveOrQueue({
+    required String collection,
+    required String docId,
+    required Map<String, dynamic> payload,
+    String? queueId,
+  }) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection(collection)
+          .doc(docId)
+          .set(payload)
+          .timeout(saveTimeout);
+      return true;
+    } on FirebaseException catch (e) {
+      if (isPermanentError(e)) rethrow;
+    } on TimeoutException {
+      // Offline — Firestore still holds the write; queue a backup copy.
+    } catch (_) {
+      // Network / platform error — queue it.
+    }
+    await enqueue(
+      id: queueId ?? '${collection.replaceAll('/', '_')}_$docId',
+      collection: collection,
+      docId: docId,
+      payload: payload,
+    );
+    return false;
+  }
+
+  /// A Firestore error that won't go away by retrying later.
+  static bool isPermanentError(FirebaseException e) => const {
+    'permission-denied',
+    'invalid-argument',
+    'not-found',
+  }.contains(e.code);
+
   /// Returns the number of items waiting to sync.
   static Future<int> pendingCount() async {
     final prefs = await SharedPreferences.getInstance();

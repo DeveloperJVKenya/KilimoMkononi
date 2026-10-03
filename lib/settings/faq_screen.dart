@@ -38,7 +38,14 @@ const kFarmerFaqs = <Faq>[
           'contact us if your farm has a station but you can\'t see it.'),
   Faq('Weather & stations', Icons.cloud_rounded, 'What is "Verified advice"?',
       'Advice written and checked by a Field Agronomist for your crops and the conditions your station is recording. '
-          'The AI Farm Advisor underneath is labelled "AI-generated · not verified" — use it as a guide only.'),
+          'It is on Home (Farm advice) and in Notifications → Farm advice, next to the farm alerts and the AI advice, '
+          'which is labelled "AI-generated · not verified" — use AI advice as a guide only.'),
+  Faq('Weather & stations', Icons.cloud_rounded, 'How do I act on advice?',
+      'Open the advice (from the notification, Home or Notifications). For each pest or disease listed, check your '
+          'crop and answer "Yes, I see it" or "Not on my farm" — Photo ID and the pest / disease guides help you '
+          'confirm. If you found it, "Log treatment" saves it in Pest or Disease records. Soil advice shows what to do '
+          'for your soil test level (or pick "Not sure"), and "Apply & log" saves it in your Field Data. If you have '
+          'not recorded your crop yet, the app asks you to set up your farm first.'),
   Faq('Field data', Icons.edit_note_rounded, 'How do I add a plot or crop?',
       'Go to Field Data Input, create a plot, then add the crop, planting date, soil test results and activities. '
           'Your crops also decide which verified advice, alerts and farming tips you see first.'),
