@@ -14,6 +14,7 @@ import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart'
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class FieldAgronomistPanelScreen extends StatefulWidget {
   final String? initialStationId;
@@ -78,7 +79,7 @@ class _FieldAgronomistPanelScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _readingError = '$e';
+        _readingError = friendlyError(e);
         _readingLoading = false;
       });
     }
@@ -299,7 +300,7 @@ class _LiveConditionsCard extends StatelessWidget {
             const LinearProgressIndicator(minHeight: 2)
           else if (error != null)
             Text(
-              'Could not load station data: $error',
+              friendlyError(error, 'Could not load station data'),
               style: const TextStyle(fontSize: 12, color: AdvisoryColors.red),
             )
           else if (r != null && r.isProvisioned && !r.hasData)
@@ -473,7 +474,7 @@ class _AdvisoryList extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                'Could not load advisories.\n${snap.error}',
+                friendlyError(snap.error, 'Could not load advisories'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 12, color: AdvisoryColors.red),
               ),

@@ -25,6 +25,7 @@ import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ── Auto-category inference (used by PestInterventionPage) ─────────────────
 String inferCostCategory(String desc) {
@@ -1238,7 +1239,7 @@ Include pre-harvest interval in warnings.
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) msg.showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) msg.showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

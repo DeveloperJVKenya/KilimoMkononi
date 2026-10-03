@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class AdminManagementScreen extends StatefulWidget {
   const AdminManagementScreen({super.key});
@@ -28,7 +29,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
       return 'Password reset email sent!';
     } catch (e) {
-      return 'Error sending password reset: $e';
+      return friendlyError(e, 'Couldn\'t send password reset');
     }
   }
 
@@ -37,7 +38,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       await FirebaseFirestore.instance.collection('Users').doc(uid).update({'isDisabled': !currentStatus});
       return 'User ${!currentStatus ? 'disabled' : 'enabled'} successfully!';
     } catch (e) {
-      return 'Error toggling user status: $e';
+      return friendlyError(e, 'Couldn\'t change user status');
     }
   }
 
@@ -46,7 +47,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       await FirebaseFirestore.instance.collection('Users').doc(uid).delete();
       return 'User deleted successfully!';
     } catch (e) {
-      return 'Error deleting user: $e';
+      return friendlyError(e, 'Couldn\'t delete user');
     }
   }
 
@@ -265,7 +266,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(child: Text(friendlyError(snapshot.error)));
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(child: Text('No users found.'));

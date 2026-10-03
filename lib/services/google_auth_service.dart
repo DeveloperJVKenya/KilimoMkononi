@@ -21,6 +21,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class GoogleAuthResult {
   final UserCredential credential;
@@ -138,7 +139,7 @@ class GoogleAuthService {
               'Sign in with your email and password instead.',
               code: e.code);
         default:
-          throw GoogleAuthException('Google sign-in failed: ${e.message ?? e.code}', code: e.code);
+          throw GoogleAuthException(friendlyError(e, 'Google sign-in failed'), code: e.code);
       }
     }
   }

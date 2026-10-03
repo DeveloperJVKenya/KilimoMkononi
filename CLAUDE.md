@@ -144,6 +144,9 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   Update them whenever you change the rules.
 
 ## Notes for future changes
+- Errors shown on screen always go through `friendlyError(e, 'Couldn\'t save')`
+  (`lib/utils/friendly_error.dart`) — never `'$e'`, `e.toString()` or `snapshot.error` in the UI.
+  It maps Firebase / auth / network / HTTP errors to plain text and logs the technical error.
 - Admin record screens: every dashboard card / tool opens `AdminCollectionScreen`
   (`lib/screens/admin/data/`), configured per collection in `admin_collection_spec.dart` (fields +
   types, filters, sorts, status, allowed actions) with Riverpod state in `admin_data_providers.dart`.

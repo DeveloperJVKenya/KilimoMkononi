@@ -22,6 +22,7 @@ import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -300,7 +301,7 @@ If none: INTERVENTIONS_JSON: []
       if (e.toString().contains('permission-denied')) {
         if (mounted) { _reset(); msg.showSnackBar(SnackBar(backgroundColor: _T.brandLight, behavior: SnackBarBehavior.floating, content: const Text('Intervention saved', style: TextStyle(color: Colors.white)))); }
       } else {
-        if (mounted) msg.showSnackBar(SnackBar(content: Text('Error: $e')));
+        if (mounted) msg.showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

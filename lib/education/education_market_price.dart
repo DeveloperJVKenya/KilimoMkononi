@@ -10,6 +10,7 @@ import 'package:kilimomkononi/utils/firestore_helper.dart';
 import '../models/education_user.dart';
 import 'simulations/market_trading_simulation.dart';
 import 'quiz/shared_quiz_widgets.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF003900);
 
@@ -104,7 +105,7 @@ class _EducationMarketPriceState
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading content: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t load content'))),
         );
       }
     }
@@ -213,7 +214,7 @@ class _EducationMarketPriceState
                   Text('Image not found: $fullPath',
                       style:
                           const TextStyle(color: Colors.grey)),
-                  Text('Error: $error',
+                  Text(friendlyError(error),
                       style: const TextStyle(
                           color: Colors.red, fontSize: 12)),
                 ],
@@ -346,7 +347,7 @@ class _EducationMarketPriceState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed to save: $e'),
+              content: Text(friendlyError(e, 'Couldn\'t save')),
               backgroundColor: Colors.red),
         );
       }
@@ -408,7 +409,7 @@ class _EducationMarketPriceState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

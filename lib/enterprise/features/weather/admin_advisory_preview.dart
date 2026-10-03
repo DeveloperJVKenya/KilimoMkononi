@@ -11,6 +11,7 @@ import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.da
 import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart';
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class AdminAdvisoryPreview extends StatelessWidget {
   /// Live reading at the viewed station (null / unprovisioned = unknown).
@@ -72,7 +73,7 @@ class AdminAdvisoryPreview extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             if (snap.hasError)
-              Text('Could not load test advisories: ${snap.error}',
+              Text(friendlyError(snap.error, 'Could not load test advisories'),
                   style: const TextStyle(fontSize: 12, color: AdvisoryColors.red))
             else if (!snap.hasData)
               const LinearProgressIndicator(minHeight: 2)

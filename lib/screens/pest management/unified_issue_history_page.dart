@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const _kGreen = Color.fromARGB(255, 3, 39, 4);
 
@@ -65,7 +66,7 @@ class _UnifiedIssueHistoryPageState
         _loading = false;
       });
     } catch (e) {
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 

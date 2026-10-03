@@ -1,6 +1,7 @@
 // lib/education/teacher/view_students.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class ViewStudentsScreen extends StatefulWidget {
   final String schoolName;
@@ -112,7 +113,7 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                  return Center(child: Text(friendlyError(snapshot.error)));
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(

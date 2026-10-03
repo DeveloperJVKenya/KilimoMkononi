@@ -15,6 +15,7 @@ import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/authentication/widgets/auth_kit.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
 import 'package:kilimomkononi/services/google_auth_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class CompleteFarmerProfileScreen extends StatefulWidget {
   final String uid;
@@ -115,7 +116,7 @@ class _CompleteFarmerProfileScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save profile: $e')),
+        SnackBar(content: Text(friendlyError(e, 'Could not save profile'))),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

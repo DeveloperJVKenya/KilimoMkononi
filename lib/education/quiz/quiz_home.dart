@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 import 'package:rxdart/rxdart.dart';
 import 'shared_quiz_widgets.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ─── Tab selector ─────────────────────────────────────────────────────────
 enum QuizHomeTab { quizzes, essays }
@@ -253,7 +254,7 @@ class _QuizHomeState extends State<QuizHome>
                 child: CircularProgressIndicator(color: _appGreen));
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(child: Text(friendlyError(snapshot.error)));
           }
 
           final grouped = snapshot.data ?? {};

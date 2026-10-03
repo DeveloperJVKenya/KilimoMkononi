@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/models/education_user.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class EducationChat extends StatefulWidget {
   final EduRole role;
@@ -239,7 +240,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
+                return Center(child: Text(friendlyError(snapshot.error)));
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyChat();
 
@@ -430,7 +431,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
+                return Center(child: Text(friendlyError(snapshot.error)));
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return _buildEmptyDirectMessages();
@@ -539,7 +540,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
                     children: [
                       const Icon(Icons.error_outline, size: 48, color: Colors.red),
                       const SizedBox(height: 16),
-                      Text('Error: ${snapshot.error}', textAlign: TextAlign.center),
+                      Text(friendlyError(snapshot.error), textAlign: TextAlign.center),
                       const SizedBox(height: 8),
                       Text('Conv ID: $conversationId', 
                         style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -659,7 +660,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t send')), backgroundColor: Colors.red),
         );
       }
     }
@@ -748,7 +749,7 @@ class _EducationChatState extends State<EducationChat> with SingleTickerProvider
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t send message'))));
       }
     }
   }

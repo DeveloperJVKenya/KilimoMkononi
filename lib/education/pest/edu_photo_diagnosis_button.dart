@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kilimomkononi/education/pest/gemini_vision_helper.dart';
 import 'package:kilimomkononi/models/education_user.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const List<String> _eduCrops = [
   'Beans', 'Maize', 'Cabbages/Kales', 'Carrots', 'Tomatoes',
@@ -90,7 +91,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = friendlyError(e);
       });
     }
   }

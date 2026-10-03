@@ -19,6 +19,7 @@ import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dar
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class AdvisoryEditorScreen extends StatefulWidget {
   final AgronomicAdvisory? existing;
@@ -241,7 +242,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       _touched();
       _snack('AI draft added — review and edit every line before publishing.');
     } catch (e) {
-      _snack('Could not generate a draft: $e', error: true);
+      _snack(friendlyError(e, 'Could not generate a draft'), error: true);
     } finally {
       if (mounted) setState(() => _aiBusy = false);
     }
@@ -279,9 +280,9 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       });
       _close(true);
     } on AdvisoryConflictException catch (e) {
-      _snack('$e', error: true);
+      _snack(friendlyError(e), error: true);
     } catch (e) {
-      _snack('Save failed: $e', error: true);
+      _snack(friendlyError(e, 'Save failed'), error: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -302,7 +303,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       if (!mounted) return;
       _close(true);
     } catch (err) {
-      _snack('Failed: $err', error: true);
+      _snack(friendlyError(err), error: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -320,7 +321,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       await AgronomicAdvisoryService.deleteDraft(e.id);
       if (mounted) _close(true);
     } catch (err) {
-      _snack('Delete failed: $err', error: true);
+      _snack(friendlyError(err, 'Delete failed'), error: true);
     }
   }
 
@@ -938,7 +939,7 @@ class _AuditHistory extends StatelessWidget {
       builder: (context, snap) {
         if (snap.hasError) {
           return Text(
-            'Could not load history: ${snap.error}',
+            friendlyError(snap.error, 'Could not load history'),
             style: const TextStyle(fontSize: 12, color: AdvisoryColors.red),
           );
         }

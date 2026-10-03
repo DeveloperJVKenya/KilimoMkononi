@@ -11,6 +11,7 @@ import '../utils/class_id_notifier.dart';
 import '../models/education_user.dart';
 import 'simulations/farm_planting_simulation.dart';
 import 'quiz/shared_quiz_widgets.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF032704);
 
@@ -162,7 +163,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t save')), backgroundColor: Colors.red),
         );
       }
     }
@@ -228,7 +229,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
@@ -265,7 +266,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
                   const Icon(Icons.broken_image, size: 48, color: Colors.grey),
                   const SizedBox(height: 8),
                   Text('Image not found: $fullPath', style: const TextStyle(color: Colors.grey)),
-                  Text('Error: $error', style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  Text(friendlyError(error), style: const TextStyle(color: Colors.red, fontSize: 12)),
                 ],
               ),
             ),
@@ -520,7 +521,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
       body: FutureBuilder<Map<String, dynamic>>(
         future: _tipsFuture,
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+          if (snapshot.hasError) return Center(child: Text(friendlyError(snapshot.error)));
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: primaryGreen));
 
           final tipsData = snapshot.data!;

@@ -15,6 +15,7 @@ import 'package:kilimomkononi/screens/complete_farmer_profile.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
 import 'package:kilimomkononi/services/google_auth_service.dart';
 import 'package:provider/provider.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -117,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
           : authErrorMessage(e.code, e.message));
       _passwordFocus.requestFocus();
     } catch (e) {
-      _show('Could not sign in: $e');
+      _show(friendlyError(e, 'Could not sign in'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -170,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on GoogleAuthException catch (e) {
       _show(e.message);
     } catch (e) {
-      _show('Google sign-in failed: $e');
+      _show(friendlyError(e, 'Google sign-in failed'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -309,7 +310,7 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
     } on FirebaseAuthException catch (e) {
       setState(() => _error = authErrorMessage(e.code, e.message));
     } catch (e) {
-      setState(() => _error = 'Could not send the link: $e');
+      setState(() => _error = friendlyError(e, 'Could not send the link'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -17,6 +17,7 @@ import 'package:kilimomkononi/education/pest/gemini_vision_helper.dart';
 import 'package:kilimomkononi/services/field_cost_bridge.dart';
 import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class PhotoDiagnosisPage extends StatefulWidget {
   final String? issueType; // 'pest' or 'disease' (optional hint)
@@ -143,7 +144,7 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
       final r = await runGeminiVisionDiagnosis(imageBytes: _photoBytes!, crop: _selectedCrop!);
       if (mounted) setState(() { _result = r; _step = _result!.isRejected ? 1 : 2; });
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _analyzing = false);
     }
@@ -218,7 +219,7 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

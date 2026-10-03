@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 import 'package:kilimomkononi/education/utils/education_utils.dart'; // ← NEW
 
 class AskTeacherScreen extends StatefulWidget {
@@ -64,7 +65,7 @@ class _AskTeacherScreenState extends State<AskTeacherScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed: $e")),
+        SnackBar(content: Text(friendlyError(e))),
       );
     } finally {
       setState(() => _isSending = false);

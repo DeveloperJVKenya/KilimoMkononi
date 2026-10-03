@@ -43,6 +43,7 @@ import 'package:kilimomkononi/education/tutor/tutor_fab.dart';
 import 'package:kilimomkononi/education/analysis/education_plot_analysis_screen.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/services/session_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 enum ScreenType { mobile, tablet, desktop }
 
@@ -279,7 +280,7 @@ class _EducationHomeScreenState extends State<EducationHomeScreen>
       _applyUserData(data, user.uid, prefs, fromCache: false);
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to load user data: $e';
+        _errorMessage = friendlyError(e, 'Couldn\'t load user data');
         _isLoading = false;
       });
     }
@@ -2845,7 +2846,7 @@ Widget _buildClassTile(_ClassInfo cls, Color color, {required bool isAdd}) {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -2882,7 +2883,7 @@ Future<void> _removeClassFromTeacher(String classId) async {
   } catch (e) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error removing class: $e')),
+        SnackBar(content: Text(friendlyError(e, 'Couldn\'t remove class'))),
       );
     }
   }

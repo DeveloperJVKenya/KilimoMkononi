@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/models/market_data.dart';
 import 'package:logger/logger.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class ViewSavedDataPage extends StatefulWidget {
   const ViewSavedDataPage({super.key});
@@ -51,7 +52,7 @@ class ViewSavedDataPageState extends State<ViewSavedDataPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete data: $e'),
+            content: Text(friendlyError(e, 'Couldn\'t delete data')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -148,7 +149,7 @@ class ViewSavedDataPageState extends State<ViewSavedDataPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to update data: $e'),
+              content: Text(friendlyError(e, 'Couldn\'t update data')),
               backgroundColor: Colors.redAccent,
             ),
           );
@@ -190,7 +191,7 @@ class ViewSavedDataPageState extends State<ViewSavedDataPage> {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Error: ${snapshot.error}',
+                friendlyError(snapshot.error),
                 style: const TextStyle(fontSize: 18, color: Colors.red),
               ),
             );

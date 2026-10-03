@@ -12,6 +12,7 @@ import '../../models/education_user.dart';
 import 'package:kilimomkononi/services/open_weather_proxy.dart';
 import 'simulations/weather_prediction_simulation.dart';
 import 'quiz/shared_quiz_widgets.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF032704);
 
@@ -358,7 +359,7 @@ class _EducationWeatherForecastState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed to save: $e'),
+              content: Text(friendlyError(e, 'Couldn\'t save')),
               backgroundColor: Colors.red),
         );
       }
@@ -457,7 +458,7 @@ class _EducationWeatherForecastState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

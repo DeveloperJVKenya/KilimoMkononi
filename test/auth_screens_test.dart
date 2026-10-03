@@ -36,7 +36,8 @@ void main() {
     test('friendly Firebase messages', () {
       expect(authErrorMessage('invalid-credential'), 'The email or password is incorrect.');
       expect(authErrorMessage('network-request-failed'), contains('internet'));
-      expect(authErrorMessage('something-new', 'Raw'), 'Raw');
+      // Firebase's own text for an unknown code is never shown — it's often technical.
+      expect(authErrorMessage('something-new', 'Raw [INTERNAL]'), 'Something went wrong. Please try again.');
     });
   });
 

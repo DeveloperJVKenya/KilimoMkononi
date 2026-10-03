@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:kilimomkononi/models/symptom_model.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'symptom_result_page.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class SymptomCheckerPage extends StatefulWidget {
   final EduRole role;
@@ -69,7 +70,7 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading symptoms: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t load symptoms'))),
         );
       }
     }

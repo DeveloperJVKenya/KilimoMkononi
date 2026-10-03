@@ -23,6 +23,7 @@ import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const _kGreen = Color(0xFF1B5E20);
 const _kGreenDark = Color(0xFF0B3D1E);
@@ -309,7 +310,7 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
       ref.invalidate(manualsProvider);
       if (mounted) _snack('Manual deleted');
     } catch (e) {
-      if (mounted) _snack('Couldn\'t delete: $e');
+      if (mounted) _snack(friendlyError(e, 'Couldn\'t delete'));
     }
   }
 
@@ -887,7 +888,7 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Manual uploaded'), backgroundColor: _kGreen));
     } catch (e) {
-      setState(() => _error = 'Upload failed: $e');
+      setState(() => _error = friendlyError(e, 'Upload failed'));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }

@@ -24,6 +24,7 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_scree
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ── Outdoor-readable theme ────────────────────────────────────────────────
 class _T {
@@ -463,7 +464,7 @@ active ingredient in "why", dosage per litre and timing in "how".
       if (e.toString().contains('permission-denied')) {
         if (mounted) { _reset(); msg.showSnackBar(SnackBar(backgroundColor: _T.brandLight, behavior: SnackBarBehavior.floating, content: const Text('Intervention saved', style: TextStyle(color: Colors.white)))); }
       } else {
-        if (mounted) msg.showSnackBar(SnackBar(content: Text('Error: $e')));
+        if (mounted) msg.showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

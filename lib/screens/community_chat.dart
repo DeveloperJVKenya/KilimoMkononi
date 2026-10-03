@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'dart:io';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class CommunityChatScreen extends StatefulWidget {
   final String channelId; // e.g., "Kajiado_Kaputiei-North_Kitengela_Pests_Diseases"
@@ -134,7 +135,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
+        SnackBar(content: Text(friendlyError(e, 'Couldn\'t send message'))),
       );
       _logger.e('Error sending message: $e');
     }
@@ -174,7 +175,7 @@ class _CommunityChatScreenState extends State<CommunityChatScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload image: $e')),
+        SnackBar(content: Text(friendlyError(e, 'Couldn\'t upload image'))),
       );
       _logger.e('Error uploading image: $e');
     }

@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'dart:convert';
 import 'package:kilimomkononi/screens/collection_management_screen.dart';
 import 'package:kilimomkononi/screens/pest%20management/admin_pest_management_page.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class AdminManagementScreen extends StatefulWidget {
   const AdminManagementScreen({super.key});
@@ -56,7 +57,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error assigning role: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t assign role'))));
       }
     }
   }
@@ -70,7 +71,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error disabling user: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t disable user'))));
       }
     }
   }
@@ -84,7 +85,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting user: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t delete user'))));
       }
     }
   }
@@ -99,7 +100,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error sending password reset: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t send password reset'))));
       }
     }
   }
@@ -303,7 +304,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return Text('Error: ${snapshot.error}');
+                return Text(friendlyError(snapshot.error));
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return const Text('No users found.');
@@ -377,7 +378,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
                         return const Center(child: CircularProgressIndicator());
                       }
                       if (snapshot.hasError) {
-                        return Center(child: Text('Error: ${snapshot.error}'));
+                        return Center(child: Text(friendlyError(snapshot.error)));
                       }
                       if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                         return const Center(child: Text('No users found.'));
@@ -538,7 +539,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Text('Error: ${snapshot.error}');
+              return Text(friendlyError(snapshot.error));
             }
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
               return const Text('No users found.');
@@ -585,7 +586,7 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return Text('Error: ${snapshot.error}');
+                return Text(friendlyError(snapshot.error));
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return const Text('No recent activity logs.');

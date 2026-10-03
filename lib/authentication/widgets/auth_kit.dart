@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kilimomkononi/data/kenya_locations.dart';
 import 'package:kilimomkononi/widgets/google_logo.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class AuthColors {
   AuthColors._();
@@ -922,5 +923,7 @@ String authErrorMessage(String code, [String? fallback]) => switch (code) {
       'network-request-failed' => 'No internet connection. Check your connection and try again.',
       'email-already-in-use' => 'An account already exists for this email. Sign in instead.',
       'weak-password' => 'That password is too weak — use at least 6 characters.',
-      _ => fallback ?? 'Something went wrong. Please try again.',
+      // [fallback] is Firebase's own text — often technical, so only the
+      // shared friendly mapping (or a plain message) is shown.
+      _ => authCodeMessage(code) ?? 'Something went wrong. Please try again.',
     };

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 import 'package:kilimomkononi/education/quiz/shared_quiz_widgets.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF003900);
 
@@ -147,7 +148,7 @@ class _FarmQuizScreenState extends State<FarmQuizScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }

@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ─────────────────────────────────────────────────────────────────
 //  School code generator
@@ -184,7 +185,7 @@ class _EducationRegistrationScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     } finally {
       if (mounted) setState(() => _resolvingCode = false);
@@ -314,14 +315,15 @@ class _EducationRegistrationScreenState
       String msg = 'Registration failed';
       if (e.code == 'email-already-in-use') msg = 'Email already registered.';
       if (e.code == 'weak-password') msg = 'Password must be at least 6 characters.';
-      if (e.code == 'session-expired') msg = e.message ?? msg;
+      if (e.code == 'session-expired') msg = 'The code has expired. Ask for a new one and try again.';
+      if (msg == 'Registration failed') msg = friendlyError(e, 'Registration failed');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

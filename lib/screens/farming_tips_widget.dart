@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kilimomkononi/screens/tips/farming_tips_data.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const _kGreen = Color(0xFF2E7D32);
 const _kGreenDark = Color(0xFF1B5E20);
@@ -62,7 +63,7 @@ class _FarmingTipsWidgetState extends ConsumerState<FarmingTipsWidget> {
       ),
       body: lib.when(
         loading: () => const Center(child: CircularProgressIndicator(color: _kGreen)),
-        error: (e, _) => _Message(icon: Icons.error_outline_rounded, title: 'Couldn\'t load the guides', text: '$e'),
+        error: (e, _) => _Message(icon: Icons.error_outline_rounded, title: 'Couldn\'t load the guides', text: friendlyError(e)),
         data: (guides) {
           // Your crops first, then saved, then the rest (file order).
           int rank(CropGuide g) => mine.contains(g.key) ? 0 : (saved.contains(g.key) ? 1 : 2);

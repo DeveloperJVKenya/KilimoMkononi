@@ -29,6 +29,7 @@ import 'package:kilimomkononi/screens/pest%20management/photo_diagnosis_page.dar
 import 'package:kilimomkononi/services/advisory_intervention_service.dart';
 import 'package:kilimomkononi/services/nutrient_levels.dart';
 import 'package:kilimomkononi/services/pest_disease_catalog.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class AdvisoryDetailScreen extends StatefulWidget {
   final String? advisoryId;
@@ -549,7 +550,7 @@ class _SoilActionCardState extends State<_SoilActionCard> {
           ? 'Logged in Field Data (${plot.plotId}) — see Plot history'
           : 'Saved offline — syncs to Field Data when connected');
     } catch (e) {
-      widget.onDone('Could not log it: $e', ok: false);
+      widget.onDone(friendlyError(e, 'Could not log it'), ok: false);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -758,7 +759,7 @@ class _CheckCardState extends State<_CheckCard> {
           ? 'Logged in ${_isPest ? 'Pest' : 'Disease'} Management — see its history'
           : 'Saved offline — syncs when connected');
     } catch (e) {
-      widget.onDone('Could not log it: $e', ok: false);
+      widget.onDone(friendlyError(e, 'Could not log it'), ok: false);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

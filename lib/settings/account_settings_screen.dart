@@ -16,6 +16,7 @@ import 'package:intl/intl.dart';
 import 'package:kilimomkononi/services/session_service.dart';
 import 'package:kilimomkononi/settings/settings_providers.dart';
 import 'package:kilimomkononi/settings/widgets/settings_kit.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 /// Farmer collections whose documents carry `userId` and that owners may
 /// delete (see firestore.rules).
@@ -38,10 +39,10 @@ String authErrorMessage(Object e) {
       'requires-recent-login' => 'For your security, log out and sign in again, then try once more.',
       'too-many-requests' => 'Too many attempts. Please wait a few minutes and try again.',
       'network-request-failed' => 'No internet connection. Check your data or Wi-Fi.',
-      _ => e.message ?? 'Something went wrong (${e.code}).',
+      _ => friendlyError(e),
     };
   }
-  return '$e';
+  return friendlyError(e);
 }
 
 /// Where the verification / reset emails send people back to.

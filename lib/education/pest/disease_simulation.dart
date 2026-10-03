@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF003900);
 
@@ -72,7 +73,7 @@ class _DiseaseSimulationScreenState extends State<DiseaseSimulationScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
@@ -150,7 +151,7 @@ class _DiseaseSimulationScreenState extends State<DiseaseSimulationScreen> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: coll.where('type', isEqualTo: 'simulation').orderBy('createdAt', descending: true).snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+                  if (snapshot.hasError) return Center(child: Text(friendlyError(snapshot.error)));
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: primaryGreen));
                   }

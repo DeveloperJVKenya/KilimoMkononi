@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:logger/logger.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class ApprovalManagementScreen extends StatefulWidget {
   final String schoolName;
@@ -124,7 +125,7 @@ class _ApprovalManagementScreenState
       _logger.e('Error approving user: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error approving: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t approve'))),
         );
       }
     }
@@ -180,7 +181,7 @@ class _ApprovalManagementScreenState
       _logger.e('Error deleting user: \$e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: \$e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
@@ -206,7 +207,7 @@ class _ApprovalManagementScreenState
       _logger.e('Error denying user: $e');
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
@@ -408,7 +409,7 @@ class _ApprovalManagementScreenState
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(child: Text(friendlyError(snapshot.error)));
         }
 
         final docs = snapshot.data?.docs ?? [];

@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF032704);
 
@@ -137,7 +138,7 @@ class _FieldAllSchoolDataState extends State<FieldAllSchoolData> {
                     stream: _selectedCollection!.orderBy('createdAt', descending: true).snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
-                        return Center(child: Text('Error: ${snapshot.error}'));
+                        return Center(child: Text(friendlyError(snapshot.error)));
                       }
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator(color: primaryGreen));

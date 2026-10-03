@@ -53,6 +53,7 @@ import 'package:kilimomkononi/utils/education_utils.dart';
 import 'package:kilimomkononi/education/tutor/tutor_suppressor.dart';
 import 'package:kilimomkononi/services/plot_analysis_service.dart';
 import 'package:kilimomkononi/widgets/plot_history_card.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  DESIGN TOKENS  (match mockup palette)
@@ -1080,7 +1081,7 @@ class _PlotsTab extends StatelessWidget {
             return Center(
               child: _Empty(
                 icon: Icons.error_outline,
-                msg: 'Could not load plots.\n${snap.error}',
+                msg: friendlyError(snap.error, 'Could not load plots'),
                 color: _kRed,
               ),
             );

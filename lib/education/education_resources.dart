@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/models/education_user.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class EducationResources extends StatefulWidget {
   final EduRole role;
@@ -231,7 +232,7 @@ class _EducationResourcesState extends State<EducationResources> {
       stream: _getResourcesStream(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(child: Text(friendlyError(snapshot.error)));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {

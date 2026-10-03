@@ -46,6 +46,7 @@ import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/farm_alert_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 enum FarmEnvironmentCardMode { soilSummary, pestRisk }
 
@@ -120,7 +121,7 @@ class _FarmEnvironmentCardState extends State<FarmEnvironmentCard> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = '$e'; _loading = false; });
+      setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 

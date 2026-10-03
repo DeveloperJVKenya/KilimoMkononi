@@ -10,6 +10,7 @@ import 'package:kilimomkononi/services/google_auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:kilimomkononi/services/auth_state_service.dart';
 import 'package:kilimomkononi/widgets/google_logo.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class EducationLoginScreen extends StatefulWidget {
   const EducationLoginScreen({super.key});
@@ -40,7 +41,7 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
       if (e.code != 'user-not-found' &&
           e.code != 'wrong-password' &&
           e.code != 'invalid-credential') {
-        msg = e.message ?? 'Login failed';
+        msg = friendlyError(e, 'Could not sign in');
       }
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -111,7 +112,7 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google sign-in failed: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Google sign-in failed'))),
         );
       }
     } finally {
@@ -144,7 +145,7 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 import 'package:kilimomkononi/education/simulation/simulation_home.dart'; // For getSimulationWidget
 
 const Color _green = Color(0xFF032704);
@@ -60,7 +61,7 @@ class StudentSimulationResultScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator(color: _green));
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(child: Text(friendlyError(snapshot.error)));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(

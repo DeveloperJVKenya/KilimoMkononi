@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/screens/disease%20management/disease_model.dart';
 import 'package:logger/logger.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class UserDiseaseHistoryPage extends StatefulWidget {
   const UserDiseaseHistoryPage({super.key});
@@ -44,7 +45,7 @@ class _UserDiseaseHistoryPageState extends State<UserDiseaseHistoryPage> {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             _logger.e('Error fetching history: ${snapshot.error}');
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(child: Text(friendlyError(snapshot.error)));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -221,7 +222,7 @@ class _UserDiseaseHistoryPageState extends State<UserDiseaseHistoryPage> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating intervention: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t update intervention'))));
         }
       }
     }
@@ -263,7 +264,7 @@ class _UserDiseaseHistoryPageState extends State<UserDiseaseHistoryPage> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting intervention: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t delete intervention'))));
         }
       }
     }

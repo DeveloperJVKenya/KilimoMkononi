@@ -11,6 +11,7 @@ import 'package:kilimomkononi/models/pest_disease_model.dart';
 import 'package:kilimomkononi/models/farmer_issue_record.dart';
 import 'package:kilimomkononi/services/farmer_issue_service.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ── Theme ─────────────────────────────────────────────────────────────────
 const _kDark    = Color.fromARGB(255, 3, 39, 4);
@@ -64,7 +65,7 @@ class _ViewInterventionsPageState extends State<ViewInterventionsPage>
       );
       if (mounted) setState(() { _records = all; _loading = false; });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 
@@ -468,7 +469,7 @@ class _RecordCardState extends State<_RecordCard> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error setting reminder: $e')));
+            SnackBar(content: Text(friendlyError(e, 'Couldn\'t set reminder'))));
         }
       }
     }

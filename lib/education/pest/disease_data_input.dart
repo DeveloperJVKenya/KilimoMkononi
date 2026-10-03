@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/widgets/plot_history_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF388E3C);
 
@@ -41,7 +42,7 @@ Future<String> _callGemini(String systemPrompt, String userMessage) async {
     }
     return 'AI service error (${response.statusCode}). Please try again.';
   } catch (e) {
-    return 'Could not reach AI service: $e';
+    return friendlyError(e, 'Could not reach AI service');
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -554,7 +555,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -594,7 +595,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
     _submissionsCollection!.add(data).catchError((e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t submit')), backgroundColor: Colors.red),
         );
       }
       throw e;
@@ -719,7 +720,7 @@ class _DiseaseDataInputState extends State<DiseaseDataInput>
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: \$e'), backgroundColor: Colors.red),
+                      SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
                     );
                   }
                 }
@@ -1264,7 +1265,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
               _submissionsCollection!.doc(docId).update(fields).catchError((e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                    SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
                 }
               });
             },
@@ -1561,7 +1562,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
                   }
                 }
               },
@@ -1975,7 +1976,7 @@ class DiseaseSubmissionsViewerPage extends StatelessWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
           );
         }
       }
@@ -1996,7 +1997,7 @@ class DiseaseSubmissionsViewerPage extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
         );
       }
     }
@@ -2114,7 +2115,7 @@ class DiseaseSubmissionsViewerPage extends StatelessWidget {
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                      SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
                     );
                   }
                 }
@@ -2251,7 +2252,7 @@ class DiseaseSubmissionsViewerPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            snapshot.error.toString(),
+                            friendlyError(snapshot.error),
                             textAlign: TextAlign.center,
                             style: const TextStyle(fontSize: 12),
                           ),

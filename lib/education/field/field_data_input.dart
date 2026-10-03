@@ -16,6 +16,7 @@ import 'package:kilimomkononi/widgets/plot_history_card.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
 import 'package:kilimomkononi/education/widgets/school_conditions_widget.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const String baseUrl = "https://us-central1-kilimomkononi-e1031.cloudfunctions.net/askGemini";
 
@@ -955,7 +956,7 @@ Keep language practical for Kenyan secondary school teachers.
                 );
               } catch (e) {
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
               }
             },
             icon: const Icon(Icons.send),
@@ -1328,7 +1329,7 @@ Keep language practical for Kenyan secondary school teachers.
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text('⚠️ Could not load data: ${snapshot.error}',
+            child: Text(friendlyError(snapshot.error, '⚠️ Could not load data'),
                 style: TextStyle(color: Colors.red.shade800, fontSize: 12)),
           );
         }
@@ -1828,7 +1829,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t save')), backgroundColor: Colors.red),
         );
       }
     }
@@ -2011,7 +2012,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
             decoration: BoxDecoration(
                 color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
             child: Text(
-              '⚠️ Could not load soil data: ${snapshot.error}',
+              friendlyError(snapshot.error, '⚠️ Could not load soil data'),
               style: TextStyle(color: Colors.red.shade800, fontSize: 12),
             ),
           );
@@ -2207,7 +2208,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -2264,7 +2265,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -2670,7 +2671,7 @@ Please:
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
                 );
               }
             },
@@ -3042,7 +3043,7 @@ Write a 2–3 sentence teaching comment/question for this student. Be encouragin
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
                   );
                 }
               },
@@ -3319,7 +3320,7 @@ Write a 2–3 sentence teaching comment for this student's soil observation. Be 
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
                   );
                 }
               },

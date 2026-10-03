@@ -34,6 +34,7 @@ import 'package:kilimomkononi/education/primary/ai/primary_lesson_plan_sheet.dar
 import 'package:kilimomkononi/education/primary/ai/primary_class_summary_sheet.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_daily_challenge_service.dart';
 import 'package:kilimomkononi/education/primary/ai/primary_progress_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ─────────────────────────────────────────────────────────────────
 //  Topic definition (used by sidebar + grid + daily challenge)
@@ -174,7 +175,7 @@ class _PrimaryHomeScreenState extends State<PrimaryHomeScreen>
       if (classIdNotifier.value == null && classId != null) classIdNotifier.value = classId;
       _refreshContent();
     } catch (e) {
-      setState(() { _errorMessage = 'Failed to load: $e'; _isLoading = false; });
+      setState(() { _errorMessage = friendlyError(e, 'Couldn\'t load'); _isLoading = false; });
     }
   }
 
@@ -1590,7 +1591,7 @@ class _PrimaryClassPickerSheetState extends State<_PrimaryClassPickerSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')));
+          SnackBar(content: Text(friendlyError(e))));
       }
     }
   }

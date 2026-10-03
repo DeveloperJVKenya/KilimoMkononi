@@ -21,6 +21,7 @@ import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_ser
 import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 import 'package:kilimomkononi/settings/notifications_screen.dart';
 import 'package:kilimomkononi/widgets/google_weather_widgets.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class _C {
   static const darkGreen = Color.fromARGB(255, 3, 39, 4);
@@ -265,7 +266,7 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = friendlyError(e);
         _loading = false;
       });
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/models/field_data_model.dart';
 import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class PlotSummaryTab extends StatefulWidget {
   final String userId;
@@ -139,7 +140,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
           }
 
           if (snapshot.hasError) {
-            return _errorView(snapshot.error.toString());
+            return _errorView(friendlyError(snapshot.error));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -156,7 +157,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
                     ))
                 .toList();
           } catch (e) {
-            return _errorView('Error parsing records: $e');
+            return _errorView(friendlyError(e, 'Couldn\'t read records'));
           }
 
           final filtered =
@@ -997,7 +998,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
       } catch (e) {
         if (mounted) {
           scaffoldMessenger.showSnackBar(
-              SnackBar(content: Text('Error: $e')));
+              SnackBar(content: Text(friendlyError(e))));
         }
       }
     }
@@ -1075,7 +1076,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
       } catch (e) {
         if (mounted) {
           messenger.showSnackBar(
-              SnackBar(content: Text('Error deleting: $e')));
+              SnackBar(content: Text(friendlyError(e, 'Couldn\'t delete'))));
         }
       }
     }

@@ -16,6 +16,7 @@ import 'package:kilimomkononi/services/auth_state_service.dart';
 import 'package:kilimomkononi/services/google_auth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -164,7 +165,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
       if (e.code == 'weak-password') _passwordFocus.requestFocus();
     } catch (e) {
       _logger.e('Sign up failed: $e');
-      _show('Could not create your account: $e');
+      _show(friendlyError(e, 'Could not create your account'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -210,7 +211,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
     } on GoogleAuthException catch (e) {
       _show(e.message);
     } catch (e) {
-      _show('Google sign-up failed: $e');
+      _show(friendlyError(e, 'Google sign-up failed'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -20,6 +20,7 @@ import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 /// The phone's notification permission (null = unknown on this platform).
 final notificationPermissionProvider = FutureProvider.autoDispose<PermissionStatus?>((ref) async {
@@ -50,7 +51,7 @@ class NotificationsSettingsScreen extends ConsumerWidget {
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator(color: KmColors.green)),
         error: (e, _) => KmEmptyState(
-            icon: Icons.error_outline_rounded, title: 'Could not load settings', message: '$e', color: KmColors.red),
+            icon: Icons.error_outline_rounded, title: 'Could not load settings', message: friendlyError(e), color: KmColors.red),
         data: (p) => _SettingsBody(prefs: p, isEducation: isEducation),
       ),
     );
@@ -78,7 +79,7 @@ class _SettingsBody extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Could not save: $e'),
+          content: Text(friendlyError(e, 'Could not save')),
           backgroundColor: KmColors.red,
           behavior: SnackBarBehavior.floating,
         ));

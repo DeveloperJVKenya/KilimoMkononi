@@ -16,6 +16,7 @@ import 'package:kilimomkononi/authentication/widgets/auth_kit.dart' show EnterTo
 import 'package:kilimomkononi/data/kenya_locations.dart';
 import 'package:kilimomkononi/settings/settings_providers.dart';
 import 'package:kilimomkononi/settings/widgets/settings_kit.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 /// Kenyan phone: 07XXXXXXXX / 01XXXXXXXX or +2547… / +2541….
 String? validateKenyanPhone(String? v) {
@@ -87,7 +88,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         _dirty = true;
       });
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Couldn\'t open the photo: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t open the photo'))));
     }
   }
 
@@ -148,7 +149,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           const SnackBar(content: Text('Profile saved'), backgroundColor: kSetGreen));
       Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Couldn\'t save: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t save'))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

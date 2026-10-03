@@ -23,6 +23,7 @@ import 'package:kilimomkononi/widgets/weather_station_inline_panel.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/widgets/ai_advice_card.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 //
 
 // ── Step-progress AppBar for disease subpages ─────────────────────────────────
@@ -4414,7 +4415,7 @@ dosage per litre and timing in "how".
     } catch (e) {
       if (mounted) {
         setState(() {
-          _aiAdvice = AiAdviceData.error('AI photo error: $e');
+          _aiAdvice = AiAdviceData.error(friendlyError(e, 'AI photo error'));
           _aiLoading = false;
         });
       }

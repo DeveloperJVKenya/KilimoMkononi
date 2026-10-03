@@ -19,6 +19,7 @@ import 'package:kilimomkononi/data/kenya_locations.dart';
 import 'package:kilimomkononi/screens/market/market_prices.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart' show fullStamp, relativeTime, KmTag;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const _kAccent = Color(0xFF2E6A5E); // muted teal — calm on the eyes outdoors
 const _kAccentDark = Color(0xFF1F4D44);
@@ -139,7 +140,7 @@ Future<void> openKamis(BuildContext context) async {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Couldn\'t open the browser')));
     }
   } catch (e) {
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Couldn\'t open KAMIS: $e')));
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t open KAMIS'))));
   }
 }
 
@@ -1064,7 +1065,7 @@ class _PriceFormState extends State<_PriceForm> {
         backgroundColor: _kGreen,
       ));
     } catch (e) {
-      setState(() => _error = 'Couldn\'t save: $e');
+      setState(() => _error = friendlyError(e, 'Couldn\'t save'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

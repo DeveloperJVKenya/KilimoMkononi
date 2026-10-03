@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 import 'package:kilimomkononi/education/tutor/tutor_chat_screen.dart';
 import 'gemini_quiz_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color _green = Color(0xFF032704);
 
@@ -810,7 +811,7 @@ Future<void> _onMcqTap(int sel) async {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to save quiz: $e'),
+              content: Text(friendlyError(e, 'Couldn\'t save quiz')),
               backgroundColor: Colors.red,
             ),
           );
@@ -1338,7 +1339,7 @@ class _SubmissionList extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                Text('Error: ${snapshot.error}',
+                Text(friendlyError(snapshot.error),
                     style: const TextStyle(
                         fontSize: 11, color: Colors.grey)),
               ]),

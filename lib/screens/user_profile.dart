@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 /// ---------------------------------------------------------------
 /// UserProfileScreen – works for Farmer, Teacher, and Student
@@ -235,7 +236,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Update failed'))),
         );
       }
     } finally {

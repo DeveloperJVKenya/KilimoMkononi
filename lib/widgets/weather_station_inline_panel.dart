@@ -38,6 +38,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ── Palette (mirrors weather_station_screen.dart) ──────────────────────────
 class _C {
@@ -98,7 +99,7 @@ class _WeatherStationInlinePanelState
       setState(() { _r = r; _loading = false; });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = '$e'; _loading = false; });
+      setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 

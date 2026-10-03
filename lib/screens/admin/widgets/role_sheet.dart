@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kilimomkononi/screens/admin/admin_providers.dart';
 import 'package:kilimomkononi/screens/admin/widgets/interactive_tile.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 Future<void> showRoleSheet(BuildContext context, AdminRole role) {
   return showModalBottomSheet(
@@ -104,7 +105,7 @@ class _RoleSheetState extends ConsumerState<_RoleSheet> {
 
   String _errorText() {
     final err = ref.read(roleControllerProvider).error;
-    return err is StateError ? err.message : 'Something went wrong: $err';
+    return err is StateError ? err.message : friendlyError(err);
   }
 
   void _toast(String msg, bool ok) {
@@ -240,7 +241,7 @@ class _RoleSheetState extends ConsumerState<_RoleSheet> {
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (e, _) => Text(
-            'Could not load members: $e',
+            friendlyError(e, 'Could not load members'),
             style: const TextStyle(color: Color(0xFFC62828), fontSize: 12),
           ),
           data: (list) => list.isEmpty
@@ -295,7 +296,7 @@ class _SearchResults extends ConsumerWidget {
       child: results.when(
         loading: () => const LinearProgressIndicator(minHeight: 2),
         error: (e, _) => Text(
-          'Search failed: $e',
+          friendlyError(e, 'Search failed'),
           style: const TextStyle(color: Color(0xFFC62828), fontSize: 12),
         ),
         data: (list) => list.isEmpty

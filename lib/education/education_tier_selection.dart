@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ─────────────────────────────────────────────────────────────────
 //  School code generator
@@ -227,7 +228,7 @@ class _EducationTierSelectionScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Couldn\'t save'))),
         );
         setState(() => _saving = false);
       }

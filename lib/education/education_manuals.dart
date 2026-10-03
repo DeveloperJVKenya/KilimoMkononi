@@ -12,6 +12,7 @@ import 'package:open_file/open_file.dart';
 
 import '../utils/class_id_notifier.dart';
 import '../models/education_user.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color primaryGreen = Color(0xFF032704);
 const Color fabGreen = Color(0xFF4CAF50);
@@ -216,7 +217,7 @@ class _EducationManualsState extends State<EducationManuals> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Upload failed'))),
         );
       }
     } finally {
@@ -237,7 +238,7 @@ class _EducationManualsState extends State<EducationManuals> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open PDF: $e')),
+          SnackBar(content: Text(friendlyError(e, 'Could not open PDF'))),
         );
       }
     }

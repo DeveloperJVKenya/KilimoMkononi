@@ -26,6 +26,7 @@ import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 // ── Shared colour tokens (keeps parity with app theme) ─────────────────────
 class _C {
@@ -566,7 +567,7 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = '$e'; _loading = false; });
+      setState(() { _error = friendlyError(e); _loading = false; });
     }
   }
 

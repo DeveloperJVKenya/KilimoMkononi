@@ -31,6 +31,7 @@ import 'package:kilimomkononi/settings/notifications/notification_providers.dart
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
 import 'package:kilimomkononi/settings/notifications_settings_screen.dart';
 import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 enum NotificationsTab { inbox, advice, reminders, tasks }
 
@@ -252,7 +253,7 @@ Widget _chips<T>({
     );
 
 Widget _error(Object e) => KmEmptyState(
-    icon: Icons.error_outline_rounded, title: 'Could not load', message: '$e', color: KmColors.red);
+    icon: Icons.error_outline_rounded, title: 'Could not load', message: friendlyError(e), color: KmColors.red);
 
 Future<bool> _confirm(BuildContext context, String title, String message, String action) async =>
     await showDialog<bool>(

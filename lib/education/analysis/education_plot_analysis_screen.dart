@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const Color _appGreen = Color(0xFF003900);
 
@@ -269,7 +270,7 @@ Return this exact JSON structure:
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
         );
       }
     } finally {

@@ -23,6 +23,7 @@ import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel
 import 'package:kilimomkononi/screens/admin/data/admin_collection_spec.dart';
 import 'package:kilimomkononi/screens/admin/data/admin_data_providers.dart';
 import 'package:kilimomkononi/settings/notifications/notification_style.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 
 const _kPage = Color(0xFFF4F6F3);
 const _kInk = Color(0xFF1B2A1B);
@@ -132,7 +133,7 @@ class _AdminCollectionScreenState extends ConsumerState<AdminCollectionScreen> {
           icon: Icons.error_outline_rounded,
           color: Colors.red,
           title: 'Could not load ${spec.title.toLowerCase()}',
-          text: '$e',
+          text: friendlyError(e),
         ),
         data: (v) {
           final list = Column(children: [
@@ -800,7 +801,7 @@ class _BulkBar extends ConsumerWidget {
         q.clearSelection();
         if (context.mounted) showAdminSnack(context, '$label: $n ${spec.singular}${n == 1 ? '' : 's'}');
       } catch (e) {
-        if (context.mounted) showAdminSnack(context, 'Failed: $e', error: true);
+        if (context.mounted) showAdminSnack(context, friendlyError(e), error: true);
       }
     }
 
@@ -919,7 +920,7 @@ class AdminRecordDetail extends ConsumerWidget {
         await op();
         if (context.mounted) showAdminSnack(context, done);
       } catch (e) {
-        if (context.mounted) showAdminSnack(context, 'Failed: $e', error: true);
+        if (context.mounted) showAdminSnack(context, friendlyError(e), error: true);
       }
     }
 
@@ -1204,7 +1205,7 @@ Future<void> showAdminEditDialog(BuildContext context, WidgetRef ref, AdminColle
         showAdminSnack(context, changes.isEmpty ? 'Nothing changed' : 'Saved ${changes.length} change${changes.length == 1 ? '' : 's'}');
       }
     } catch (e) {
-      if (context.mounted) showAdminSnack(context, 'Save failed: $e', error: true);
+      if (context.mounted) showAdminSnack(context, friendlyError(e, 'Save failed'), error: true);
     }
   }
   for (final c in ctrls.values) {
