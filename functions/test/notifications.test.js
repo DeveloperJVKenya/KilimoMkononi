@@ -188,6 +188,46 @@ describe("advisory pushes", () => {
   });
 });
 
+describe("moderate and typed (custom) conditions", () => {
+  const base = { hasData: true, airTemp: 22, humidity: 60, rainfall: 0, windSpeed: 2, lwdHour: 0, lwdConsecutiveHours: 0, vpd: 1, sprayQualityIndex: 0, sprayQualityLabel: "" };
+  test("moderate: mild, calm and dry (same as the app)", () => {
+    assert.ok(n.activeConditions(base).has("moderate"));
+    assert.ok(!n.activeConditions({ ...base, airTemp: 34 }).has("moderate"));
+    assert.ok(!n.activeConditions({ ...base, rainfall: 2 }).has("moderate"));
+    assert.ok(!n.activeConditions({ ...base, humidity: 90 }).has("moderate"));
+    assert.ok(!n.activeConditions({ ...base, windSpeed: 7 }).has("moderate"));
+  });
+  test("typed condition ranges are checked against the reading", () => {
+    const warmHumid = { label: "Warm and humid", tempMin: 20, tempMax: 30, humidityMin: 70 };
+    assert.ok(n.customHasRanges(warmHumid));
+    assert.ok(n.customConditionApplies(warmHumid, { ...base, airTemp: 25, humidity: 75 }));
+    assert.ok(!n.customConditionApplies(warmHumid, { ...base, airTemp: 25, humidity: 60 }));
+    assert.ok(!n.customConditionApplies(warmHumid, { ...base, humidity: 75, hasData: false }));
+    assert.ok(!n.customHasRanges({ label: "Before planting", tempMin: null }));
+    assert.ok(n.customConditionApplies({ label: "Before planting" }, null));
+  });
+  test("typed conditions without ranges are pushed at publish; with ranges by the sweep", () => {
+    assert.ok(n.pushesAtPublish({ condition: "custom", customCondition: { label: "Before planting" } }));
+    assert.ok(!n.pushesAtPublish({ condition: "custom", customCondition: { label: "x", rainMin: 5 } }));
+    assert.ok(!n.pushesAtPublish({ condition: "moderate" }));
+  });
+  test("the typed name labels the push", () => {
+    const a = { __id: "a1", condition: "custom", customCondition: { label: "After hail" }, crops: ["Kales"], main: "Cut damaged leaves" };
+    assert.equal(n.conditionLabelOf(a), "After hail");
+    assert.match(n.advisoryNotification(a, "new").title, /After hail/);
+    assert.equal(n.conditionLabelOf({ condition: "moderate" }), "Moderate weather");
+  });
+  test("combined crop names match their parts, and push to each part's topic", () => {
+    assert.ok(n.cropsMatch(["Kales"], ["Cabbages/Kales"]));
+    assert.ok(n.cropsMatch(["Cabbages/Kales"], ["Cabbages"]));
+    assert.ok(!n.cropsMatch(["Kales"], ["Cabbages"]));
+    assert.deepEqual(n.cropTopicsFor("Cabbages/Kales"), ["km_crop_cabbages_kales", "km_crop_cabbages", "km_crop_kales"]);
+    assert.deepEqual(n.advisoryAudience({ crops: ["Cabbages/Kales", "Kales"] }).topics,
+      ["km_crop_cabbages_kales", "km_crop_cabbages", "km_crop_kales"]);
+    assert.equal(n.cropTopic("Amaranth (Pigweed)"), "km_crop_amaranth_pigweed");
+  });
+});
+
 describe("buildMessage", () => {
   test("uses the app's channel, icon and colour; data values are strings", () => {
     const m = n.buildMessage({ title: "t", body: "b", channel: n.CHANNEL.weather, route: n.ROUTE.weatherStation, data: { x: 1 } });
@@ -440,6 +480,28 @@ describe("triggers (Firestore emulator)", { skip: !emulator && "FIRESTORE_EMULAT
     await db.doc("agronomic_advisories/humid-maize").update({ version: 3 });
     await sweep(liveReading({ humidity: 85, timestamp: new Date(NOW + 27 * 3600e3 - 60e3) }))(NOW + 27 * 3600e3);
     assert.equal(sent.length, 0);
+  });
+
+  test("sweep: typed-condition advice goes out when its ranges match; moderate advice too", async () => {
+    await twoFarmers();
+    await publish("warm-humid", {
+      condition: "custom", crops: ["Maize"], main: "Scout for rust",
+      customCondition: { label: "Warm and humid", tempMin: 20, tempMax: 30, humidityMin: 75 },
+    });
+    await publish("mild-tomato", { condition: "moderate", crops: ["Tomatoes"], main: "Good day to top-dress" });
+
+    // 22°C, 60%: moderate (farmer2's tomatoes); the typed range doesn't match.
+    await sweep(liveReading())(NOW);
+    assert.deepEqual(sent.map((m) => m.data.advisoryId), ["mild-tomato"]);
+    assert.deepEqual(tokensOf(sent[0]), ["tok-farmer2"]);
+
+    // 25°C, 78% humid: the typed condition holds → farmer1 (maize).
+    sent = [];
+    await sweep(liveReading({ airTemp: 25, humidity: 78, timestamp: new Date(NOW + 3600e3 - 60e3) }))(NOW + 3600e3);
+    const typed = sent.filter((m) => m.data.advisoryId === "warm-humid");
+    assert.equal(typed.length, 1);
+    assert.deepEqual(tokensOf(typed[0]), ["tok-farmer1"]);
+    assert.match(typed[0].notification.title, /Warm and humid/);
   });
 
   test("sweep: an offline or stale station sends nothing", async () => {

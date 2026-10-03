@@ -190,13 +190,16 @@ class Pill extends StatelessWidget {
 
 class ConditionPill extends StatelessWidget {
   final String conditionKey;
-  const ConditionPill(this.conditionKey, {super.key});
+
+  /// The name to show instead of the key's own (a typed condition's name).
+  final String? label;
+  const ConditionPill(this.conditionKey, {super.key, this.label});
 
   @override
   Widget build(BuildContext context) {
     final c = conditionFor(conditionKey);
     return Pill(
-      c.label,
+      (label ?? '').trim().isNotEmpty ? label!.trim() : c.label,
       icon: c.icon,
       fg: const Color(0xFF0D47A1),
       bg: const Color(0xFFE3F2FD),
@@ -260,6 +263,9 @@ class VerifiedAdvisoryCard extends StatelessWidget {
   final StructuredAdvice advice;
   final List<String> crops;
   final String condition;
+
+  /// A typed condition's name (when [condition] is 'custom').
+  final String? conditionLabel;
   final String? verifierName;
   final DateTime? verifiedAt;
   final bool stationScoped;
@@ -277,6 +283,7 @@ class VerifiedAdvisoryCard extends StatelessWidget {
     required this.advice,
     required this.crops,
     required this.condition,
+    this.conditionLabel,
     this.verifierName,
     this.verifiedAt,
     this.stationScoped = false,
@@ -295,6 +302,7 @@ class VerifiedAdvisoryCard extends StatelessWidget {
         advice: a.advice,
         crops: a.crops,
         condition: a.condition,
+        conditionLabel: a.isCustomCondition ? a.conditionLabel : null,
         verifierName: a.publishedByName,
         verifiedAt: a.publishedAt,
         stationScoped: a.isStationScoped,
@@ -341,7 +349,7 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                ConditionPill(condition),
+                ConditionPill(condition, label: conditionLabel),
               ],
             ),
           ),

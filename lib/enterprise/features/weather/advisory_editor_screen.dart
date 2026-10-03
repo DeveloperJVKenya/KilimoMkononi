@@ -1,10 +1,12 @@
 // lib/enterprise/features/weather/advisory_editor_screen.dart
 //
 // Create / edit / verify a weather advisory. Sections:
-//   1. Target — crops, weather condition, station scope
+//   1. Target — crops (listed or typed), weather condition (listed, or
+//      typed with optional ranges), station scope
 //   2. AI assist — optional Gemini draft (kept for audit), always reviewed
 //   3. Advice — MAIN / DO / AVOID / WHY
-//   4. Soil & fertiliser actions — per nutrient, by Low / Moderate / High
+//   4. Soil & fertiliser actions — per nutrient and crop stage, by Low /
+//      Moderate / High, rates per acre / hectare scaled to each plot
 //   5. Pests to check  6. Diseases to check — signs, what to do if found
 //   7. Farmer preview — exactly what farmers will see
 //   Verification + actions (save draft, publish/update, unpublish,
@@ -51,6 +53,17 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
   final _doCtrl = TextEditingController();
   final _avoidCtrl = TextEditingController();
   final _whyCtrl = TextEditingController();
+  final _newCropCtrl = TextEditingController();
+
+  // Typed ("Other") condition: its name and optional ranges.
+  final _customLabelCtrl = TextEditingController();
+  final _rangeCtrls = {
+    for (final k in const [
+      'tempMin', 'tempMax', 'humidityMin', 'humidityMax',
+      'windMin', 'windMax', 'rainMin', 'rainMax',
+    ])
+      k: TextEditingController(),
+  };
 
   late Set<String> _crops;
   late String _condition;
@@ -90,6 +103,17 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       _aiDraft = e.aiDraft;
       _actions = e.actions;
       _fill(e.advice);
+      final cc = e.customCondition;
+      if (cc != null) {
+        _customLabelCtrl.text = cc.label;
+        final m = cc.toMap();
+        for (final r in _rangeCtrls.entries) {
+          final v = m[r.key];
+          if (v is num) {
+            r.value.text = v == v.roundToDouble() ? v.toStringAsFixed(0) : '$v';
+          }
+        }
+      }
     } else {
       _crops = {kAllCrops};
       _condition = widget.presetCondition ?? 'general';
@@ -97,25 +121,30 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       _stationName = null;
     }
     _lastText = _textSnapshot;
-    for (final c in [_mainCtrl, _doCtrl, _avoidCtrl, _whyCtrl]) {
+    for (final c in _trackedCtrls) {
       c.addListener(_onTextChanged);
     }
   }
 
+  List<TextEditingController> get _trackedCtrls => [
+    _mainCtrl,
+    _doCtrl,
+    _avoidCtrl,
+    _whyCtrl,
+    _customLabelCtrl,
+    ..._rangeCtrls.values,
+  ];
+
   @override
   void dispose() {
-    for (final c in [_mainCtrl, _doCtrl, _avoidCtrl, _whyCtrl]) {
+    for (final c in [..._trackedCtrls, _newCropCtrl]) {
       c.dispose();
     }
     super.dispose();
   }
 
-  String get _textSnapshot => [
-    _mainCtrl.text,
-    _doCtrl.text,
-    _avoidCtrl.text,
-    _whyCtrl.text,
-  ].join('\n---\n');
+  String get _textSnapshot =>
+      _trackedCtrls.map((c) => c.text).join('\n---\n');
 
   // Controllers also notify on cursor moves — only react to real text edits.
   void _onTextChanged() {
@@ -169,9 +198,36 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
           ..._crops.where((c) => !kAdvisoryCrops.contains(c)),
         ];
 
+  bool get _isCustom => _condition == kCustomCondition;
+
+  double? _rangeValue(String k) =>
+      double.tryParse(_rangeCtrls[k]!.text.trim().replaceAll(',', '.'));
+
+  /// The typed condition, when "Other" is chosen.
+  CustomCondition? get _custom => !_isCustom
+      ? null
+      : CustomCondition(
+          label: _customLabelCtrl.text.trim(),
+          tempMin: _rangeValue('tempMin'),
+          tempMax: _rangeValue('tempMax'),
+          humidityMin: _rangeValue('humidityMin'),
+          humidityMax: _rangeValue('humidityMax'),
+          windMin: _rangeValue('windMin'),
+          windMax: _rangeValue('windMax'),
+          rainMin: _rangeValue('rainMin'),
+          rainMax: _rangeValue('rainMax'),
+        );
+
+  String get _conditionLabel {
+    if (!_isCustom) return conditionFor(_condition).label;
+    final t = _customLabelCtrl.text.trim();
+    return t.isEmpty ? 'Custom condition' : t;
+  }
+
   String get _autoTitle {
     final crops = _cropList.join(', ');
-    return '${conditionFor(_condition).label} — $crops';
+    final title = '$_conditionLabel — $crops';
+    return title.length <= 200 ? title : '${title.substring(0, 197)}…';
   }
 
   AdvisoryContent get _content => AdvisoryContent(
@@ -179,6 +235,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
     advice: _advice,
     crops: _cropList,
     condition: _condition,
+    customCondition: _custom,
     gatewayId: _gatewayId,
     stationName: _stationName,
     source: _source,
@@ -189,6 +246,18 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
 
   String? _validate({required bool forPublish}) {
     if (_cropList.isEmpty) return 'Pick at least one crop.';
+    if (_cropList.length > 20) return 'Pick at most 20 crops.';
+    if (_isCustom) {
+      final label = _customLabelCtrl.text.trim();
+      if (label.isEmpty) return 'Name the weather condition (section 1).';
+      if (label.length > 60) return 'Keep the condition name under 60 characters.';
+      final bad = _rangeCtrls.entries.where(
+        (e) => e.value.text.trim().isNotEmpty && _rangeValue(e.key) == null,
+      );
+      if (bad.isNotEmpty) return 'Condition ranges must be numbers, e.g. 18 or 2.5.';
+      final range = _custom!.invalidRange;
+      if (range != null) return 'The $range range has its minimum above its maximum.';
+    }
     if (_advice.main.isEmpty) return 'Write the main action.';
     if (_advice.main.length > 200) {
       return 'Keep the main action under 200 characters.';
@@ -230,6 +299,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
       final r = await AgronomicAdvisoryService.generateAiDraft(
         crops: _cropList,
         conditionKey: _condition,
+        customCondition: _custom,
         reading: widget.reading,
       );
       if (!mounted) return;
@@ -452,6 +522,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                   advice: _advice,
                   crops: _cropList,
                   condition: _condition,
+                  conditionLabel: _isCustom ? _conditionLabel : null,
                   stationScoped: _gatewayId != null,
                   preview: true,
                   testOnly: _testOnly,
@@ -536,6 +607,25 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                 .map(_cropChip),
           ],
         ),
+        if (!_readOnly) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _newCropCtrl,
+                textCapitalization: TextCapitalization.words,
+                onSubmitted: (_) => _addTypedCrop(),
+                decoration: _fieldDeco('Another crop', 'Type a crop that isn\'t listed'),
+              ),
+            ),
+            const SizedBox(width: 6),
+            IconButton.filledTonal(
+              tooltip: 'Add crop',
+              onPressed: _addTypedCrop,
+              icon: const Icon(Icons.add_rounded),
+            ),
+          ]),
+        ],
         const SizedBox(height: 14),
         _label('Show when the station reads'),
         Wrap(
@@ -570,9 +660,10 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          conditionFor(_condition).description,
+          _isCustom ? _custom!.description : conditionFor(_condition).description,
           style: const TextStyle(fontSize: 11, color: Colors.black45),
         ),
+        if (_isCustom) _customConditionFields(),
         const SizedBox(height: 14),
         _label('Stations'),
         SegmentedButton<bool>(
@@ -605,6 +696,86 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
           },
         ),
       ],
+    );
+  }
+
+  InputDecoration _fieldDeco(String label, [String? hint]) => InputDecoration(
+    labelText: label,
+    hintText: hint,
+    isDense: true,
+    filled: true,
+    fillColor: const Color(0xFFFAFBFA),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+  );
+
+  /// Adds the typed crop (matching a listed crop's spelling when it is one).
+  void _addTypedCrop() {
+    final t = _newCropCtrl.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (t.isEmpty) return;
+    final listed = kAdvisoryCrops.where((c) => c.toLowerCase() == t.toLowerCase());
+    final crop = listed.isNotEmpty ? listed.first : t;
+    setState(() {
+      _crops
+        ..remove(kAllCrops)
+        ..add(crop);
+      _newCropCtrl.clear();
+    });
+    _touched();
+  }
+
+  Widget _customConditionFields() {
+    Widget range(String title, String unit, String minKey, String maxKey) => Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(children: [
+        SizedBox(
+          width: 92,
+          child: Text('$title ($unit)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(
+          child: TextField(
+            controller: _rangeCtrls[minKey],
+            enabled: !_readOnly,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            decoration: _fieldDeco('Min'),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: TextField(
+            controller: _rangeCtrls[maxKey],
+            enabled: !_readOnly,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            decoration: _fieldDeco('Max'),
+          ),
+        ),
+      ]),
+    );
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F8FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBBDEFB)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        TextField(
+          controller: _customLabelCtrl,
+          enabled: !_readOnly,
+          maxLength: 60,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: _fieldDeco('Condition name *', 'e.g. Warm and humid after rain'),
+        ),
+        const Text(
+          'Optional: when the station reads inside every range you fill in, '
+          'farmers get this advice. Leave all empty to show it in any weather.',
+          style: TextStyle(fontSize: 11.5, color: Colors.black54, height: 1.35),
+        ),
+        range('Temperature', '°C', 'tempMin', 'tempMax'),
+        range('Humidity', '%', 'humidityMin', 'humidityMax'),
+        range('Wind', 'm/s', 'windMin', 'windMax'),
+        range('Rain', 'mm/h', 'rainMin', 'rainMax'),
+      ]),
     );
   }
 
@@ -1024,6 +1195,7 @@ class _AuditHistory extends StatelessWidget {
               ),
               crops: list(s['crops']),
               condition: '${s['condition'] ?? 'general'}',
+              conditionLabel: CustomCondition.fromMap(s['customCondition'])?.label,
               stationScoped: s['gatewayId'] != null,
               actions: AdviceActions.fromDoc(Map<String, dynamic>.from(s)),
               verifierName: h.byName,

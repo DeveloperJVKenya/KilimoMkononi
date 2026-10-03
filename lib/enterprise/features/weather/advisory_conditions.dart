@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/services/nutrient_levels.dart';
 
 class AdvisoryCondition {
   final String key;
@@ -80,7 +81,22 @@ const List<AdvisoryCondition> kAdvisoryConditions = [
     'Spray-quality score good (or calm and dry)',
     Icons.check_circle_outline_rounded,
   ),
+  AdvisoryCondition(
+    'moderate',
+    'Moderate weather',
+    'Mild and calm: 15–32°C, humidity 40–80%, wind up to 5 m/s, no rain',
+    Icons.wb_cloudy_outlined,
+  ),
+  AdvisoryCondition(
+    kCustomCondition,
+    'Other (type your own)',
+    'Name the condition and set the ranges it applies to',
+    Icons.edit_note_rounded,
+  ),
 ];
+
+/// The condition key for one an agronomist typed (see [CustomCondition]).
+const kCustomCondition = 'custom';
 
 AdvisoryCondition conditionFor(String key) => kAdvisoryConditions.firstWhere(
   (c) => c.key == key,
@@ -108,26 +124,129 @@ Set<String> activeConditionKeys(NuaSenseReading r) {
       ? r.sprayQualityGood
       : (r.goodSprayWind && !raining);
   if (goodSpray && !raining) keys.add('good_spray');
+  if (!raining &&
+      r.airTemp >= 15 && r.airTemp <= 32 &&
+      r.humidity >= 40 && r.humidity <= 80 &&
+      r.windSpeed <= 5) {
+    keys.add('moderate');
+  }
   return keys;
+}
+
+// ── Custom (typed) condition ───────────────────────────────────────────────
+
+/// A condition an agronomist typed, stored on the advisory as
+/// `customCondition: {label, tempMin, tempMax, humidityMin, humidityMax,
+/// windMin, windMax, rainMin, rainMax}` (each range end optional).
+///
+/// With no ranges it applies whatever the weather (like "Any conditions",
+/// under its own name). With ranges it applies when the station reading is
+/// inside all of them — the same check as customConditionApplies() in
+/// functions/notifications.js.
+class CustomCondition {
+  final String label;
+  final double? tempMin, tempMax;
+  final double? humidityMin, humidityMax;
+  final double? windMin, windMax;
+  final double? rainMin, rainMax;
+
+  const CustomCondition({
+    required this.label,
+    this.tempMin,
+    this.tempMax,
+    this.humidityMin,
+    this.humidityMax,
+    this.windMin,
+    this.windMax,
+    this.rainMin,
+    this.rainMax,
+  });
+
+  static double? _num(dynamic v) => v is num ? v.toDouble() : null;
+
+  static CustomCondition? fromMap(dynamic m) {
+    if (m is! Map) return null;
+    final label = '${m['label'] ?? ''}'.trim();
+    return CustomCondition(
+      label: label.isEmpty ? 'Custom condition' : label,
+      tempMin: _num(m['tempMin']),
+      tempMax: _num(m['tempMax']),
+      humidityMin: _num(m['humidityMin']),
+      humidityMax: _num(m['humidityMax']),
+      windMin: _num(m['windMin']),
+      windMax: _num(m['windMax']),
+      rainMin: _num(m['rainMin']),
+      rainMax: _num(m['rainMax']),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'label': label.trim(),
+    'tempMin': tempMin,
+    'tempMax': tempMax,
+    'humidityMin': humidityMin,
+    'humidityMax': humidityMax,
+    'windMin': windMin,
+    'windMax': windMax,
+    'rainMin': rainMin,
+    'rainMax': rainMax,
+  };
+
+  List<double?> get _bounds => [
+    tempMin, tempMax, humidityMin, humidityMax, windMin, windMax, rainMin, rainMax,
+  ];
+
+  /// False = applies in any weather.
+  bool get hasRanges => _bounds.any((b) => b != null);
+
+  /// A range whose minimum is above its maximum, if any (for the editor).
+  String? get invalidRange {
+    bool bad(double? lo, double? hi) => lo != null && hi != null && lo > hi;
+    if (bad(tempMin, tempMax)) return 'temperature';
+    if (bad(humidityMin, humidityMax)) return 'humidity';
+    if (bad(windMin, windMax)) return 'wind';
+    if (bad(rainMin, rainMax)) return 'rain';
+    return null;
+  }
+
+  /// Does it apply to [r]? Ranges need live data (an offline station's
+  /// placeholder zeros never count).
+  bool appliesTo(NuaSenseReading? r) {
+    if (!hasRanges) return true;
+    if (r == null || !r.hasData) return false;
+    bool inRange(double v, double? lo, double? hi) =>
+        (lo == null || v >= lo) && (hi == null || v <= hi);
+    return inRange(r.airTemp, tempMin, tempMax) &&
+        inRange(r.humidity, humidityMin, humidityMax) &&
+        inRange(r.windSpeed, windMin, windMax) &&
+        inRange(r.rainfall, rainMin, rainMax);
+  }
+
+  /// "18–28°C · humidity 60%+ · no wind limit" style summary.
+  String get description {
+    String range(double? lo, double? hi, String unit, String name) {
+      String f(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+      if (lo != null && hi != null) return '$name ${f(lo)}–${f(hi)}$unit';
+      if (lo != null) return '$name ${f(lo)}$unit or more';
+      if (hi != null) return '$name up to ${f(hi)}$unit';
+      return '';
+    }
+    final parts = [
+      range(tempMin, tempMax, '°C', 'temp'),
+      range(humidityMin, humidityMax, '%', 'humidity'),
+      range(windMin, windMax, ' m/s', 'wind'),
+      range(rainMin, rainMax, ' mm/h', 'rain'),
+    ].where((s) => s.isNotEmpty);
+    return parts.isEmpty ? 'Shown whatever the weather' : parts.join(' · ');
+  }
 }
 
 // ── Crops ──────────────────────────────────────────────────────────────────
 
-/// Matches `_kCropTypes` in plot_input_form.dart — the names farmers record
-/// in fielddata — so advisories and farmer crops line up exactly.
+/// The crops farmers record in Field Data (kFieldCropTypes), so advisories
+/// and farmer crops line up exactly. Agronomists can also type others.
 const String kAllCrops = 'All crops';
-const List<String> kAdvisoryCrops = [
-  'Beans',
-  'Maize',
-  'Tomatoes',
-  'Cabbages/Kales',
-  'Carrots',
-  'Irish Potatoes',
-  'Wheat',
-  'Sugarcane',
-  'Rice',
-  'Onions',
-];
+const List<String> kAdvisoryCrops = kFieldCropTypes;
 
 String _norm(String s) => s.trim().toLowerCase();
 
@@ -141,6 +260,7 @@ bool isForAllCrops(List<String> advisoryCrops) =>
 bool cropsMatch(List<String> advisoryCrops, List<String> farmerCrops) {
   if (isForAllCrops(advisoryCrops)) return true;
   if (farmerCrops.isEmpty) return true;
-  final mine = farmerCrops.map(_norm).toSet();
-  return advisoryCrops.any((c) => mine.contains(_norm(c)));
+  // "Cabbages/Kales" (older records / advice) matches Cabbages and Kales.
+  final mine = farmerCrops.expand(cropNameParts).toSet();
+  return advisoryCrops.any((c) => cropNameParts(c).any(mine.contains));
 }

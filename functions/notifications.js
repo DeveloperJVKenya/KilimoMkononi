@@ -102,6 +102,8 @@ const CONDITION_LABELS = {
   frost: "Frost risk",
   dry_stress: "Dry air / water stress",
   good_spray: "Good spray window",
+  moderate: "Moderate weather",
+  custom: "Custom condition", // the advisory's customCondition.label is shown
 };
 
 // ── Messaging (injectable for tests) ─────────────────────────────────────────
@@ -120,6 +122,15 @@ function cropTopic(crop) {
   const slug = String(crop).trim().toLowerCase()
     .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   return `km_crop_${slug}`;
+}
+
+/**
+ * Topics for a crop and each part of a combined name ("Cabbages/Kales" →
+ * cabbages_kales, cabbages, kales). Mirrors NotificationService.cropTopicsFor().
+ */
+function cropTopicsFor(crop) {
+  const parts = String(crop).split("/").map((p) => p.trim()).filter(Boolean);
+  return [...new Set([cropTopic(crop), ...parts.map(cropTopic)])];
 }
 
 /** Parses NuaSense /weather + /derived responses (same shape the app parses). */
@@ -172,7 +183,52 @@ function activeConditions(r) {
   if (r.vpd > 2.5 || r.humidity < 40) keys.add("dry_stress");
   const goodSpray = r.sprayQualityLabel ? r.sprayQualityIndex >= 70 : r.windSpeed < 3.0;
   if (goodSpray && !raining) keys.add("good_spray");
+  if (!raining && r.airTemp >= 15 && r.airTemp <= 32 &&
+      r.humidity >= 40 && r.humidity <= 80 && r.windSpeed <= 5) {
+    keys.add("moderate");
+  }
   return keys;
+}
+
+const CUSTOM_RANGES = [
+  ["tempMin", "tempMax", "airTemp"],
+  ["humidityMin", "humidityMax", "humidity"],
+  ["windMin", "windMax", "windSpeed"],
+  ["rainMin", "rainMax", "rainfall"],
+];
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+
+/** Does a typed (custom) condition set any range? Without one it applies in any weather. */
+function customHasRanges(cc) {
+  return !!cc && CUSTOM_RANGES.some(([lo, hi]) => isNum(cc[lo]) || isNum(cc[hi]));
+}
+
+/**
+ * Does a typed condition hold for reading `r`? Mirrors
+ * CustomCondition.appliesTo() in advisory_conditions.dart: no ranges →
+ * always; ranges → needs live data inside every range given.
+ */
+function customConditionApplies(cc, r) {
+  if (!customHasRanges(cc)) return true;
+  if (!r || !r.hasData) return false;
+  return CUSTOM_RANGES.every(([lo, hi, field]) => {
+    const v = Number(r[field]) || 0;
+    return (!isNum(cc[lo]) || v >= cc[lo]) && (!isNum(cc[hi]) || v <= cc[hi]);
+  });
+}
+
+/** Condition key used for de-duplication: typed conditions are per advisory. */
+function conditionKeyOf(a) {
+  return a.condition === "custom" ? `custom:${a.__id || ""}` : (a.condition || "general");
+}
+
+/** The condition's name for farmers ("Very humid", or the typed name). */
+function conditionLabelOf(a) {
+  if (a.condition === "custom") {
+    const label = String(a.customCondition?.label || "").trim();
+    return label || CONDITION_LABELS.custom;
+  }
+  return CONDITION_LABELS[a.condition] || "Weather";
 }
 
 /**
@@ -253,8 +309,16 @@ function cropsMatch(advisoryCrops, farmerCrops) {
   if (isForAllCrops(advisoryCrops)) return true;
   if (farmerCrops === null || farmerCrops === undefined) return false;
   if (!farmerCrops.length) return true;
-  const mine = new Set(farmerCrops.map(norm));
-  return (advisoryCrops || []).some((c) => mine.has(norm(c)));
+  // "Cabbages/Kales" (older records / advice) matches Cabbages and Kales.
+  const mine = new Set(farmerCrops.flatMap(cropNameParts));
+  return (advisoryCrops || []).some((c) => cropNameParts(c).some((p) => mine.has(p)));
+}
+
+/** "Cabbages/Kales" → ["cabbages/kales", "cabbages", "kales"] — mirrors cropNameParts() in Dart. */
+function cropNameParts(crop) {
+  const whole = norm(crop);
+  if (!whole) return [];
+  return [...new Set([whole, ...whole.split("/").map((p) => p.trim()).filter(Boolean)])];
 }
 
 const publishedMs = (a) => a.publishedAt?.toMillis?.() || Number(a.publishedAt) || 0;
@@ -312,7 +376,10 @@ function advisoryPushKind(before, after) {
  * advisories always go to the admin straight away, to try the flow.
  */
 function pushesAtPublish(a) {
-  return !!a.testOnly || (a.condition || "general") === "general";
+  if (a.testOnly) return true;
+  const c = a.condition || "general";
+  // A typed condition without ranges applies in any weather, like "general".
+  return c === "general" || (c === "custom" && !customHasRanges(a.customCondition));
 }
 
 /** Who a publish-time advisory push goes to. */
@@ -323,7 +390,7 @@ function advisoryAudience(a) {
   if (!crops.length || isForAllCrops(crops)) {
     return { type: "topics", topics: ["km_farmers"] };
   }
-  return { type: "topics", topics: [...new Set(crops.map(cropTopic))] };
+  return { type: "topics", topics: [...new Set(crops.flatMap(cropTopicsFor))] };
 }
 
 /** Farm sections an advisory has actions for: ["soil", "pests", "diseases"]. */
@@ -348,7 +415,7 @@ function advisoryChecksLine(a) {
 }
 
 function advisoryNotification(a, kind, gatewayId = a.gatewayId) {
-  const label = CONDITION_LABELS[a.condition] || "Weather";
+  const label = conditionLabelOf(a);
   const prefix = a.testOnly ? "TEST · " : "";
   const verb = kind === "updated" ? "Updated verified advice" : "Verified advice";
   const data = { advisoryId: a.__id || "", testOnly: a.testOnly ? "true" : "false" };
@@ -478,7 +545,7 @@ function validateWebTopics(data) {
   if (token.length < 20 || token.length > 4096 || token.includes("/")) {
     throw new HttpsError("invalid-argument", "Invalid device token.");
   }
-  if (!topics || topics.length > 25 || !topics.every((t) => TOPIC_RE.test(t))) {
+  if (!topics || topics.length > 60 || !topics.every((t) => TOPIC_RE.test(t))) {
     throw new HttpsError("invalid-argument", "Invalid topics.");
   }
   return { token, topics };
@@ -728,12 +795,17 @@ function createWeatherSweep({ PLATFORM, fetchReading }) {
       }
 
       const alerts = computeWeatherAlerts(reading);
-      const active = [...activeConditions(reading)].filter((c) => c !== "general");
-      const conditions = [...new Set([...active, ...alerts.flatMap((a) => a.advisoryConditions)])];
+      const listed = [...activeConditions(reading)].filter((c) => c !== "general");
+      const conditions = [...new Set([...listed, ...alerts.flatMap((a) => a.advisoryConditions)])];
+      // Typed conditions are checked against this reading; only those with
+      // ranges are "occurring" (without ranges they went out at publish).
+      const advisories = (await publishedLiveAdvisories([...conditions, "custom"]))
+        .filter((a) => a.condition !== "custom" ||
+          (customHasRanges(a.customCondition) && customConditionApplies(a.customCondition, reading)));
+      const active = [...listed, ...advisories.filter((a) => a.condition === "custom").map(conditionKeyOf)];
       if (!alerts.length && !active.length) continue;
 
       const crops = await farmerCrops(uids);
-      const advisories = conditions.length ? await publishedLiveAdvisories(conditions) : [];
       // Conditions each farmer already heard about in an alert this run — no
       // second push about the same weather.
       const covered = new Map(uids.map((u) => [u, new Set()]));
@@ -775,12 +847,12 @@ function createWeatherSweep({ PLATFORM, fetchReading }) {
 
       // 2) Condition advice now in effect — at most one per farmer per run
       //    (the most specific one due); the rest follow in later runs.
-      const conditionAdvice = advisories.filter((a) => active.includes(a.condition));
+      const conditionAdvice = advisories.filter((a) => active.includes(conditionKeyOf(a)));
       if (!conditionAdvice.length) continue;
       const candidates = new Map(uids.map((uid) => [
         uid,
         rankAdvisories(conditionAdvice, gatewayId)
-          .filter((a) => cropsMatch(a.crops, crops.get(uid)) && !covered.get(uid).has(a.condition)),
+          .filter((a) => cropsMatch(a.crops, crops.get(uid)) && !covered.get(uid).has(conditionKeyOf(a))),
       ]));
       const refs = [];
       for (const [uid, list] of candidates) list.forEach((a) => refs.push(deliveryRef(uid, a.__id)));
@@ -930,8 +1002,13 @@ module.exports = {
   validateWebTopics,
   TTL_SECONDS,
   cropTopic,
+  cropTopicsFor,
+  cropNameParts,
   parseReading,
   activeConditions,
+  customHasRanges,
+  customConditionApplies,
+  conditionLabelOf,
   computeWeatherAlerts,
   shouldSendAlert,
   cropsMatch,

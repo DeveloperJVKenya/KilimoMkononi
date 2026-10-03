@@ -121,6 +121,7 @@ class FarmAdviceService {
         conditions: provisioned ? activeConditionKeys(reading!) : {'general'},
         farmerCrops: crops,
         gatewayId: provisioned ? stationId : null,
+        reading: live ? reading : null,
       ).then<Object?>((r) => r).catchError((Object e) {
         debugPrint('[FarmAdviceService] verified: $e');
         return const <AgronomicAdvisory>[];

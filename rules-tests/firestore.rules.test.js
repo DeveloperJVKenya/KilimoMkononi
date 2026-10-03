@@ -497,6 +497,36 @@ test("advisories: soil / pest / disease actions are allowed but bounded", async 
   await assertFails(writeAdvisory(as("agro"), "act3", advisoryData("agro", { extra: { soilActions: "N low" } })));
 });
 
+test("advisories: moderate weather and typed conditions (named, ranges optional)", async () => {
+  await seedAgronomist();
+  await assertSucceeds(writeAdvisory(as("agro"), "m1",
+    advisoryData("agro", { extra: { condition: "moderate" } })));
+  await assertSucceeds(writeAdvisory(as("agro"), "c1",
+    advisoryData("agro", { extra: { condition: "custom",
+      customCondition: { label: "Warm and humid", tempMin: 20, tempMax: 30, humidityMin: 75 } } })));
+  await assertSucceeds(writeAdvisory(as("agro"), "c2",
+    advisoryData("agro", { extra: { condition: "custom", customCondition: { label: "Before planting" } } })));
+  // A typed condition needs its name.
+  await assertFails(writeAdvisory(as("agro"), "c3",
+    advisoryData("agro", { extra: { condition: "custom" } })));
+  await assertFails(writeAdvisory(as("agro"), "c4",
+    advisoryData("agro", { extra: { condition: "custom", customCondition: { label: "" } } })));
+  await assertFails(writeAdvisory(as("agro"), "c5",
+    advisoryData("agro", { extra: { condition: "custom", customCondition: { label: "x".repeat(61) } } })));
+});
+
+test("advisories: soil actions by crop stage with per-acre rates, up to 20", async () => {
+  await seedAgronomist();
+  const staged = (i) => ({
+    nutrient: "N", stages: [`Stage ${i}`],
+    general: { action: "Top-dress CAN", rate: "50 kg per acre", amount: 50, unit: "kg", per: "acre" },
+  });
+  await assertSucceeds(writeAdvisory(as("agro"), "s1",
+    advisoryData("agro", { extra: { soilActions: Array.from({ length: 20 }, (_, i) => staged(i)) } })));
+  await assertFails(writeAdvisory(as("agro"), "s2",
+    advisoryData("agro", { extra: { soilActions: Array.from({ length: 21 }, (_, i) => staged(i)) } })));
+});
+
 test("advisory responses: farmers keep their own answers only", async () => {
   const mine = doc(as("farmer"), "advisoryResponses/farmer_adv1");
   const ok = { userId: "farmer", advisoryId: "adv1", items: { "pests:Aphids": "found" }, updatedAt: serverTimestamp() };

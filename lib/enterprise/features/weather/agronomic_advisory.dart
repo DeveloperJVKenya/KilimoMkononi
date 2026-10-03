@@ -6,6 +6,8 @@
 //   title, main, doList, avoidList, why      — the advice (StructuredAdvice)
 //   crops: [..] ('All crops' allowed)        — who it's for
 //   condition: key from kAdvisoryConditions  — when it's shown
+//   customCondition: {label, ranges}         — when condition == 'custom'
+//                                              (advisory_conditions.dart)
 //   gatewayId / stationName                  — null = all stations
 //   platform: 'km'
 //   status: draft | published | archived     — farmers only ever see published
@@ -22,7 +24,9 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
+import 'package:kilimomkononi/services/nuasense_service.dart';
 
 enum AdvisoryStatus { draft, published, archived }
 
@@ -42,6 +46,9 @@ class AgronomicAdvisory {
   final StructuredAdvice advice;
   final List<String> crops;
   final String condition;
+
+  /// The agronomist's own condition, when [condition] is 'custom'.
+  final CustomCondition? customCondition;
   final String? gatewayId;
   final String? stationName;
   final AdvisoryStatus status;
@@ -66,6 +73,7 @@ class AgronomicAdvisory {
     required this.advice,
     required this.crops,
     required this.condition,
+    this.customCondition,
     this.gatewayId,
     this.stationName,
     required this.status,
@@ -86,6 +94,20 @@ class AgronomicAdvisory {
   Set<AdviceSection> get sections => actions.sections;
 
   bool get isStationScoped => gatewayId != null && gatewayId!.isNotEmpty;
+
+  bool get isCustomCondition => condition == kCustomCondition;
+
+  /// What farmers see as the condition ("Very humid", or the typed name).
+  String get conditionLabel => isCustomCondition
+      ? (customCondition?.label ?? 'Custom condition')
+      : conditionFor(condition).label;
+
+  /// Does this advice's condition hold for [reading] (given the reading's
+  /// [activeKeys])? Typed conditions check their own ranges.
+  bool appliesTo(Set<String> activeKeys, NuaSenseReading? reading) =>
+      isCustomCondition
+          ? (customCondition ?? const CustomCondition(label: '')).appliesTo(reading)
+          : activeKeys.contains(condition);
   bool get wasEverPublished => publishedAt != null;
 
   factory AgronomicAdvisory.fromDoc(
@@ -103,6 +125,7 @@ class AgronomicAdvisory {
       ),
       crops: _strings(d['crops']),
       condition: (d['condition'] as String?) ?? 'general',
+      customCondition: CustomCondition.fromMap(d['customCondition']),
       gatewayId: d['gatewayId'] as String?,
       stationName: d['stationName'] as String?,
       status: _statusFrom(d['status'] as String?),
@@ -150,6 +173,7 @@ class AdvisoryContent {
   final StructuredAdvice advice;
   final List<String> crops;
   final String condition;
+  final CustomCondition? customCondition;
   final String? gatewayId;
   final String? stationName;
   final String source;
@@ -162,6 +186,7 @@ class AdvisoryContent {
     required this.advice,
     required this.crops,
     required this.condition,
+    this.customCondition,
     this.gatewayId,
     this.stationName,
     this.source = 'manual',
@@ -178,6 +203,8 @@ class AdvisoryContent {
     'why': advice.why.trim(),
     'crops': crops,
     'condition': condition,
+    'customCondition':
+        condition == kCustomCondition ? customCondition?.toMap() : null,
     'gatewayId': (gatewayId == null || gatewayId!.isEmpty) ? null : gatewayId,
     'stationName': stationName,
     'source': source,

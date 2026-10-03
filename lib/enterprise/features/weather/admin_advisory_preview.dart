@@ -107,9 +107,9 @@ class _PreviewItem extends StatelessWidget {
     final published = a.status == AdvisoryStatus.published;
     final r = reading;
     final known = r != null && r.isProvisioned;
-    final conditionActive = known && activeConditionKeys(r).contains(a.condition);
+    final conditionActive = known && a.appliesTo(activeConditionKeys(r), r);
     final cropOk = cropsMatch(a.crops, farmerCrops);
-    final condLabel = conditionFor(a.condition).label;
+    final condLabel = a.conditionLabel;
 
     final (IconData icon, Color color, String headline, String detail) = !published
         ? (
@@ -161,6 +161,7 @@ class _PreviewItem extends StatelessWidget {
           advice: a.advice,
           crops: a.crops,
           condition: a.condition,
+          conditionLabel: a.isCustomCondition ? a.conditionLabel : null,
           verifierName: published ? a.publishedByName : null,
           verifiedAt: published ? a.publishedAt : null,
           stationScoped: a.isStationScoped,

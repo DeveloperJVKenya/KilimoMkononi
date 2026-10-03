@@ -4,9 +4,11 @@
 // screen, Home, or a section's alert list. Verified advice and AI advice
 // look alike (AI is clearly labelled). Below the advice itself:
 //
-//   Soil & fertiliser  per nutrient: the farmer's measured level (if any),
-//                      Low / Moderate / High / "not sure" choices, the action
-//                      for that level → "Log in Soil records"
+//   Soil & fertiliser  the crop stage (auto from the farmer's field record,
+//                      or picked) filters the actions; per nutrient: the
+//                      farmer's measured level (if any), Low / Moderate /
+//                      High / "not sure", the action for that level and the
+//                      amount for their plot size → "Log in Soil records"
 //   Pests / Diseases   what to look for → "I see it" / "Not on my farm";
 //                      Photo ID and the Pest / Disease guide to confirm;
 //                      once found → "Log treatment"
@@ -63,6 +65,11 @@ class _AdvisoryDetailScreenState extends State<AdvisoryDetailScreen> {
   String? _error;
   FarmContext? _farm;
   bool _farmLoading = true;
+
+  // Crop stage for the soil actions: null + untouched = auto (from the
+  // farmer's field record); touched null = "All stages".
+  String? _stage;
+  bool _stageTouched = false;
 
   @override
   void initState() {
@@ -226,7 +233,8 @@ class _AdvisoryDetailScreenState extends State<AdvisoryDetailScreen> {
         if (act.soil.isNotEmpty) ...[
           _SectionHeader(AdviceSection.soil, act.soil.length,
               hint: 'Pick your soil level — or "Not sure" if you haven\'t tested.'),
-          for (final s in act.soil)
+          if (act.soilStages.isNotEmpty) _stageBar(a, farm),
+          for (final s in act.soil.where((x) => x.isForStage(_effectiveStage(a, farm))))
             _SoilActionCard(
               advisory: a,
               action: s,
@@ -234,6 +242,14 @@ class _AdvisoryDetailScreenState extends State<AdvisoryDetailScreen> {
               responses: responses,
               ensureFarm: _ensureFarm,
               onDone: _snack,
+            ),
+          if (_hiddenSoil(a, farm) > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                '${_hiddenSoil(a, farm)} more for other crop stages — choose "All stages" to see them.',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
             ),
         ],
         if (act.pests.isNotEmpty) ...[
@@ -265,6 +281,67 @@ class _AdvisoryDetailScreenState extends State<AdvisoryDetailScreen> {
             ),
         ],
       ],
+    );
+  }
+
+  // ── Crop stage (soil actions) ─────────────────────────────────────────────
+
+  /// The farmer's crop stage (from their field record) that this advice has
+  /// soil actions for — null when none of their crops is at one of them.
+  String? _autoStage(AgronomicAdvisory a, FarmContext? farm) {
+    final stages = a.actions.soilStages.map((s) => s.toLowerCase()).toSet();
+    if (farm == null || stages.isEmpty) return null;
+    final crops = farm.matching(a.crops);
+    for (final c in crops.isEmpty ? farm.crops : crops) {
+      if (stages.contains(c.stage.toLowerCase())) {
+        return a.actions.soilStages.firstWhere((s) => s.toLowerCase() == c.stage.toLowerCase());
+      }
+    }
+    return null;
+  }
+
+  String? _effectiveStage(AgronomicAdvisory a, FarmContext? farm) =>
+      _stageTouched ? _stage : _autoStage(a, farm);
+
+  int _hiddenSoil(AgronomicAdvisory a, FarmContext? farm) {
+    final st = _effectiveStage(a, farm);
+    return a.actions.soil.where((x) => !x.isForStage(st)).length;
+  }
+
+  Widget _stageBar(AgronomicAdvisory a, FarmContext? farm) {
+    const color = Color(0xFF6D4C41);
+    final auto = _autoStage(a, farm);
+    final current = _effectiveStage(a, farm);
+    Widget chip(String label, String? value) {
+      final sel = current == value;
+      return ChoiceChip(
+        label: Text(value != null && value == auto ? '$label (your crop)' : label),
+        selected: sel,
+        showCheckmark: false,
+        selectedColor: color,
+        labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: sel ? Colors.white : color),
+        onSelected: (_) => setState(() {
+          _stage = value;
+          _stageTouched = true;
+        }),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          auto != null
+              ? 'Your crop stage (from your field record): $auto'
+              : 'Which stage is your crop at?',
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: color),
+        ),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final st in a.actions.soilStages) chip(st, st),
+          chip('All stages', null),
+        ]),
+      ]),
     );
   }
 }
@@ -492,6 +569,23 @@ class _SoilActionCardState extends State<_SoilActionCard> {
   bool _bandTouched = false;
   bool _busy = false;
 
+  // Plot size the farmer typed (when Field Data has none), in acres.
+  final _acresCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _acresCtrl.dispose();
+    super.dispose();
+  }
+
+  /// The plot's recorded size, else what the farmer typed.
+  double? get _acres {
+    final recorded = _currentPlot?.areaAcres;
+    if (recorded != null && recorded > 0) return recorded;
+    final typed = double.tryParse(_acresCtrl.text.trim().replaceAll(',', '.'));
+    return typed != null && typed > 0 ? typed : null;
+  }
+
   List<FarmCrop> get _plots {
     final f = widget.farm;
     if (f == null) return const [];
@@ -521,7 +615,7 @@ class _SoilActionCardState extends State<_SoilActionCard> {
   }
 
   String get _responseKey => AdvisoryInterventionService.responseKey(
-      AdviceSection.soil, '${widget.action.nutrient}@${_currentPlot?.plotId ?? ''}');
+      AdviceSection.soil, '${widget.action.key}@${_currentPlot?.plotId ?? ''}');
 
   Future<void> _log() async {
     if (!await widget.ensureFarm()) return;
@@ -529,12 +623,15 @@ class _SoilActionCardState extends State<_SoilActionCard> {
     if (plot == null || !mounted) return;
     final c = _chosen;
     final band = _effectiveBand;
+    final acres = _acres;
+    final amount = acres == null ? null : c.amountLabelFor(acres);
     final ok = await _confirmLog(context, 'Log in Soil records?', [
       'Plot: ${plot.label}',
       '${widget.action.label}${band == null ? '' : ' — ${band.label} level'}',
       if (c.action.isNotEmpty) 'Action: ${c.action}',
       if (c.product.isNotEmpty) 'Product: ${c.product}',
-      if (c.rate.isNotEmpty) 'Rate: ${c.rate}',
+      if (c.rateLabel.isNotEmpty) 'Rate: ${c.rateLabel}',
+      if (amount != null) 'For ${_acresText(acres!)}: $amount',
       if (c.method.isNotEmpty) 'How / when: ${c.method}',
     ]);
     if (!ok) return;
@@ -545,6 +642,7 @@ class _SoilActionCardState extends State<_SoilActionCard> {
         plot: plot,
         action: widget.action,
         band: band,
+        acres: acres,
       );
       widget.onDone(online
           ? 'Logged in Field Data (${plot.plotId}) — see Plot history'
@@ -554,6 +652,47 @@ class _SoilActionCardState extends State<_SoilActionCard> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// "Your plot (0.5 acres): 25 kg", or a field for the plot size when Field
+  /// Data has none.
+  Widget _amountForPlot(BandAction chosen, FarmCrop? plot) {
+    const color = Color(0xFF6D4C41);
+    final recorded = plot?.areaAcres;
+    final acres = _acres;
+    final amount = acres == null ? null : chosen.amountLabelFor(acres);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (amount != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'For your plot (${_acresText(acres!)}): $amount',
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: color),
+            ),
+          ),
+        if (recorded == null) ...[
+          const SizedBox(height: 6),
+          TextField(
+            controller: _acresCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Your plot size (acres)',
+              helperText: 'Not in your field record — enter it to see the amount for your plot.',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ]),
+    );
   }
 
   @override
@@ -574,6 +713,15 @@ class _SoilActionCardState extends State<_SoilActionCard> {
           Expanded(child: Text(a.label, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800))),
           if (logged != null) const Pill('Logged', icon: Icons.check_rounded, fg: AdvisoryColors.verified, bg: AdvisoryColors.verifiedBg),
         ]),
+        if (a.stages.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'For crops at: ${a.stageLabel}'
+              '${plot != null && plot.stage.isNotEmpty && !a.isForStage(plot.stage) ? ' · your crop: ${plot.stage}' : ''}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600),
+            ),
+          ),
         _cropPicker(
           options: _plots,
           value: plot,
@@ -636,7 +784,8 @@ class _SoilActionCardState extends State<_SoilActionCard> {
                       style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: color)),
                   _kv('Action', chosen.action),
                   _kv('Product', chosen.product),
-                  _kv('Rate', chosen.rate),
+                  _kv('Rate', chosen.rateLabel),
+                  if (chosen.scalesWithArea) _amountForPlot(chosen, plot),
                   _kv('How/when', chosen.method),
                 ]),
         ),
@@ -655,6 +804,11 @@ class _SoilActionCardState extends State<_SoilActionCard> {
       ]),
     );
   }
+}
+
+String _acresText(double acres) {
+  final a = acres == acres.roundToDouble() ? acres.toStringAsFixed(0) : acres.toStringAsFixed(2);
+  return '$a acre${acres == 1 ? '' : 's'}';
 }
 
 // ── Pests / diseases ─────────────────────────────────────────────────────────
@@ -708,7 +862,9 @@ class _CheckCardState extends State<_CheckCard> {
 
   /// Opens the Pest / Disease guide on this pest/disease for the crop.
   void _openGuide() {
-    final crop = _currentCrop?.crop ?? (widget.advisory.crops.isEmpty ? '' : widget.advisory.crops.first);
+    // The library's own crop name (Kales → 'Cabbages/Kales').
+    final crop = catalogCropFor(
+        _currentCrop?.crop ?? (widget.advisory.crops.isEmpty ? '' : widget.advisory.crops.first));
     final stage = catalogStageFor(crop, widget.check.name, pest: _isPest);
     final symptoms = stage == null
         ? null

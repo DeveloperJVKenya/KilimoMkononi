@@ -59,8 +59,15 @@ void main() {
     // The advice fields sit below the fold in a lazy list — scroll to them.
     await tester.scrollUntilVisible(find.text('Main action *'), 300,
         scrollable: find.byType(Scrollable).first);
-    await tester.enterText(find.byType(TextField).first, 'Delay spraying until wind drops');
-    await tester.enterText(find.byType(TextField).at(1), 'Spray early morning');
+    // By hint: the crop / condition fields above come first in the list.
+    TextField field(String hint) => tester.widget<TextField>(
+        find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == hint));
+    await tester.enterText(
+        find.byWidget(field('e.g. Hold fungicide spraying until leaves dry')),
+        'Delay spraying until wind drops');
+    await tester.enterText(
+        find.byWidgetPredicate((w) => w is TextField && (w.decoration?.hintText ?? '').startsWith('Scout lower leaves')),
+        'Spray early morning');
     await tester.pump();
     await tester.tap(find.text('Verify & publish'));
     // Old snackbar animates out, then the new one animates in (separate frames).

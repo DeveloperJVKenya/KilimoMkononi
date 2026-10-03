@@ -189,6 +189,15 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
     (`advisory_conditions.dart` — keys are also listed in firestore.rules and in
     `CONDITION_LABELS` / `activeConditions()` in functions/notifications.js; add, never rename;
     `test/notification_contract_test.dart` checks all three agree).
+    `moderate` = mild, calm, dry. `custom` = a condition the agronomist types:
+    `customCondition {label, tempMin/Max, humidityMin/Max, windMin/Max, rainMin/Max}` — no ranges =
+    any weather (pushed at publish like "general"); with ranges it applies only when the live
+    reading is inside them (`CustomCondition.appliesTo` = `customConditionApplies` in functions).
+    Show `advisory.conditionLabel`, never `conditionFor(key).label`, so typed names appear.
+  - Crops: one list, `kFieldCropTypes` (`nutrient_levels.dart`), shared by the Field Data form and
+    advisories (`kAdvisoryCrops`), each with stages in `kFieldCropStages`; agronomists may also
+    type crops. Add crops, never rename. Legacy `Cabbages/Kales` records/advice match Cabbages and
+    Kales (`cropNameParts`, also in functions); topics subscribe each part (`cropTopicsFor`).
     Status draft → published (= verified; publisher recorded) → archived.
   - Every write goes through `AgronomicAdvisoryService.save`, which writes the advisory and its
     immutable `history/v{version}` audit entry in one transaction — the rules reject one without
@@ -202,8 +211,11 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
     station's live conditions on Home / Notifications (see Farm advice above); AI advice is always
     labelled "AI-generated · not verified".
   - Advisories also carry actions by farm section (`advisory_actions.dart`): `soilActions`
-    (per nutrient: general + optional Low / Moderate / High action with product, rate, how/when —
-    the farmer's level is never required), `pestChecks` / `diseaseChecks` (name, signs, what to do
+    (per nutrient + crop `stages` ([] = any stage): general + optional Low / Moderate / High action
+    with product, rate, how/when — the farmer's level is never required. A rate may be structured,
+    `amount` + `unit` + `per` (acre / ha / plant / knapsack): per-area rates are scaled to the
+    farmer's plot (`fielddata.area`, acres; or typed) and logged as that amount. The action screen
+    picks the stage from the farmer's crop record and lets them change it), `pestChecks` / `diseaseChecks` (name, signs, what to do
     if found). Agronomists edit them in the editor (`advisory_actions_editor.dart`; names come from
     `lib/services/pest_disease_catalog.dart`); AI replies carry the same via PESTS / DISEASES / SOIL
     sections (`parseStructuredAdvice`). Bands use `lib/services/nutrient_levels.dart` (shared with

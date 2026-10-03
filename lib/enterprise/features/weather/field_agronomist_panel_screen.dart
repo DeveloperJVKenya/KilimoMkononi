@@ -544,7 +544,7 @@ class _AdvisoryTile extends StatelessWidget {
                 children: [
                   StatusPill(a.status),
                   const SizedBox(width: 6),
-                  ConditionPill(a.condition),
+                  ConditionPill(a.condition, label: a.isCustomCondition ? a.conditionLabel : null),
                   if (a.testOnly) ...[
                     const SizedBox(width: 6),
                     const Pill(

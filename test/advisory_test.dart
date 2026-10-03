@@ -35,8 +35,8 @@ NuaSenseReading reading({
 
 void main() {
   group('activeConditionKeys', () {
-    test('calm, dry, mild day → general + good spray window', () {
-      expect(activeConditionKeys(reading()), {'general', 'good_spray'});
+    test('calm, dry, mild day → general + good spray window + moderate', () {
+      expect(activeConditionKeys(reading()), {'general', 'good_spray', 'moderate'});
     });
 
     test('rain suppresses the spray window', () {

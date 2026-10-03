@@ -403,13 +403,18 @@ const kCatalogCrops = [
   'Irish Potatoes',
 ];
 
+/// The library's spelling of [crop]: Cabbages, Kales and Chinese cabbage
+/// share the 'Cabbages/Kales' lists.
+String catalogCropFor(String crop) =>
+    const {'Cabbages', 'Kales', 'Chinese Cabbage'}.contains(crop) ? 'Cabbages/Kales' : crop;
+
 List<String> _all(
   Map<String, Map<String, List<String>>> m,
   Iterable<String> crops,
 ) {
   final out = <String>{};
   for (final c in crops) {
-    for (final list in (m[c] ?? const {}).values) {
+    for (final list in (m[catalogCropFor(c)] ?? const {}).values) {
       out.addAll(list);
     }
   }
@@ -427,7 +432,7 @@ List<String> diseasesForCrops(Iterable<String> crops) =>
 /// First growth stage of [crop] where [name] appears, so a library page can
 /// open pre-selected. Null when the catalogue doesn't list it.
 String? catalogStageFor(String crop, String name, {required bool pest}) {
-  final m = (pest ? kCropStagePests : kCropStageDiseases)[crop];
+  final m = (pest ? kCropStagePests : kCropStageDiseases)[catalogCropFor(crop)];
   if (m == null) return null;
   for (final e in m.entries) {
     if (e.value.any((v) => v.toLowerCase() == name.toLowerCase())) return e.key;

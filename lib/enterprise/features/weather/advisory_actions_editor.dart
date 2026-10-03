@@ -2,9 +2,10 @@
 //
 // Editor pieces for an advisory's actionable content (advisory_actions.dart),
 // used by AdvisoryEditorScreen:
-//   • Soil & fertiliser — per nutrient: a general action plus optional Low /
-//     Moderate / High actions, each with product, rate and how / when. The
-//     farmer's level is never required to act on it.
+//   • Soil & fertiliser — per nutrient and crop growth stage(s): a general
+//     action plus optional Low / Moderate / High actions, each with product,
+//     a rate (amount + unit per acre / hectare / plant, scaled to each
+//     farmer's plot) and how / when. The farmer's level is never required.
 //   • Pests / Diseases to check — name (from the crop catalogue, or typed),
 //     signs to look for, what to do if found, product and rate.
 
@@ -15,7 +16,7 @@ import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart'
 import 'package:kilimomkononi/services/nutrient_levels.dart';
 import 'package:kilimomkononi/services/pest_disease_catalog.dart';
 
-const kMaxSoilActions = 8;
+const kMaxSoilActions = 20;
 const kMaxChecks = 10;
 
 /// The list for one [section] of [value], with add / edit / remove.
@@ -40,12 +41,14 @@ class AdvisoryActionsSection extends StatelessWidget {
 
   Future<void> _editSoil(BuildContext context, [int? index]) async {
     final current = index == null ? null : value.soil[index];
-    final used = value.soil.map((s) => s.nutrient).toSet()..remove(current?.nutrient);
+    // One action per nutrient + stage(s); the same nutrient can repeat for
+    // other stages.
+    final used = value.soil.map((s) => s.key).toSet()..remove(current?.key);
     final r = await showModalBottomSheet<SoilAction>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _SoilActionSheet(initial: current, usedNutrients: used),
+      builder: (_) => _SoilActionSheet(initial: current, usedKeys: used, crops: crops),
     );
     if (r == null) return;
     final list = [...value.soil];
@@ -105,9 +108,10 @@ class AdvisoryActionsSection extends StatelessWidget {
     final max = soil ? kMaxSoilActions : kMaxChecks;
     final hint = switch (section) {
       AdviceSection.soil =>
-        'Fertiliser / soil decisions for these conditions. Give the action for '
-            'each soil level you can — farmers who haven\'t tested use the '
-            'general action or pick their level.',
+        'Fertiliser / soil decisions for these conditions, by crop stage. Give '
+            'the action for each soil level you can — farmers who haven\'t tested '
+            'use the general action or pick their level. Rates per acre or '
+            'hectare are worked out for each farmer\'s plot size.',
       AdviceSection.pests =>
         'Pests farmers should scout for in these conditions, and what to do if '
             'they find them. Farmers can confirm, identify (photo / guide) and log.',
@@ -123,7 +127,9 @@ class AdvisoryActionsSection extends StatelessWidget {
           _ItemTile(
             color: section.color,
             icon: section.icon,
-            title: soil ? value.soil[i].label : (section == AdviceSection.pests ? value.pests : value.diseases)[i].name,
+            title: soil
+                ? '${value.soil[i].label} · ${value.soil[i].stageLabel}'
+                : (section == AdviceSection.pests ? value.pests : value.diseases)[i].name,
             lines: soil ? _soilLines(value.soil[i]) : _checkLines((section == AdviceSection.pests ? value.pests : value.diseases)[i]),
             onEdit: readOnly ? null : () => soil ? _editSoil(context, i) : _editCheck(context, i),
             onRemove: readOnly ? null : () => _remove(i),
@@ -268,25 +274,48 @@ Widget _sheetFrame(BuildContext context, String title, List<Widget> children, Vo
 class _BandCtrls {
   final action = TextEditingController();
   final product = TextEditingController();
+  final amount = TextEditingController();
   final rate = TextEditingController();
   final method = TextEditingController();
+  String unit;
+  String per;
 
-  _BandCtrls(BandAction b) {
+  _BandCtrls(BandAction b)
+      : unit = b.hasStructuredRate && kRateUnits.contains(b.unit) ? b.unit : 'kg',
+        per = b.hasStructuredRate && kRatePers.containsKey(b.per) ? b.per : 'acre' {
     action.text = b.action;
     product.text = b.product;
-    rate.text = b.rate;
+    if (b.hasStructuredRate) {
+      final a = b.amount!;
+      amount.text = a == a.roundToDouble() ? a.toStringAsFixed(0) : '$a';
+    } else {
+      rate.text = b.rate;
+    }
     method.text = b.method;
   }
 
-  BandAction get value => BandAction(
-    action: action.text.trim(),
-    product: product.text.trim(),
-    rate: rate.text.trim(),
-    method: method.text.trim(),
-  );
+  double? get _amount => double.tryParse(amount.text.trim().replaceAll(',', '.'));
+
+  /// Typed something in Amount that isn't a positive number.
+  bool get badAmount =>
+      amount.text.trim().isNotEmpty && (_amount == null || _amount! <= 0);
+
+  BandAction get value {
+    final a = _amount;
+    final structured = a != null && a > 0;
+    return BandAction(
+      action: action.text.trim(),
+      product: product.text.trim(),
+      rate: structured ? '' : rate.text.trim(),
+      method: method.text.trim(),
+      amount: structured ? a : null,
+      unit: structured ? unit : '',
+      per: structured ? per : '',
+    );
+  }
 
   void dispose() {
-    for (final c in [action, product, rate, method]) {
+    for (final c in [action, product, amount, rate, method]) {
       c.dispose();
     }
   }
@@ -294,16 +323,18 @@ class _BandCtrls {
 
 class _SoilActionSheet extends StatefulWidget {
   final SoilAction? initial;
-  final Set<String> usedNutrients;
-  const _SoilActionSheet({this.initial, required this.usedNutrients});
+  final Set<String> usedKeys;
+  final List<String> crops;
+  const _SoilActionSheet({this.initial, required this.usedKeys, required this.crops});
 
   @override
   State<_SoilActionSheet> createState() => _SoilActionSheetState();
 }
 
 class _SoilActionSheetState extends State<_SoilActionSheet> {
-  late String _nutrient = widget.initial?.nutrient ??
-      kSoilNutrients.keys.firstWhere((k) => !widget.usedNutrients.contains(k), orElse: () => 'general');
+  late String _nutrient = widget.initial?.nutrient ?? 'N';
+  late final Set<String> _stages = {...?widget.initial?.stages};
+  final _stageCtrl = TextEditingController();
   late final _general = _BandCtrls(widget.initial?.general ?? const BandAction());
   late final _bands = {
     for (final b in NutrientBand.values)
@@ -313,12 +344,148 @@ class _SoilActionSheetState extends State<_SoilActionSheet> {
 
   @override
   void dispose() {
+    _stageCtrl.dispose();
     _general.dispose();
     for (final c in _bands.values) {
       c.dispose();
     }
     super.dispose();
   }
+
+  /// Stage choices per crop of the advisory (generic stages for 'All
+  /// crops' or a typed crop without its own list).
+  Map<String, List<String>> get _stageGroups {
+    final crops = widget.crops.where((c) => c != kAllCrops).toList();
+    if (crops.isEmpty) return {'Any crop': kGenericCropStages};
+    return {for (final c in crops) c: stagesForCrop(c)};
+  }
+
+  void _addTypedStage() {
+    final t = _stageCtrl.text.trim();
+    if (t.isEmpty) return;
+    setState(() {
+      _stages.add(t);
+      _stageCtrl.clear();
+    });
+  }
+
+  Widget _stagePicker() {
+    final known = {for (final l in _stageGroups.values) ...l};
+    final typed = _stages.where((s) => !known.contains(s)).toList();
+    Widget chip(String s) => FilterChip(
+          label: Text(s, style: const TextStyle(fontSize: 12)),
+          selected: _stages.contains(s),
+          visualDensity: VisualDensity.compact,
+          selectedColor: AdvisoryColors.verifiedBg,
+          checkmarkColor: AdvisoryColors.verified,
+          onSelected: (on) => setState(() => on ? _stages.add(s) : _stages.remove(s)),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Crop growth stage',
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+      const Text(
+        'Farmers see it for their crop\'s stage (picked from their field record). '
+        'Leave all off for any stage.',
+        style: TextStyle(fontSize: 11.5, color: Colors.black54),
+      ),
+      const SizedBox(height: 6),
+      ChoiceChip(
+        label: const Text('Any stage', style: TextStyle(fontSize: 12)),
+        selected: _stages.isEmpty,
+        visualDensity: VisualDensity.compact,
+        onSelected: (_) => setState(_stages.clear),
+      ),
+      for (final g in _stageGroups.entries) ...[
+        const SizedBox(height: 6),
+        Text(g.key, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.black54)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, runSpacing: 6, children: [for (final st in g.value) chip(st)]),
+      ],
+      if (typed.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, runSpacing: 6, children: [for (final st in typed) chip(st)]),
+      ],
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(
+          child: TextField(
+            controller: _stageCtrl,
+            textCapitalization: TextCapitalization.sentences,
+            onSubmitted: (_) => _addTypedStage(),
+            decoration: _deco('Other stage', 'Type a stage, e.g. Second top-dressing'),
+          ),
+        ),
+        const SizedBox(width: 6),
+        IconButton.filledTonal(
+          tooltip: 'Add stage',
+          onPressed: _addTypedStage,
+          icon: const Icon(Icons.add_rounded),
+        ),
+      ]),
+    ]);
+  }
+
+  Widget _rateRow(_BandCtrls c) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: c.amount,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                  decoration: _deco('Amount', '50'),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                flex: 3,
+                child: DropdownButtonFormField<String>(
+                  initialValue: c.unit,
+                  isExpanded: true,
+                  decoration: _deco('Unit'),
+                  items: [for (final u in kRateUnits) DropdownMenuItem(value: u, child: Text(u, overflow: TextOverflow.ellipsis))],
+                  onChanged: (v) => setState(() => c.unit = v ?? c.unit),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                flex: 4,
+                child: DropdownButtonFormField<String>(
+                  initialValue: c.per,
+                  isExpanded: true,
+                  decoration: _deco('Per'),
+                  items: [
+                    for (final e in kRatePers.entries)
+                      DropdownMenuItem(value: e.key, child: Text(e.value, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => c.per = v ?? c.per),
+                ),
+              ),
+            ],
+          ),
+          if (c.badAmount)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text('Amount must be a number above 0, e.g. 50 or 2.5',
+                  style: TextStyle(fontSize: 11.5, color: AdvisoryColors.red)),
+            )
+          else if (c.value.scalesWithArea)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'A farmer with ½ acre sees: ${c.value.amountLabelFor(0.5)}',
+                style: const TextStyle(fontSize: 11.5, color: AdvisoryColors.midGreen, fontWeight: FontWeight.w600),
+              ),
+            ),
+          if (c.amount.text.trim().isEmpty) ...[
+            const SizedBox(height: 8),
+            TextField(controller: c.rate, decoration: _deco('Or describe the rate', 'e.g. a handful per plant')),
+          ],
+        ],
+      );
 
   Widget _band(String title, String subtitle, _BandCtrls c, Color color) => Container(
     margin: const EdgeInsets.only(bottom: 10),
@@ -334,13 +501,9 @@ class _SoilActionSheetState extends State<_SoilActionSheet> {
         Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Colors.black54)),
         const SizedBox(height: 8),
         TextField(controller: c.action, maxLength: 160, decoration: _deco('Action', 'e.g. Top-dress with CAN')),
-        Row(
-          children: [
-            Expanded(child: TextField(controller: c.product, decoration: _deco('Product', 'CAN 26%'))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: c.rate, decoration: _deco('Rate', '50 kg/acre'))),
-          ],
-        ),
+        TextField(controller: c.product, decoration: _deco('Product', 'CAN 26%')),
+        const SizedBox(height: 8),
+        _rateRow(c),
         const SizedBox(height: 8),
         TextField(controller: c.method, decoration: _deco('How / when', 'Band-place after rain, 5 cm from stems')),
       ],
@@ -348,8 +511,15 @@ class _SoilActionSheetState extends State<_SoilActionSheet> {
   );
 
   void _save() {
+    _addTypedStage();
+    final all = [_general, ..._bands.values];
+    if (all.any((c) => c.badAmount)) {
+      setState(() => _error = 'Fix the amount — it must be a number above 0.');
+      return;
+    }
     final a = SoilAction(
       nutrient: _nutrient,
+      stages: _stages.toList(),
       general: _general.value,
       low: _bands[NutrientBand.low]!.value,
       moderate: _bands[NutrientBand.moderate]!.value,
@@ -357,6 +527,12 @@ class _SoilActionSheetState extends State<_SoilActionSheet> {
     );
     if (a.isEmpty) {
       setState(() => _error = 'Fill in at least one action.');
+      return;
+    }
+    if (widget.usedKeys.contains(a.key)) {
+      setState(() => _error =
+          'There is already a ${a.label} action for ${a.stageLabel.toLowerCase()}. '
+          'Edit that one, or pick other stages.');
       return;
     }
     Navigator.pop(context, a);
@@ -371,12 +547,13 @@ class _SoilActionSheetState extends State<_SoilActionSheet> {
         decoration: _deco('Nutrient / topic'),
         items: [
           for (final e in kSoilNutrients.entries)
-            if (!widget.usedNutrients.contains(e.key))
-              DropdownMenuItem(value: e.key, child: Text(e.value)),
+            DropdownMenuItem(value: e.key, child: Text(e.value)),
         ],
         onChanged: (v) => setState(() => _nutrient = v ?? _nutrient),
       ),
       const SizedBox(height: 12),
+      _stagePicker(),
+      const SizedBox(height: 14),
       _band('Any level / not tested', 'Shown to farmers who don\'t know their level', _general, Colors.black54),
       if (measurable) ...[
         const Text(

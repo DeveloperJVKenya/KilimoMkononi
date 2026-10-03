@@ -10,31 +10,106 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Crops farmers record in Field Data (fielddata.crops[].type) and Field
+/// Agronomists target advisories at — one list, so the names match exactly.
+/// Add new crops here (with their stages below); never rename one, since
+/// records and advisories store the name.
 const List<String> kFieldCropTypes = [
+  'Onions',
+  'Cabbages',
+  'Kales',
+  'Black Nightshade',
+  'Crotalaria',
+  'Capsicum',
+  'Carrots',
+  'Kunde',
+  'Tomatoes',
+  'Cowpeas',
+  'Spinach',
+  'Pineapple',
+  'Arrowroots',
+  'Bananas',
+  'Chinese Cabbage',
+  'Sweet Potatoes',
+  'Amaranth (Pigweed)',
   'Beans',
   'Maize',
-  'Tomatoes',
-  'Cabbages/Kales',
-  'Carrots',
   'Irish Potatoes',
   'Wheat',
   'Sugarcane',
   'Rice',
-  'Onions',
 ];
+
+/// Older records (and advisories) used one combined name. It still has its
+/// stages and targets, and matches Cabbages and Kales (see cropNameParts).
+const String kLegacyCabbageKales = 'Cabbages/Kales';
+
+const _kLeafyStages = ['Nursery / Establishment', 'Vegetative', 'Harvesting', 'Flowering / Seed'];
 
 const Map<String, List<String>> kFieldCropStages = {
   'Beans': ['Vegetative', 'Flowering', 'Pod Development'],
   'Maize': ['Emergence to V6', 'V6 to VT', 'Reproductive'],
   'Tomatoes': ['Early Growth', 'Flowering and Fruit Set', 'Fruit Development'],
-  'Cabbages/Kales': ['Early Growth', 'Leaf Development', 'Head Formation'],
+  kLegacyCabbageKales: ['Early Growth', 'Leaf Development', 'Head Formation'],
+  'Cabbages': ['Early Growth', 'Leaf Development', 'Head Formation'],
+  'Kales': ['Early Growth', 'Leaf Development', 'Harvesting'],
+  'Chinese Cabbage': ['Early Growth', 'Leaf Development', 'Head Formation'],
   'Carrots': ['Early Growth', 'Root Expansion', 'Maturation'],
   'Irish Potatoes': ['Early Growth', 'Tuber Initiation', 'Tuber Bulking'],
   'Wheat': ['Early Growth', 'Tillering and Stem Elongation', 'Grain Filling'],
   'Sugarcane': ['Early Growth', 'Grand Growth Phase', 'Maturity'],
   'Rice': ['Early Growth', 'Tillering to Panicle Initiation', 'Grain Filling'],
   'Onions': ['Early Growth', 'Bulb Formation', 'Maturation'],
+  'Black Nightshade': _kLeafyStages,
+  'Crotalaria': _kLeafyStages,
+  'Kunde': _kLeafyStages,
+  'Spinach': _kLeafyStages,
+  'Amaranth (Pigweed)': _kLeafyStages,
+  'Capsicum': ['Nursery / Transplanting', 'Vegetative', 'Flowering and Fruit Set', 'Fruit Development'],
+  'Cowpeas': ['Vegetative', 'Flowering', 'Pod Development'],
+  'Pineapple': ['Establishment', 'Vegetative', 'Flowering (Forcing)', 'Fruit Development'],
+  'Arrowroots': ['Establishment', 'Vegetative', 'Corm Bulking', 'Maturity'],
+  'Bananas': ['Establishment', 'Vegetative', 'Flowering / Shooting', 'Bunch Filling'],
+  'Sweet Potatoes': ['Establishment', 'Vine Development', 'Root Bulking', 'Maturity'],
 };
+
+/// Stages offered for a crop without its own list (e.g. one an agronomist
+/// typed in).
+const kGenericCropStages = [
+  'Planting / Nursery',
+  'Early Growth',
+  'Vegetative',
+  'Flowering',
+  'Fruiting / Bulking',
+  'Maturity',
+];
+
+/// Stages for [crop] (generic ones when it has no list of its own).
+List<String> stagesForCrop(String crop) =>
+    kFieldCropStages[crop] ?? kGenericCropStages;
+
+/// "Cabbages/Kales" → {cabbages/kales, cabbages, kales}; "Maize" → {maize}.
+/// Lower-cased, so a combined (legacy) name matches each of its parts.
+Set<String> cropNameParts(String crop) {
+  final whole = crop.trim().toLowerCase();
+  if (whole.isEmpty) return const {};
+  return {
+    whole,
+    for (final p in whole.split('/')) if (p.trim().isNotEmpty) p.trim(),
+  };
+}
+
+/// Nutrient targets (kg/ha) for [crop] at [stage], or null when unknown.
+/// Cabbages, Kales and Chinese cabbage use the brassica targets.
+Map<String, double>? nutrientTargets(String crop, String stage) {
+  final own = kOptimalNutrients[crop]?[stage];
+  if (own != null) return own;
+  if (const {'Cabbages', 'Kales', 'Chinese Cabbage'}.contains(crop)) {
+    final brassica = kOptimalNutrients[kLegacyCabbageKales]!;
+    return brassica[stage] ?? (stage == 'Harvesting' ? brassica['Leaf Development'] : null);
+  }
+  return null;
+}
 
 const Map<String, Map<String, Map<String, double>>> kOptimalNutrients = {
   'Beans': {
@@ -415,7 +490,7 @@ Map<String, double> optimalFor(List<Map<String, dynamic>> crops) {
   final sum = {'N': 0.0, 'P': 0.0, 'K': 0.0};
   var n = 0;
   for (final c in crops) {
-    final opt = kOptimalNutrients['${c['type'] ?? ''}']?['${c['stage'] ?? ''}'];
+    final opt = nutrientTargets('${c['type'] ?? ''}', '${c['stage'] ?? ''}');
     if (opt == null) continue;
     sum.updateAll((k, v) => v + (opt[k] ?? 0));
     n++;

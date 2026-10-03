@@ -140,7 +140,13 @@ service cloud.firestore {
         let d = request.resource.data;
         return d.condition in ['general', 'raining', 'wet_leaves', 'high_humidity',
                                'high_wind', 'heat', 'cool', 'frost', 'dry_stress',
-                               'good_spray'] &&
+                               'good_spray', 'moderate', 'custom'] &&
+               // A typed condition carries its name (and optional ranges).
+               (d.condition != 'custom' ||
+                  (d.customCondition is map &&
+                   d.customCondition.label is string &&
+                   d.customCondition.label.size() > 0 &&
+                   d.customCondition.label.size() <= 60)) &&
                d.get('title', '') is string && d.get('title', '').size() <= 200 &&
                d.crops is list && d.crops.size() > 0 && d.crops.size() <= 20 &&
                d.main is string && d.main.size() > 0 && d.main.size() <= 300 &&
@@ -148,7 +154,7 @@ service cloud.firestore {
                d.avoidList is list && d.avoidList.size() <= 10 &&
                d.why is string && d.why.size() <= 600 &&
                // What farmers act on, by section (advisory_actions.dart).
-               (!('soilActions' in d) || (d.soilActions is list && d.soilActions.size() <= 8)) &&
+               (!('soilActions' in d) || (d.soilActions is list && d.soilActions.size() <= 20)) &&
                (!('pestChecks' in d) || (d.pestChecks is list && d.pestChecks.size() <= 10)) &&
                (!('diseaseChecks' in d) || (d.diseaseChecks is list && d.diseaseChecks.size() <= 10)) &&
                d.status in ['draft', 'published', 'archived'] &&

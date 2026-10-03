@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart' show Icons;
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
@@ -120,16 +121,22 @@ class AgronomicAdvisoryService {
   ///
   /// [includeTest] (admins only — rules deny it for farmers) also returns
   /// test-mode advisories so an admin can see the farmer view end to end.
+  ///
+  /// Advice for a typed (custom) condition is checked against [reading]:
+  /// without ranges it always applies; with ranges only when the live
+  /// reading is inside them.
   static Future<List<AgronomicAdvisory>> publishedFor({
     required Set<String> conditions,
     required List<String>? farmerCrops,
     String? gatewayId,
+    NuaSenseReading? reading,
     bool includeTest = false,
   }) async {
     if (conditions.isEmpty) return const [];
+    final keys = {...conditions.take(29), kCustomCondition}.toList();
     Query<Map<String, dynamic>> q = _col
         .where('status', isEqualTo: AdvisoryStatus.published.name)
-        .where('condition', whereIn: conditions.take(30).toList());
+        .where('condition', whereIn: keys);
     // Farmers must filter testOnly == false — the rules require it.
     if (!includeTest) q = q.where('testOnly', isEqualTo: false);
     final snap = await q.get();
@@ -140,6 +147,7 @@ class AgronomicAdvisoryService {
             ? isForAllCrops(a.crops)
             : cropsMatch(a.crops, farmerCrops))
         .where((a) => !a.isStationScoped || a.gatewayId == gatewayId)
+        .where((a) => a.appliesTo(conditions, reading))
         .toList();
 
     int rank(AgronomicAdvisory a) =>
@@ -281,6 +289,7 @@ class AgronomicAdvisoryService {
       advice: a.advice,
       crops: a.crops,
       condition: a.condition,
+      customCondition: a.customCondition,
       gatewayId: a.gatewayId,
       stationName: a.stationName,
       source: a.source,
@@ -327,9 +336,13 @@ class AgronomicAdvisoryService {
   static Future<({StructuredAdvice advice, String raw})> generateAiDraft({
     required List<String> crops,
     required String conditionKey,
+    CustomCondition? customCondition,
     NuaSenseReading? reading,
   }) async {
-    final cond = conditionFor(conditionKey);
+    final cond = conditionKey == kCustomCondition && customCondition != null
+        ? AdvisoryCondition(kCustomCondition, customCondition.label,
+            customCondition.description, Icons.edit_note_rounded)
+        : conditionFor(conditionKey);
     final cropText = crops.contains(kAllCrops) || crops.isEmpty
         ? 'common smallholder crops (maize, beans, tomatoes, cabbages/kales, potatoes, onions)'
         : crops.join(', ');
@@ -362,7 +375,7 @@ PESTS:
 DISEASES:
 - <disease name> — <signs to look for> — <what to do if found>
 SOIL:
-- <N|P|K|pH|general> | Low: <action> | Moderate: <action> | High: <action>
+- <N|P|K|pH|general> | Stage: <crop growth stage, or "any"> | Low: <action> | Moderate: <action> | High: <action>
 
 Rules:
 - Advice must be specific to the crop(s) and this weather condition.
@@ -371,7 +384,9 @@ Rules:
   condition; write "none" if none apply.
 - SOIL: fertiliser / soil decisions this condition affects (e.g. leaching
   after heavy rain, delaying top-dressing). Farmers may not know their soil
-  level, so give an action per level; write "none" if not relevant.
+  level, so give an action per level; write "none" if not relevant. Give
+  the growth stage it is for. When you give a rate, write it per acre
+  (e.g. "50 kg per acre") so it can be scaled to the farmer's plot.
 - No chemical brand names; name active ingredients only if essential.
 - Do not invent numbers you were not given; leave rates to the agronomist.
 ''';

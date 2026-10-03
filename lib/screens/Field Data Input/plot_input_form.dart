@@ -395,8 +395,8 @@ class _PlotInputFormState<T extends PlotInputForm> extends State<T> {
         final type = c['type'] ?? '';
         final stage = c['stage'] ?? '';
         if (type.isNotEmpty && stage.isNotEmpty &&
-            kOptimalNutrients[type]?[stage] != null) {
-          final opt = kOptimalNutrients[type]![stage]!;
+            nutrientTargets(type, stage) != null) {
+          final opt = nutrientTargets(type, stage)!;
           _optimalAvg.updateAll((k, v) => v + (opt[k] ?? 0.0));
           count++;
         }

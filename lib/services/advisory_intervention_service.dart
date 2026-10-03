@@ -44,6 +44,9 @@ class FarmCrop {
   final Map<String, NutrientBand> bands;
   final DateTime? measuredAt;
 
+  /// Plot size in acres, as recorded in Field Data (null = not recorded).
+  final double? areaAcres;
+
   const FarmCrop({
     required this.plotId,
     required this.docId,
@@ -52,6 +55,7 @@ class FarmCrop {
     required this.record,
     required this.bands,
     this.measuredAt,
+    this.areaAcres,
   });
 
   String get label => plotId == 'SingleCrop' || plotId == 'Intercrop'
@@ -71,9 +75,9 @@ class FarmContext {
     final all = advisoryCrops.isEmpty ||
         advisoryCrops.any((c) => c.trim().toLowerCase() == 'all crops');
     if (all) return crops;
-    final want = advisoryCrops.map((c) => c.trim().toLowerCase()).toSet();
-    final hit = crops.where((c) => want.contains(c.crop.toLowerCase())).toList();
-    return hit;
+    // "Cabbages/Kales" (older records / advice) matches Cabbages and Kales.
+    final want = advisoryCrops.expand(cropNameParts).toSet();
+    return crops.where((c) => cropNameParts(c.crop).any(want.contains)).toList();
   }
 
   /// One entry per plot (for soil actions, which are per plot).
@@ -108,6 +112,7 @@ class AdvisoryInterventionService {
     for (final d in latestPerPlot.values) {
       final data = d.data();
       final bands = bandsFromFieldData(data);
+      final area = data['area'];
       for (final c in (data['crops'] as List?) ?? const []) {
         if (c is! Map) continue;
         final type = '${c['type'] ?? ''}'.trim();
@@ -120,6 +125,7 @@ class AdvisoryInterventionService {
           record: data,
           bands: bands,
           measuredAt: fieldDataTime(data),
+          areaAcres: area is num && area > 0 ? area.toDouble() : null,
         ));
       }
     }
@@ -175,16 +181,24 @@ class AdvisoryInterventionService {
       a.isAi ? 'AI advice' : 'Verified advice';
 
   /// Appends a soil / fertiliser intervention to [plot]'s field record.
-  /// Returns true when saved online, false when queued offline.
+  /// [acres] is the plot size the amount was worked out for (the recorded
+  /// size, or what the farmer typed). Returns true when saved online, false
+  /// when it will sync later.
   static Future<bool> logSoil({
     required AgronomicAdvisory advisory,
     required FarmCrop plot,
     required SoilAction action,
     required NutrientBand? band,
+    double? acres,
   }) async {
     final uid = _uid!;
     final chosen = action.forBand(band).isEmpty ? action.general : action.forBand(band);
-    final (qty, unit) = splitRate(chosen.rate);
+    final total = acres == null ? null : chosen.amountFor(acres);
+    final (qty, unit) = total != null
+        ? (total, chosen.unit)
+        : chosen.hasStructuredRate
+            ? (chosen.amount, '${chosen.unit} ${kRatePers[chosen.per] ?? ''}'.trim())
+            : splitRate(chosen.rate);
     final what = chosen.action.isNotEmpty
         ? chosen.action
         : (chosen.product.isNotEmpty ? 'Apply ${chosen.product}' : action.label);
@@ -197,7 +211,7 @@ class AdvisoryInterventionService {
       'costCategory': 'Fertilizer',
       'saveToCosts': false,
       'farmPlotId': null,
-      'enrichedDesc': [what, chosen.product, chosen.rate, chosen.method]
+      'enrichedDesc': [what, chosen.product, chosen.rateLabel, chosen.method]
           .where((s) => s.isNotEmpty)
           .join(' · '),
       'source': 'advisory',
@@ -206,8 +220,11 @@ class AdvisoryInterventionService {
       'nutrient': action.nutrient,
       'band': band?.name,
       'product': chosen.product,
-      'rate': chosen.rate,
+      'rate': chosen.rateLabel,
       'method': chosen.method,
+      'stage': plot.stage.isEmpty ? null : plot.stage,
+      'adviceStages': action.stages,
+      'areaAcres': total == null ? null : acres,
       'loggedBy': uid,
     };
     // Appended in place (arrayUnion), never by rewriting the whole record —
@@ -231,7 +248,7 @@ class AdvisoryInterventionService {
     }
     setResponse(
       advisory.id,
-      responseKey(AdviceSection.soil, '${action.nutrient}@${plot.plotId}'),
+      responseKey(AdviceSection.soil, '${action.key}@${plot.plotId}'),
       'logged${band == null ? '' : ':${band.name}'}',
     );
     return online;

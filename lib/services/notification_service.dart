@@ -308,6 +308,16 @@ class NotificationService {
   static String cropTopic(String crop) =>
       'km_crop_${crop.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '')}';
 
+  /// Topics for a crop name and each part of a combined one:
+  /// "Cabbages/Kales" → cabbages_kales, cabbages, kales — so a farmer whose
+  /// older record says "Cabbages/Kales" gets advice for Cabbages or Kales.
+  /// Must match cropTopicsFor() in functions/notifications.js.
+  static Set<String> cropTopicsFor(String crop) => {
+    cropTopic(crop),
+    for (final p in crop.split('/'))
+      if (p.trim().isNotEmpty) cropTopic(p),
+  };
+
   /// Subscribes a farmer's device to km_farmers + their crop topics (from
   /// fielddata), unsubscribing crops they no longer grow. Call on the farmer
   /// home screen. On web the `syncWebTopics` function subscribes the
@@ -325,9 +335,11 @@ class NotificationService {
       for (final d in snap.docs) {
         for (final c in (d.data()['crops'] as List?) ?? const []) {
           final type = (c is Map ? c['type'] : null)?.toString() ?? '';
-          if (type.trim().isNotEmpty) wanted.add(cropTopic(type));
+          if (type.trim().isNotEmpty) wanted.addAll(cropTopicsFor(type));
         }
       }
+      // Only names the server accepts (TOPIC_RE in functions/notifications.js).
+      wanted.retainWhere(RegExp(r'^km_(farmers|crop_[a-z0-9_]{1,40})$').hasMatch);
       // Topic pushes can't be filtered per person on the server, so honour
       // Notification Settings here: advice or push off → no advice topics.
       if (!(await NotificationPrefsRepository.cached(uid)).wantsAdvicePushes) {

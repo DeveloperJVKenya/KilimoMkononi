@@ -36,8 +36,9 @@ class StructuredAdvice {
 
 final _bullet = RegExp(r'^[-•*]\s*');
 
-/// AI soil line: "N | Low: apply CAN 50 kg/acre | High: skip top-dressing".
-/// Unlabelled parts are the general action.
+/// AI soil line: "N | Stage: Vegetative | Low: apply CAN 50 kg per acre |
+/// High: skip top-dressing". Unlabelled parts are the general action; a rate
+/// per acre / hectare becomes a structured rate (scaled to the farmer's plot).
 SoilAction parseSoilLine(String line) {
   final parts = line.split('|').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
   var nutrient = 'general';
@@ -53,7 +54,18 @@ SoilAction parseSoilLine(String line) {
   }
   final bands = <String, String>{};
   final general = <String>[];
+  final stages = <String>[];
   for (final p in parts) {
+    final st = RegExp(r'^stages?\s*:\s*(.*)$', caseSensitive: false).firstMatch(p);
+    if (st != null) {
+      for (final x in st.group(1)!.split(RegExp(r'[,;/]'))) {
+        final t = x.trim();
+        if (t.isNotEmpty && !RegExp(r'^(any|all|any stage|all stages|none|n/a)$', caseSensitive: false).hasMatch(t)) {
+          stages.add(t);
+        }
+      }
+      continue;
+    }
     final m = RegExp(r'^(low|moderate|optimal|high|any)\s*:\s*(.*)$', caseSensitive: false).firstMatch(p);
     if (m == null) {
       general.add(p);
@@ -67,9 +79,11 @@ SoilAction parseSoilLine(String line) {
       }
     }
   }
-  BandAction b(String? t) => BandAction(action: t ?? '');
+  BandAction b(String? t) =>
+      (t ?? '').trim().isEmpty ? const BandAction() : BandAction.fromText(t!);
   return SoilAction(
     nutrient: nutrient,
+    stages: stages,
     general: b(general.join('; ')),
     low: b(bands['low']),
     moderate: b(bands['moderate']),
