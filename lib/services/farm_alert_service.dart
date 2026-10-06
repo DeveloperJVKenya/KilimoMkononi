@@ -109,7 +109,9 @@ class FarmAlertService {
           .then((v) => sat = v).catchError((_) => null),
       NasaPowerService.getHistory(days: 7)
           .then((v) => history = v).catchError((_) => <SatelliteReading>[]),
-      NuaSenseService.getLatestReading()
+      FarmLocationService.getSelectedPlotId()
+          .then(NuaSenseService.stationIdForPlot)
+          .then((id) => NuaSenseService.getLatestReading(stationId: id))
           .then((v) {
             // Only use NuaSense if the station returned real data
             // (timestamp is not the epoch zero-value from empty())

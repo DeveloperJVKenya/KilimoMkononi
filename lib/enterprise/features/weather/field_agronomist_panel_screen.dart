@@ -54,7 +54,9 @@ class _FieldAgronomistPanelScreenState
   Future<void> _loadStations() async {
     final picking = _stationId == null;
     try {
-      final s = await NuaSenseService.getStations();
+      // Every KM station (agronomist view) — the farm screens only ever
+      // show an account's own assigned stations.
+      final s = await NuaSenseService.getStations(allStations: true);
       if (!mounted) return;
       setState(() {
         _stations = s;
@@ -70,7 +72,7 @@ class _FieldAgronomistPanelScreenState
       _readingError = null;
     });
     try {
-      final r = await NuaSenseService.getLatestReading(stationId: _stationId);
+      final r = await NuaSenseService.getLatestReading(stationId: _stationId, allStations: true);
       if (!mounted) return;
       setState(() {
         _reading = r;

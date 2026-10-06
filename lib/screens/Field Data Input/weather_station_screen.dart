@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/services/station_preferences.dart';
 import 'package:kilimomkononi/services/weather_day_plan.dart';
 import 'package:kilimomkononi/enterprise/features/weather/admin_advisory_preview.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart';
@@ -87,12 +88,17 @@ class WeatherStationScreen extends StatefulWidget {
   /// farmer's first one. Ignored if it isn't one of their stations.
   final String? initialStationId;
 
+  /// Opens on the station the farmer chose for this farm / plot (default:
+  /// the farm selected in the app).
+  final String? plotId;
+
   /// Inside the Field Data Input hub (no app bar of its own).
   final bool embedded;
 
   const WeatherStationScreen({
     super.key,
     this.initialStationId,
+    this.plotId,
     this.embedded = false,
   });
 
@@ -112,6 +118,9 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   bool _isPlotGps = false;
   List<NuaStation> _stations = [];
   String? _selectedStationId;
+
+  /// The farmer's own farm → station choices (StationPreferences).
+  Map<String, String> _choices = const {};
 
   // Crops (for the conditions summary and the admin preview).
   List<String> _farmerCrops = [];
@@ -183,15 +192,18 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
 
   Future<void> _loadStations() async {
     try {
+      final plot = widget.plotId ?? await FarmLocationService.getSelectedPlotId();
       final stations = await NuaSenseService.getStations();
+      final choices = await StationPreferences.load();
       if (!mounted) return;
       setState(() {
         _stations = stations;
+        _choices = choices;
         final wanted = widget.initialStationId;
         if (_selectedStationId == null && stations.isNotEmpty) {
           _selectedStationId = stations.any((s) => s.id == wanted)
               ? wanted
-              : stations.first.id;
+              : NuaSenseService.stationForPlot(stations, plot, choices: choices)?.id;
         }
       });
     } catch (e) {
@@ -208,12 +220,115 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
     return id;
   }
 
+  /// Picking a station while a farm is selected saves it as that farm's
+  /// station — the farmer's own choice, remembered on every device.
   Future<void> _switchStation(String? stationId) async {
     setState(() {
       _selectedStationId = stationId;
       _loading = true;
     });
+    final plot = _selectedPlotId;
+    if (plot != null && stationId != null && _choices[plot] != stationId) {
+      await _saveChoice(plot, stationId);
+    }
     await _load();
+  }
+
+  String _plotName(String plotId) {
+    final name = _plots.where((p) => p.id == plotId).firstOrNull?.name ?? plotId;
+    return switch (name) {
+      'SingleCrop' => 'Single-crop plot',
+      'Intercrop' => 'Intercrop plot',
+      _ => name,
+    };
+  }
+
+  String _stationName(String gatewayId) =>
+      _stations.where((s) => s.id == gatewayId).firstOrNull?.name ?? 'a station';
+
+  Future<void> _saveChoice(String plotId, String? stationId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      final next = {..._choices};
+      stationId == null ? next.remove(plotId) : next[plotId] = stationId;
+      _choices = next;
+    });
+    try {
+      await StationPreferences.setForPlot(plotId, stationId);
+      messenger.showSnackBar(SnackBar(
+        content: Text(stationId == null
+            ? '${_plotName(plotId)} now uses your first station'
+            : 'Saved — ${_plotName(plotId)} uses ${_stationName(stationId)}'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t save your choice'))));
+    }
+  }
+
+  /// "Stations for my farms": one station per farm, chosen by the farmer.
+  void _showFarmStations() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Weather station for each farm',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _C.darkGreen),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Your account has more than one station. Choose which one each farm uses — '
+                  'the app then shows that station\'s conditions, alerts and advice for the farm.',
+                  style: TextStyle(fontSize: 12.5, color: Colors.black54, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                if (_plots.isEmpty)
+                  const Text(
+                    'Record a farm in Field Data Input first — then you can pick its station here.',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                for (final p in _plots)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: DropdownButtonFormField<String?>(
+                      initialValue: _stations.any((s) => s.id == _choices[p.id]) ? _choices[p.id] : null,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: _plotName(p.id),
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Not chosen (uses ${_stations.isEmpty ? 'your first station' : _stations.first.name})',
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        for (final s in _stations)
+                          DropdownMenuItem<String?>(value: s.id, child: Text(s.name, overflow: TextOverflow.ellipsis)),
+                      ],
+                      onChanged: (v) async {
+                        await _saveChoice(p.id, v);
+                        setSheet(() {});
+                        if (p.id == _selectedPlotId && v != null && v != _selectedStationId) {
+                          await _switchStation(v);
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadPlots() async {
@@ -236,7 +351,10 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
       _loading = true;
     });
     await FarmLocationService.selectPlot(plotId);
-    await _load(); // reloads crops + verified advice for the new plot
+    // Each farm shows the station the farmer chose for it.
+    final chosen = NuaSenseService.stationForPlot(_stations, plotId, choices: _choices);
+    if (chosen != null) setState(() => _selectedStationId = chosen.id);
+    await _load(); // reloads crops for the new plot
   }
 
   Future<void> _load() async {
@@ -293,6 +411,12 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
           stations: _stations,
           selectedStationId: _selectedStationId,
           onSelect: _switchStation,
+          farmName: _selectedPlotId == null ? null : _plotName(_selectedPlotId!),
+          farmsUsing: {
+            for (final s in _stations)
+              s.id: [for (final e in _choices.entries) if (e.value == s.id) _plotName(e.key)],
+          },
+          onManageFarms: _plots.isEmpty ? null : _showFarmStations,
         ),
       ),
     if (_plots.length > 1)
@@ -1128,10 +1252,20 @@ class _StationSwitcherButton extends StatelessWidget {
   final String? selectedStationId;
   final void Function(String? stationId) onSelect;
 
+  /// The farm in view — picking a station saves it for this farm.
+  final String? farmName;
+
+  /// Station id → the farms that use it (the farmer's choices).
+  final Map<String, List<String>> farmsUsing;
+  final VoidCallback? onManageFarms;
+
   const _StationSwitcherButton({
     required this.stations,
     required this.selectedStationId,
     required this.onSelect,
+    this.farmName,
+    this.farmsUsing = const {},
+    this.onManageFarms,
   });
 
   @override
@@ -1188,15 +1322,25 @@ class _StationSwitcherButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
-                child: Text(
-                  'Switch weather station',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF032704),
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      farmName == null ? 'Switch weather station' : 'Weather station for $farmName',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF032704),
+                      ),
+                    ),
+                    if (farmName != null)
+                      const Text(
+                        'Your pick is saved for this farm.',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                  ],
                 ),
               ),
               const Divider(height: 1),
@@ -1221,7 +1365,11 @@ class _StationSwitcherButton extends StatelessWidget {
                           : FontWeight.w600,
                     ),
                   ),
-                  subtitle: Text(s.online ? 'Online' : 'Offline'),
+                  subtitle: Text([
+                    s.online ? 'Online' : 'Offline',
+                    if ((farmsUsing[s.id] ?? const []).isNotEmpty)
+                      'used for ${farmsUsing[s.id]!.join(', ')}',
+                  ].join(' · ')),
                   trailing: isSelected
                       ? const Icon(Icons.check_circle, color: Color(0xFF2A6B2A))
                       : null,
@@ -1231,6 +1379,18 @@ class _StationSwitcherButton extends StatelessWidget {
                   },
                 );
               }),
+              if (onManageFarms != null) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.agriculture_rounded, color: Color(0xFF2A6B2A)),
+                  title: const Text('Choose a station for each farm',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF2A6B2A))),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onManageFarms!();
+                  },
+                ),
+              ],
               const SizedBox(height: 8),
             ],
           ),

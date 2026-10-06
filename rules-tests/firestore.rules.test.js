@@ -539,3 +539,30 @@ test("advisory responses: farmers keep their own answers only", async () => {
   await assertFails(setDoc(doc(as("farmer"), "advisoryResponses/farmer_adv3"), { ...ok, userId: "student" }));
   await assertFails(setDoc(doc(as("farmer"), "advisoryResponses/farmer_adv4"), { ...ok, isAdmin: true }));
 });
+
+test("weather stations: registry, providers and keys are admin / server only", async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "weatherStations/gw1"), { gatewayId: "gw1", label: "Kamau's farm", providerId: "nuasense" });
+    await setDoc(doc(db, "stationProviders/coast"), { name: "Coast", baseUrl: "https://x.example" });
+    await setDoc(doc(db, "stationProviderSecrets/coast"), { apiKey: "secret" });
+    await setDoc(doc(db, "Admins/boss"), { added: true });
+  });
+  for (const path of ["weatherStations/gw1", "stationProviders/coast", "stationProviderSecrets/coast"]) {
+    await assertFails(getDoc(doc(as("farmer"), path)));
+    await assertFails(setDoc(doc(as("farmer"), path), { label: "mine" }));
+  }
+  await assertFails(setDoc(doc(as("farmer"), "stationAssignments/gw1_farmer"), { gatewayId: "gw1", uid: "farmer", platform: "km" }));
+  await assertSucceeds(getDoc(doc(as("boss"), "weatherStations/gw1")));
+});
+
+test("station preferences: each farmer picks their own farms' stations, nobody else", async () => {
+  const mine = doc(as("farmer"), "stationPreferences/farmer");
+  await assertSucceeds(setDoc(mine, { userId: "farmer", plots: { "Plot 1": "gw1" }, updatedAt: serverTimestamp() }));
+  await assertSucceeds(getDoc(mine));
+  await assertSucceeds(setDoc(mine, { userId: "farmer", plots: { "Plot 2": "gw2" } }, { merge: true }));
+  await assertFails(getDoc(doc(as("student"), "stationPreferences/farmer")));
+  await assertFails(setDoc(doc(as("student"), "stationPreferences/farmer"), { userId: "student", plots: {} }));
+  await assertFails(setDoc(mine, { userId: "farmer", plots: {}, isAdmin: true }));
+  await assertFails(setDoc(mine, { userId: "farmer", plots: "gw1" }));
+});

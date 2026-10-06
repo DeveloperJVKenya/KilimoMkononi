@@ -267,6 +267,26 @@ service cloud.firestore {
       allow update: if signedIn() && uid() == ownerId &&
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
     }
+    // Weather-station registry (functions/stations.js):
+    //   weatherStations/{gatewayId}          labels + provider per station
+    //   stationProviders/{id}                NuaSense-compatible accounts
+    //   stationProviderSecrets/{id}          their API keys
+    // No client rules on purpose: only the Cloud Functions and admins (via the
+    // admin catch-all above) touch them; farmers get labels through
+    // getNuaSenseData, and never a key.
+
+    // Which of the account's stations each of its farms uses — the farmer's
+    // own choice (lib/services/station_preferences.dart). Access to station
+    // data is still decided by stationAssignments, never by this.
+    match /stationPreferences/{ownerId} {
+      allow read, delete: if signedIn() && uid() == ownerId;
+      allow create, update: if signedIn() && uid() == ownerId &&
+                               request.resource.data.keys().hasOnly(['userId', 'plots', 'updatedAt']) &&
+                               request.resource.data.userId == uid() &&
+                               request.resource.data.plots is map &&
+                               request.resource.data.plots.size() <= 100;
+    }
+
     // A farmer's answers on an advisory (found / not found / logged per
     // pest, disease or soil item) — lib/services/advisory_intervention_service.dart.
     // Doc id: {uid}_{advisoryId}; the owner only.

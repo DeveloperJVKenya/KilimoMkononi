@@ -59,6 +59,7 @@ dependencies:
   flutter_riverpod: ^3.4.3
   carousel_slider: ^5.0.0
   google_fonts: ^8.2.1
+  archive: ^4.3.0
 
 dev_dependencies:
   flutter_test:

@@ -30,6 +30,7 @@ describe("cacheKey / weatherUrls / placeLabel", () => {
     assert.match(u.current, /currentConditions:lookup\?key=K&location\.latitude=-1\.28&location\.longitude=36\.82&unitsSystem=METRIC/);
     assert.match(u.days, /forecast\/days:lookup.*days=7&pageSize=7/);
     assert.match(u.hours, /forecast\/hours:lookup.*hours=24&pageSize=24/);
+    assert.match(u.history, /history\/hours:lookup.*unitsSystem=METRIC.*hours=24&pageSize=24/);
   });
   test("short place names: town, county", () => {
     const results = [{

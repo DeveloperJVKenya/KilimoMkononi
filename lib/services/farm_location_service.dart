@@ -97,10 +97,11 @@ class PlotSummary {
 
   bool get hasGps => latitude != null && longitude != null;
 
+  /// What the app shows for the plot's location. Coordinates are kept for
+  /// the backend (weather lookups) but never shown — only the county and
+  /// whether a GPS pin is set.
   String get locationLabel {
-    if (hasGps) {
-      return '${latitude!.toStringAsFixed(4)}°, ${longitude!.toStringAsFixed(4)}°';
-    }
+    if (hasGps) return county.isNotEmpty ? '$county · GPS pin set' : 'GPS pin set';
     return county.isNotEmpty ? county : 'No location set';
   }
 

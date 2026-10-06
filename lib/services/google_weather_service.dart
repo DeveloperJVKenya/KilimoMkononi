@@ -223,6 +223,43 @@ class GoogleWeather {
       );
 }
 
+/// One hour of Google's recorded conditions (history/hours:lookup) — what
+/// Google's model says the weather WAS, for comparing with a station.
+class GoogleHistoryHour {
+  final DateTime time; // start of the hour, local
+  final double temp;
+  final int humidity;
+  final double dewPoint;
+  final double windKmh;
+  final double gustKmh;
+  final double rainMm;
+
+  const GoogleHistoryHour({
+    required this.time,
+    required this.temp,
+    required this.humidity,
+    required this.dewPoint,
+    required this.windKmh,
+    required this.gustKmh,
+    required this.rainMm,
+  });
+
+  static GoogleHistoryHour? fromJson(Map<String, dynamic> j) {
+    final start = DateTime.tryParse(_m(j['interval'])['startTime']?.toString() ?? '');
+    if (start == null) return null;
+    final wind = _m(j['wind']);
+    return GoogleHistoryHour(
+      time: start.toLocal(),
+      temp: _d(_m(j['temperature'])['degrees']),
+      humidity: _i(j['relativeHumidity']),
+      dewPoint: _d(_m(j['dewPoint'])['degrees']),
+      windKmh: _d(_m(wind['speed'])['value']),
+      gustKmh: _d(_m(wind['gust'])['value']),
+      rainMm: _d(_m(_m(j['precipitation'])['qpf'])['quantity']),
+    );
+  }
+}
+
 /// A place found by name or from coordinates.
 class GooglePlace {
   final double lat;
@@ -272,6 +309,17 @@ class GoogleWeatherService {
       } catch (_) {}
       rethrow;
     }
+  }
+
+  /// Google's recorded hourly conditions for the last 24 h at a point,
+  /// oldest first (for comparing with a weather station's readings).
+  static Future<List<GoogleHistoryHour>> historyForLocation(double lat, double lon) async {
+    final r = await _call({'action': 'history', 'lat': lat, 'lon': lon});
+    return ((r['hours'] as List?) ?? const [])
+        .map((h) => GoogleHistoryHour.fromJson(_m(h)))
+        .whereType<GoogleHistoryHour>()
+        .toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
   }
 
   /// Finds a place by name (biased to Kenya). Null when nothing matches.

@@ -19,6 +19,9 @@ import 'package:kilimomkononi/settings/notifications/farm_alerts.dart';
 import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
 
 final farmAdviceProvider = FutureProvider.autoDispose<FarmAdvice>((ref) {
+  // Rebuilt for whoever is signed in — another account on the same phone
+  // never sees the previous one's station data.
+  ref.watch(notifUidProvider);
   // Keep it while the app moves between Home and Notifications.
   final link = ref.keepAlive();
   final timer = Future.delayed(const Duration(minutes: 10), link.close);

@@ -115,7 +115,7 @@ class _StationLine extends StatelessWidget {
         ? ('No weather station on your farm — general advice only', Colors.black54)
         : !r!.hasData
             ? ('Weather station offline (no readings in 2 h) — general advice only', KmColors.orange)
-            : ('Weather station${a.stationName.isEmpty ? '' : ' ${a.stationName}'} · live · ${relativeTime(r.timestamp)}',
+            : ('${a.stationName.isEmpty ? 'Your weather station' : a.stationName} · live · ${relativeTime(r.timestamp)}',
                 AdvisoryColors.midGreen);
     return Material(
       color: Colors.white,

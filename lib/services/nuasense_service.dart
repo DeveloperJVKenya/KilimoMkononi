@@ -28,6 +28,8 @@
 
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kilimomkononi/services/station_preferences.dart';
 
 // ── Data model ─────────────────────────────────────────────────────────────
 
@@ -305,14 +307,23 @@ class NuaSenseForecastPoint {
 class NuaSenseService {
   NuaSenseService._();
 
-  // Cache — keyed by stationId ('' = default/demo gateway) so switching
-  // between a farmer's stations doesn't show stale data from another one.
+  // Cache — keyed by signed-in account + view + stationId, so switching
+  // stations, or another account signing in on the same phone, never shows
+  // data that belongs to someone else.
   static final Map<String, NuaSenseReading>         _cachedReadings  = {};
   static final Map<String, List<NuaSenseHourPoint>> _cachedHistories = {};
   static final Map<String, DateTime>                _cachedAt        = {};
   static const _cacheDuration = Duration(minutes: 10);
 
-  static String _key(String? stationId) => stationId ?? '';
+  static String _key(String? stationId, {bool allStations = false}) {
+    String uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    } catch (_) {
+      uid = '';
+    }
+    return '$uid|${allStations ? 'all' : 'mine'}|${stationId ?? ''}';
+  }
 
   static bool _cacheValid(String key) =>
       _cachedAt[key] != null &&
@@ -322,10 +333,18 @@ class NuaSenseService {
   /// or omit to clear everything.
   static void clearCache({String? stationId}) {
     if (stationId == null) {
+      _myStations.clear();
       _cachedReadings.clear();
       _cachedHistories.clear();
       _cachedAt.clear();
     } else {
+      // Every cached view of this station (mine / agronomist).
+      final keys = _cachedAt.keys.where((k) => k.endsWith('|$stationId')).toList();
+      for (final key in keys) {
+        _cachedReadings.remove(key);
+        _cachedHistories.remove(key);
+        _cachedAt.remove(key);
+      }
       final key = _key(stationId);
       _cachedReadings.remove(key);
       _cachedHistories.remove(key);
@@ -339,30 +358,71 @@ class NuaSenseService {
   /// Returns cached value if < 10 minutes old.
   /// Pass [stationId] once a farmer has selected one of their own stations
   /// (see [getStations]); omit to use the account's default gateway.
-  static Future<NuaSenseReading> getLatestReading({String? stationId}) async {
-    final key = _key(stationId);
+  ///
+  /// [allStations]: the Field Agronomist panel's view of every KM station
+  /// (agronomists / admins only — the server refuses anyone else). Every
+  /// other screen shows only the stations assigned to this account.
+  static Future<NuaSenseReading> getLatestReading({String? stationId, bool allStations = false}) async {
+    final key = _key(stationId, allStations: allStations);
     if (_cacheValid(key) && _cachedReadings[key] != null) {
       return _cachedReadings[key]!.copyWith(isStale: true);
     }
-    await _fetchAll(stationId: stationId);
+    await _fetchAll(stationId: stationId, allStations: allStations);
     return _cachedReadings[key] ?? NuaSenseReading.empty();
   }
 
   /// Fetches hourly history for the last 24 hours.
-  static Future<List<NuaSenseHourPoint>> get24hHistory({String? stationId}) async {
-    final key = _key(stationId);
+  static Future<List<NuaSenseHourPoint>> get24hHistory({String? stationId, bool allStations = false}) async {
+    final key = _key(stationId, allStations: allStations);
     if (_cacheValid(key) && _cachedHistories[key] != null) {
       return _cachedHistories[key]!;
     }
-    await _fetchAll(stationId: stationId);
+    await _fetchAll(stationId: stationId, allStations: allStations);
     return _cachedHistories[key] ?? [];
   }
 
   /// Lists every station this account's API key owns — location, last-seen,
   /// online status. Use this to show a station picker for premium users
   /// with their own hardware, same pattern as the farm-plot switcher.
-  static Future<List<NuaStation>> getStations() async {
-    final res = await _call('stations', {});
+  /// The station for one of the account's farms / plots: the one the farmer
+  /// chose for [plotId] ([choices] = StationPreferences), else the first of
+  /// the account's stations. A choice for a station the account no longer
+  /// has is ignored.
+  static NuaStation? stationForPlot(
+    List<NuaStation> stations,
+    String? plotId, {
+    Map<String, String> choices = const {},
+  }) {
+    if (stations.isEmpty) return null;
+    final chosen = plotId == null ? null : choices[plotId];
+    if (chosen != null) {
+      for (final s in stations) {
+        if (s.id == chosen) return s;
+      }
+    }
+    return stations.first;
+  }
+
+  // The account's own stations, briefly cached (keyed by account).
+  static final Map<String, (DateTime, List<NuaStation>)> _myStations = {};
+
+  /// [stationForPlot] for the signed-in account — use it wherever a screen
+  /// is about one farm / plot. Null when the account has no station.
+  static Future<String?> stationIdForPlot(String? plotId) async {
+    final key = _key(null);
+    final hit = _myStations[key];
+    List<NuaStation> list;
+    if (hit != null && DateTime.now().difference(hit.$1) < _cacheDuration) {
+      list = hit.$2;
+    } else {
+      list = await getStations();
+      _myStations[key] = (DateTime.now(), list);
+    }
+    return stationForPlot(list, plotId, choices: await StationPreferences.load())?.id;
+  }
+
+  static Future<List<NuaStation>> getStations({bool allStations = false}) async {
+    final res = await _call('stations', {}, allStations: allStations);
     final list = (res['stations'] as List?) ?? (res['data'] as List?) ?? [];
     return list
         .whereType<Map>()
@@ -421,7 +481,7 @@ class NuaSenseService {
 
   // ── Internal fetch ────────────────────────────────────────────────────────
 
-  static Future<void> _fetchAll({String? stationId}) async {
+  static Future<void> _fetchAll({String? stationId, bool allStations = false}) async {
     final gatewayParam = stationId != null ? {'gateway_id': stationId} : <String, String>{};
 
     // Fetch weather metrics and derived fields in parallel
@@ -433,7 +493,7 @@ class NuaSenseService {
         'resolution': 'hourly',
         'aggregate':  'last',
         ...gatewayParam,
-      }),
+      }, allStations: allStations),
       _call('derived', {
         'fields': 'dew_point,dew_point_depression,vpd,et0_hour,'
             'lwd_hour,lwd_reason,lwd_consecutive_hours,pressure_trend_6h,'
@@ -444,7 +504,7 @@ class NuaSenseService {
             'dd_armyworm_hour,dd_cbb_hour',
         'start': '-2h',
         ...gatewayParam,
-      }),
+      }, allStations: allStations),
       // 24h hourly history for charts
       _call('weather', {
         'metrics':    'air_temperature,humidity,rainfall,wind_speed',
@@ -452,12 +512,12 @@ class NuaSenseService {
         'resolution': 'hourly',
         'aggregate':  'mean',
         ...gatewayParam,
-      }),
+      }, allStations: allStations),
       _call('derived', {
         'fields': 'et0_hour,lwd_hour',
         'start':  '-24h',
         ...gatewayParam,
-      }),
+      }, allStations: allStations),
     ]);
 
     final weatherNow  = results[0];
@@ -470,7 +530,7 @@ class NuaSenseService {
     // { provisioned: false } instead of real weather/derived data — the
     // Cloud Function checks this before ever calling NuaSense. Checking
     // any single one of them is enough to detect it.
-    final key = _key(stationId);
+    final key = _key(stationId, allStations: allStations);
     if (weatherNow['provisioned'] == false) {
       _cachedReadings[key] = NuaSenseReading.empty(isProvisioned: false);
       _cachedHistories[key] = [];
@@ -612,11 +672,16 @@ class NuaSenseService {
 
   static Future<Map<String, dynamic>> _call(
     String endpoint,
-    Map<String, String> params,
-  ) async {
+    Map<String, String> params, {
+    bool allStations = false,
+  }) async {
     try {
       final fn  = FirebaseFunctions.instance.httpsCallable('getNuaSenseData');
-      final res = await fn.call({'endpoint': endpoint, 'params': params});
+      final res = await fn.call({
+        'endpoint': endpoint,
+        'params': params,
+        if (allStations) 'scope': 'all',
+      });
       return Map<String, dynamic>.from(res.data as Map);
     } catch (e) {
       // Return empty structure so callers degrade gracefully

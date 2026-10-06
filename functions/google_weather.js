@@ -9,6 +9,9 @@
 //                          currentConditions, forecastDays (7), forecastHours (24)
 //   geocode  {query}     → { lat, lon, label } | { notFound: true }   (Kenya-biased)
 //   reverse  {lat, lon}  → { label }  (short place name, may be null)
+//   history  {lat, lon}  → { hours } — Google's recorded hourly conditions for
+//                          the last 24 h (historyHours), used to compare with
+//                          a weather station's own readings (Weather screen)
 //
 // This is a FORECAST / area model. Advisories and alerts stay driven by the
 // farm's own NuaSense station readings — never by this data.
@@ -36,7 +39,7 @@ function validateWeatherRequest(data) {
     }
     return { action, query };
   }
-  if (action === "weather" || action === "reverse") {
+  if (action === "weather" || action === "reverse" || action === "history") {
     const lat = Number(data.lat);
     const lon = Number(data.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
@@ -61,6 +64,7 @@ function weatherUrls(lat, lon, key) {
     current: `${WEATHER_BASE}/currentConditions:lookup?${loc}`,
     days: `${WEATHER_BASE}/forecast/days:lookup?${loc}&days=7&pageSize=7`,
     hours: `${WEATHER_BASE}/forecast/hours:lookup?${loc}&hours=24&pageSize=24`,
+    history: `${WEATHER_BASE}/history/hours:lookup?${loc}&hours=24&pageSize=24`,
   };
 }
 
@@ -150,6 +154,10 @@ function createGoogleWeatherFunction({ GOOGLE_WEATHER_KEY }) {
           hours: hours.forecastHours || [],
           fetchedAt: new Date().toISOString(),
         };
+        cacheSet(key, result, WEATHER_TTL_MS);
+      } else if (req.action === "history") {
+        const h = await getJson(weatherUrls(req.lat, req.lon, apiKey).history);
+        result = { hours: h.historyHours || [], fetchedAt: new Date().toISOString() };
         cacheSet(key, result, WEATHER_TTL_MS);
       } else if (req.action === "geocode") {
         const results = await geocodeQuery(

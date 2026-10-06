@@ -881,15 +881,11 @@ function createWeatherSweep({ PLATFORM, fetchReading }) {
 //  Cloud Functions
 // ═════════════════════════════════════════════════════════════════════════════
 
-function createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }) {
+function createNotificationFunctions({ NUASENSE_KEY, PLATFORM, stationRegistry }) {
+  // Each station is read through its own provider (functions/stations.js).
   async function fetchStationReading(gatewayId) {
-    const get = async (endpoint, params) => {
-      const qs = new URLSearchParams({ ...params, gateway_id: gatewayId });
-      const res = await fetch(`${NUASENSE_BASE}/${endpoint}?${qs}`, {
-        headers: { Authorization: `Bearer ${NUASENSE_KEY.value()}`, Accept: "application/json" },
-      });
-      return res.ok ? res.json() : null;
-    };
+    const get = (endpoint, params) =>
+      stationRegistry.callForStation(gatewayId, endpoint, params).catch(() => null);
     const [weather, derived] = await Promise.all([
       get("weather", {
         metrics: "air_temperature,humidity,rainfall,wind_speed,wind_gusts",

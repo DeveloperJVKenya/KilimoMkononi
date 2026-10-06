@@ -59,12 +59,16 @@ class WeatherStationInlinePanel extends StatefulWidget {
   final List<String> cropNames;
   final VoidCallback? onOpenFullScreen;
 
+  /// The plot this panel is on — shows the station linked to it.
+  final String? plotId;
+
   const WeatherStationInlinePanel({
     super.key,
     this.showDegreeDays   = false,
     this.showFertiliser   = false,
     this.cropNames        = const [],
     this.onOpenFullScreen,
+    this.plotId,
   });
 
   @override
@@ -94,7 +98,8 @@ class _WeatherStationInlinePanelState
     if (!mounted) return;
     setState(() { _loading = true; _error = null; });
     try {
-      final r = await NuaSenseService.getLatestReading();
+      final stationId = await NuaSenseService.stationIdForPlot(widget.plotId);
+      final r = await NuaSenseService.getLatestReading(stationId: stationId);
       if (!mounted) return;
       setState(() { _r = r; _loading = false; });
     } catch (e) {

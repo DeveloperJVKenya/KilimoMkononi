@@ -245,6 +245,10 @@ const NUASENSE_ALLOWED_ENDPOINTS = [
 // platform from this project.
 const PLATFORM = "km";
 
+// Station registry (labels, per-station provider) — see functions/stations.js.
+const { createStationRegistry, createStationAdminFunction } = require("./stations");
+const stationRegistry = createStationRegistry({ NUASENSE_KEY, NUASENSE_BASE });
+
 /** Field Agronomists (Agronomists/{uid}, granted by an admin). */
 async function isAgronomist(uid) {
   return (await getFirestore().doc(`Agronomists/${uid}`).get()).exists;
@@ -263,14 +267,22 @@ async function getAllPlatformStationIds() {
   return [...new Set(snap.docs.map((d) => d.data().gatewayId))];
 }
 
-/** Every gateway_id currently assigned to this uid in KM's Firestore. */
-async function getOwnedStationIds(uid) {
-  const db = getFirestore();
-  const snap = await db
+/**
+ * Every gateway_id currently assigned to this uid on Kilimo Mkononi
+ * (assignments for the other platform sharing the key don't count).
+ */
+async function getOwnedAssignments(uid) {
+  const snap = await getFirestore()
     .collection("stationAssignments")
     .where("uid", "==", uid)
     .get();
-  return snap.docs.map((d) => d.data().gatewayId);
+  return snap.docs
+    .map((d) => d.data())
+    .filter((a) => (a.platform ?? PLATFORM) === PLATFORM && a.gatewayId);
+}
+
+async function getOwnedStationIds(uid) {
+  return [...new Set((await getOwnedAssignments(uid)).map((a) => a.gatewayId))];
 }
 
 exports.getNuaSenseData = onCall(
@@ -287,15 +299,18 @@ exports.getNuaSenseData = onCall(
     }
     const uid = request.auth.uid;
 
-    const { endpoint = "weather", params = {} } = request.data ?? {};
+    const { endpoint = "weather", params = {}, scope } = request.data ?? {};
     if (!NUASENSE_ALLOWED_ENDPOINTS.includes(endpoint)) {
       throw new HttpsError("invalid-argument", `Unknown endpoint '${endpoint}'`);
     }
 
-    // Agronomists (and admins testing the agronomist panel) see every KM
-    // station's conditions; farmers see only their own.
-    const allStations = (await isAgronomist(uid)) ||
-      (await isPlatformAdmin(request.auth));
+    // Every screen shows only the stations assigned to this account —
+    // admins and Field Agronomists included. Only the Field Agronomist panel
+    // asks for scope "all" (to write advice for every KM station), and only
+    // agronomists / admins get it. Being an admin or agronomist never gives
+    // a farm view of stations the account isn't connected to.
+    const allStations = scope === "all" &&
+      ((await isAgronomist(uid)) || (await isPlatformAdmin(request.auth)));
     const ownedStationIds = allStations
       ? await getAllPlatformStationIds()
       : await getOwnedStationIds(uid);
@@ -307,25 +322,11 @@ exports.getNuaSenseData = onCall(
       if (ownedStationIds.length === 0) {
         return { stations: [], provisioned: false };
       }
-      const res = await fetch(`${NUASENSE_BASE}/stations`, {
-        headers: {
-          "Authorization": `Bearer ${NUASENSE_KEY.value()}`,
-          "Accept": "application/json",
-        },
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new HttpsError(
-          "internal",
-          `NuaSense returned HTTP ${res.status}: ${body.slice(0, 200)}`
-        );
-      }
-      const data = await res.json();
-      const allStations = data.stations || data.data || [];
-      const owned = allStations.filter((s) =>
-        ownedStationIds.includes(s.gateway_id || s.id)
-      );
-      return { stations: owned, provisioned: true };
+      // Each station comes from its own provider; `name` is the admin's
+      // label (never coordinates — those stay as lat/lon for backend use).
+      // Which farm uses which station is the farmer's own choice
+      // (stationPreferences/{uid}), applied in the app.
+      return { stations: await stationRegistry.describe(ownedStationIds), provisioned: true };
     }
 
     // ── Every other endpoint requires a gateway_id we can verify ──────────
@@ -349,44 +350,9 @@ exports.getNuaSenseData = onCall(
       gatewayId = ownedStationIds[0];
     }
 
-    const qs = Object.entries({ ...params, gateway_id: gatewayId })
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join("&");
-    const url = `${NUASENSE_BASE}/${endpoint}?${qs}`;
-
-    const res = await fetch(url, {
-      method:  "GET",
-      headers: {
-        "Authorization": `Bearer ${NUASENSE_KEY.value()}`,
-        "Accept":        "application/json",
-      },
-    });
-
-    console.log(
-  `[NuaSense] ${endpoint} gateway=${gatewayId} → HTTP ${res.status} | ` +
-  `daily remaining: ${res.headers.get("X-Daily-Remaining") ?? "?"} / ` +
-  `${res.headers.get("X-Daily-Limit") ?? "?"}`
-);
-
-    if (res.status === 429) {
-      const retryAfter = res.headers.get("Retry-After") ?? "60";
-      throw new HttpsError(
-        "resource-exhausted",
-        `NuaSense rate limit hit. Retry after ${retryAfter}s`
-      );
-    }
-    if (res.status === 401) {
-      throw new HttpsError("unauthenticated", "NuaSense API key is invalid or expired.");
-    }
-    if (!res.ok) {
-      const body = await res.text();
-      throw new HttpsError(
-        "internal",
-        `NuaSense returned HTTP ${res.status}: ${body.slice(0, 200)}`
-      );
-    }
-
-    const data = await res.json();
+    const rest = { ...params };
+    delete rest.gateway_id; // set by the registry, from the verified id above
+    const data = await stationRegistry.callForStation(gatewayId, endpoint, rest);
     return { ...data, provisioned: true };
   }
 );
@@ -406,49 +372,46 @@ async function isPlatformAdmin(auth) {
 // Call this once per install, instead of editing Firestore by hand — it's
 // auditable (assignedBy/assignedAt). Restricted to admins (see isPlatformAdmin).
 
+// Weather stations from the Admin panel: label, add providers, connect /
+// disconnect farmers (functions/stations.js). assignStationToUser stays for
+// older admin tools and does the same as action "assign".
+const { deliverToUsers } = require("./notifications");
+exports.manageWeatherStations = createStationAdminFunction({
+  registry: stationRegistry,
+  isPlatformAdmin,
+  PLATFORM,
+  NUASENSE_KEY,
+  notifyUser: (uid, n) => deliverToUsers([uid], {
+    title: n.title,
+    body: n.body,
+    channel: "km_general",
+    route: "weather_station",
+    type: "general",
+    data: { gatewayId: n.gatewayId },
+  }),
+});
+
 exports.assignStationToUser = onCall(
   { region: "us-central1" },
   async (request) => {
     if (!(await isPlatformAdmin(request.auth))) {
-      throw new HttpsError(
-        "permission-denied",
-        "Only admin accounts can assign stations."
-      );
+      throw new HttpsError("permission-denied", "Only admin accounts can assign stations.");
     }
     const { gatewayId, uid, plotId } = request.data || {};
     if (!gatewayId || !uid) {
       throw new HttpsError("invalid-argument", "gatewayId and uid are required.");
     }
-
     const db = getFirestore();
-
-    // A farmer normally has exactly one active station on this platform
-    // (this clears THIS farmer's other assignments here — it does not
-    // touch any other farmer's assignment to the same or any other
-    // station, since each farmer now has their own doc). On a hardware
-    // swap, NuaSense issues a new gateway_id for the same physical
-    // install — this same clearing logic handles that case too, since the
-    // "stale" assignment is just this farmer's previous gateway_id.
-    const staleAssignments = await db
-      .collection("stationAssignments")
-      .where("uid", "==", uid)
-      .where("platform", "==", PLATFORM)
-      .get();
+    const stale = await db.collection("stationAssignments")
+      .where("uid", "==", uid).where("platform", "==", PLATFORM).get();
     const docId = `${gatewayId}_${uid}`;
     const batch = db.batch();
-    staleAssignments.docs.forEach((doc) => {
-      if (doc.id !== docId) batch.delete(doc.ref);
-    });
+    stale.docs.forEach((doc) => { if (doc.id !== docId) batch.delete(doc.ref); });
     batch.set(db.collection("stationAssignments").doc(docId), {
-      gatewayId,
-      uid,
-      platform: PLATFORM,
-      plotId: plotId ?? null,
-      assignedAt: new Date(),
-      assignedBy: request.auth.uid,
+      gatewayId, uid, platform: PLATFORM, plotId: plotId ?? null,
+      assignedAt: new Date(), assignedBy: request.auth.uid,
     });
     await batch.commit();
-
     return { success: true };
   }
 );
@@ -532,7 +495,7 @@ async function readJson(res) {
 
 // ── Push notifications (FCM) — see functions/notifications.js ────────────────
 const { createNotificationFunctions, createWebTopicsFunction } = require("./notifications");
-Object.assign(exports, createNotificationFunctions({ NUASENSE_KEY, NUASENSE_BASE, PLATFORM }));
+Object.assign(exports, createNotificationFunctions({ NUASENSE_KEY, PLATFORM, stationRegistry }));
 // Browser push tokens → crop topics (lib/services/notification_service.dart).
 exports.syncWebTopics = createWebTopicsFunction();
 

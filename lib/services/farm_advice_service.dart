@@ -24,6 +24,7 @@ import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dar
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/services/station_preferences.dart';
 import 'package:kilimomkononi/services/function_auth.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
 import 'package:kilimomkononi/services/weather_day_plan.dart';
@@ -89,10 +90,17 @@ class FarmAdviceService {
     String? stationId;
     var stationName = '';
     try {
+      // The station of the farm the farmer is looking at (accounts can have
+      // several stations — one per farm).
       final stations = await NuaSenseService.getStations();
-      if (stations.isNotEmpty) {
-        stationId = stations.first.id;
-        stationName = stations.first.name;
+      final s = NuaSenseService.stationForPlot(
+        stations,
+        await FarmLocationService.getSelectedPlotId(),
+        choices: await StationPreferences.load(),
+      );
+      if (s != null) {
+        stationId = s.id;
+        stationName = s.name;
       }
     } catch (_) {}
 

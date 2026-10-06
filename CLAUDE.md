@@ -61,10 +61,18 @@ npm run logs     # firebase functions:log
 - **Weather (farmer)**: Google Weather API (current, 24 h, 7 days) + Geocoding go through the
   `getGoogleWeather` callable (`functions/google_weather.js`, secret `GOOGLE_WEATHER_KEY`, a key
   restricted to those two APIs) via `lib/services/google_weather_service.dart`; UI pieces in
-  `lib/widgets/google_weather_widgets.dart`. The Weather screen uses device location / the farm /
-  a typed place; the Weather Station screen shows it next to the station's own readings. Always
+  `lib/widgets/google_weather_widgets.dart`. The Weather screen uses the connected weather station's
+  position (default when the account has one; pick among several) / the device location / a typed
+  place — never the account's registered location (search it by name instead); the Weather Station screen shows it next to the station's own readings. Always
   label the two sources (`WeatherSourceBadge`): advisories and alerts come ONLY from station data.
   Education mode still uses OpenWeatherMap via `getOpenWeather` / `open_weather_proxy.dart`.
+  Weather screen → "Compare with Google" (`lib/screens/weather_comparison_screen.dart`,
+  `lib/services/weather_comparison.dart`): Google current vs. the station's latest reading, and the
+  last 24 h hour by hour — Google's RECORDED history (`getGoogleWeather` action `history`) vs. the
+  station's hourly readings (difference = station − Google; station wind m/s → km/h). Downloads as a
+  formatted Excel workbook (`lib/utils/xlsx_writer.dart` — our own small .xlsx writer on `archive`;
+  the `excel` package conflicts with lottie's archive 4) or CSV, saved directly as
+  "Google to Weather station Comparison data --YYYY-MM-DD" (`lib/utils/file_saver.dart`).
 - **Climate data**: `nasa_power_service.dart` hits NASA POWER directly (no key).
 
 ### Offline-first writes
@@ -177,6 +185,25 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   tab, categorised the same way: Farm alerts (day plan + `loadFarmAlerts`), Verified advice, AI
   advice (`lib/widgets/farm_advice_panel.dart`, `lib/services/farm_advice_service.dart`, Riverpod in
   `lib/settings/notifications/advice_providers.dart`; AI cached per station + crops + hour).
+- Weather stations are managed in the Admin panel → Weather Stations
+  (`lib/screens/admin/weather_stations_admin_screen.dart` → `manageWeatherStations` callable,
+  `functions/stations.js`): name stations, connect / disconnect farmers (they get a notification),
+  add station providers (any NuaSense-compatible partner API: base URL + key + how the key is sent;
+  "Test connection"). `weatherStations/{gatewayId}` holds the label + providerId;
+  `stationProviders` / `stationProviderSecrets` the providers and keys (no client rules — server and
+  admins only; the app never receives a key). `getNuaSenseData` and the alert sweep read each
+  station through its own provider (`createStationRegistry`), and `/stations` returns the label as
+  `name` — coordinates stay as lat/lon for backend use and are never shown (plot locations show the
+  county + "GPS pin set").
+  Access: EVERY account (farmers, Field Agronomists, admins) sees a station on its farm screens only
+  when connected (`stationAssignments`). Only the Field Agronomist panel asks for `scope: "all"`
+  (`NuaSenseService.getStations/getLatestReading(allStations: true)`), granted to agronomists /
+  admins. The admin only connects stations to an account (it can hold several); the FARMER chooses
+  which farm / plot uses which station on the Weather Station screen (picker + "Choose a station
+  for each farm"), saved in `stationPreferences/{uid}` (`lib/services/station_preferences.dart`,
+  owner-only rules; never grants access). Screens about a farm pick its station with
+  `NuaSenseService.stationIdForPlot` / `stationForPlot(..., choices:)` (no choice → first station).
+  Station caches are keyed by the signed-in account.
 - Farmer auth screens (login, registration, Google "finish setup") share
   `lib/authentication/widgets/auth_kit.dart`: `AuthLayout` (split / card / phone layouts — forms are
   width-capped), `EnterToSubmit` (Enter submits from anywhere; focus jumps to the first invalid field),

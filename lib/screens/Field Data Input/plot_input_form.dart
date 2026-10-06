@@ -1575,6 +1575,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
         // today?". Only the compact status/mini-grid/wind-row context and
         // the "Full station data →" link remain.
         WeatherStationInlinePanel(
+          plotId: widget.plotId,
           //showFertiliser: false,
           showDegreeDays: false,
           //showSprayWindow: false,
@@ -1587,7 +1588,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
           onOpenFullScreen: () => Navigator.push(
             context,
             MaterialPageRoute(
-                builder: (_) => const WeatherStationScreen()),
+                builder: (_) => WeatherStationScreen(plotId: widget.plotId)),
           ),
         ),
         const SizedBox(height: 12),
