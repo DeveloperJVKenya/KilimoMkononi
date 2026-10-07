@@ -221,7 +221,7 @@ SOIL:
       expect(find.text('Delay top-dressing until the rain stops'), findsOneWidget);
 
       await tester.scrollUntilVisible(find.text('Late Blight'), 300);
-      expect(find.text('Logged'), findsOneWidget); // Aphids
+      expect(find.textContaining('Logged'), findsOneWidget); // pill (icon inline) // Aphids
       expect(find.text('Disease guide'), findsOneWidget);
       expect(find.text('Not sure? Photo ID'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
@@ -237,7 +237,7 @@ SOIL:
         ),
       ));
       await tester.pumpAndSettle();
-      expect(find.text('AI-generated · not verified'), findsOneWidget);
+      expect(find.textContaining('AI-generated · not verified'), findsOneWidget);
       expect(find.text('Set up farm'), findsOneWidget);
       expect(find.textContaining('Not measured on this plot'), findsNothing);
       expect(tester.takeException(), isNull);

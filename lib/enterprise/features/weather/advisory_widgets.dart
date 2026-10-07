@@ -159,32 +159,31 @@ class Pill extends StatelessWidget {
   });
 
   @override
+  // One Text (icon inline): natural width when there's room, "…" when the
+  // pill is squeezed — never an overflow, at any text size. [flexible] is
+  // kept for callers; every pill now behaves this way.
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
     decoration: BoxDecoration(
       color: bg,
       borderRadius: BorderRadius.circular(20),
     ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
+    child: Text.rich(
+      TextSpan(children: [
         if (icon != null) ...[
-          Icon(icon, size: 11, color: fg),
-          const SizedBox(width: 3),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Icon(icon, size: 11, color: fg),
+          ),
+          const TextSpan(text: ' '),
         ],
-        if (flexible)
-          Flexible(child: _label)
-        else
-          _label,
-      ],
+        TextSpan(text: text),
+      ]),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
     ),
-  );
-
-  Widget get _label => Text(
-    text,
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
   );
 }
 
@@ -349,7 +348,8 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                ConditionPill(condition, label: conditionLabel),
+                const SizedBox(width: 6),
+                Flexible(child: ConditionPill(condition, label: conditionLabel)),
               ],
             ),
           ),
@@ -391,12 +391,17 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Text(
-                      stationScoped ? 'This station' : 'All stations',
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black54,
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        stationScoped ? 'This station' : 'All stations',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
                   ],

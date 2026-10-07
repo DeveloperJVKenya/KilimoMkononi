@@ -37,7 +37,7 @@ void main() {
     ));
     expect(find.text('Verified by Field Agronomist'), findsOneWidget);
     expect(find.textContaining('Jane Wanjiku'), findsOneWidget);
-    expect(find.text('Wet leaves'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^\W*Wet leaves$')), findsOneWidget); // condition pill (icon inline)
     expect(tester.takeException(), isNull);
   });
 

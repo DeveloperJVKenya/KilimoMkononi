@@ -1,15 +1,17 @@
 // lib/screens/weather_screen.dart
 //
 // Weather (farmer mode): Google Weather forecast — current conditions, next
-// 24 hours and 7 days — for
-//   • Weather station — the position of the account's connected station
-//                       (the farm in view's station; pick another if the
-//                       account has several). The default when there is one,
-//                       with a live "Google vs. station" panel → the full
-//                       comparison and its Excel / CSV downloads.
-//   • My location     — the device's GPS (browser location on web),
-//   • a place the farmer types (e.g. "Nakuru") — how to see any other area,
-//                       including the account's registered county.
+// 24 hours and 7 days. Three toggles under the search bar:
+//   • My location     — the device's GPS (browser location on web)
+//   • Farm location   — the location saved for the farm / account (the
+//                       selected plot's pin, else the registered county)
+//   • Weather station — the connected station's own readings and the live
+//                       "Google vs. station" panel → the full comparison and
+//                       its Excel / CSV downloads. Google's side uses the
+//                       station's position, or the farm location when the
+//                       station doesn't report one (labelled). Default when
+//                       the account has a station; pick another if several.
+// …plus any place the farmer types (e.g. "Nakuru").
 //
 // The station's own measurements are shown alongside, clearly labelled as a
 // separate source. Advice and alerts come from the station, never from this
@@ -27,7 +29,7 @@ import 'package:kilimomkononi/services/nuasense_service.dart';
 import 'package:kilimomkononi/services/weather_comparison.dart';
 import 'package:kilimomkononi/widgets/google_weather_widgets.dart';
 
-enum _Where { station, device, search }
+enum _Where { device, farm, station, search }
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
@@ -140,14 +142,9 @@ class WeatherScreenState extends State<WeatherScreen> {
           _notice = '${e.message}. Showing your last known location '
               '(${relativeTimeShort(saved.at)}).';
         });
-      } else if (_stations.isNotEmpty) {
-        _notice = '${e.message} — showing your weather station\'s area instead.';
-        await _useStation(keepNotice: true);
       } else {
-        setState(() {
-          _loading = false;
-          _error = '${e.message}. Search a town or place above to see its forecast.';
-        });
+        _notice = '${e.message} — showing your farm location instead.';
+        await _useFarm(keepNotice: true);
       }
     }
   }
@@ -172,8 +169,24 @@ class WeatherScreenState extends State<WeatherScreen> {
     }
   }
 
-  /// "Weather station": Google's forecast at the connected station's own
-  /// position, next to that station's readings.
+  /// "Farm location": the location saved for the farm (plot pin, else the
+  /// account's registered county).
+  Future<void> _useFarm({bool keepNotice = false}) async {
+    final notice = keepNotice ? _notice : null;
+    final req = _start(_Where.farm);
+    _notice = notice;
+    try {
+      final loc = await FarmLocationService.getLocation();
+      final w = await GoogleWeatherService.forLocation(loc.latitude, loc.longitude);
+      _finish(req, w, loc.plotName?.isNotEmpty == true ? '${loc.plotName} · ${loc.displayLabel}' : loc.displayLabel);
+    } catch (e) {
+      _fail(req, e);
+    }
+  }
+
+  /// "Weather station": the station's own readings next to Google's
+  /// forecast for its position — or for the farm location when the station
+  /// doesn't report one.
   Future<void> _useStation({String? stationId, bool keepNotice = false}) async {
     final notice = keepNotice ? _notice : null;
     if (stationId != null) _stationId = stationId;
@@ -185,19 +198,21 @@ class WeatherScreenState extends State<WeatherScreen> {
       return;
     }
     unawaited(_loadStation(st.id));
-    if (st.lat == null || st.lon == null) {
-      if (!mounted || req != _request) return;
-      setState(() {
-        _loading = false;
-        _weather = null;
-        _error = '${st.name} doesn\'t report its position, so Google\'s forecast for it '
-            'can\'t be shown. Use "My location" or search the area\'s name.';
-      });
-      return;
-    }
     try {
-      final w = await GoogleWeatherService.forLocation(st.lat!, st.lon!);
-      _finish(req, w, '${st.name} (station area)');
+      if (st.lat != null && st.lon != null) {
+        final w = await GoogleWeatherService.forLocation(st.lat!, st.lon!);
+        _finish(req, w, '${st.name} (station area)');
+      } else {
+        // The station doesn't report where it is: use the farm's saved
+        // location for Google's side (the station's farm).
+        final loc = await FarmLocationService.getLocation();
+        final w = await GoogleWeatherService.forLocation(loc.latitude, loc.longitude);
+        if (mounted && req == _request) {
+          _notice = 'Google forecast for your farm location (${loc.displayLabel}) — '
+              '${st.name} doesn\'t report its own position.';
+        }
+        _finish(req, w, loc.displayLabel);
+      }
     } catch (e) {
       _fail(req, e);
     }
@@ -285,6 +300,7 @@ class WeatherScreenState extends State<WeatherScreen> {
 
   Future<void> _refresh() => switch (_where) {
         _Where.station => _useStation(),
+        _Where.farm => _useFarm(),
         _Where.device => _useDeviceLocation(),
         _Where.search => _search(),
       };
@@ -402,38 +418,80 @@ class WeatherScreenState extends State<WeatherScreen> {
         ),
       );
 
-  Widget _sourceChips() => Wrap(spacing: 8, runSpacing: 6, children: [
-        ChoiceChip(
-          avatar: const Icon(Icons.my_location_rounded, size: 16),
-          label: const Text('My location'),
-          selected: _where == _Where.device,
-          onSelected: _loading ? null : (_) => _useDeviceLocation(),
-        ),
-        if (_stations.isNotEmpty)
-          ChoiceChip(
-            avatar: const Icon(Icons.sensors_rounded, size: 16),
-            label: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 190),
-              child: Text(
-                _stations.length > 1 && _selectedStation != null ? 'Station: ${_selectedStation!.name}' : 'Weather station',
-                overflow: TextOverflow.ellipsis,
-              ),
+  /// My location · Farm location · Weather station — one row of toggles.
+  Widget _sourceChips() {
+    final hasStation = _stations.isNotEmpty;
+    Widget seg(_Where w, IconData icon, String label, VoidCallback? onTap) {
+      final on = _where == w;
+      return Expanded(
+        child: Material(
+          color: on ? _green : Colors.white,
+          child: InkWell(
+            onTap: _loading ? null : onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 18, color: onTap == null ? Colors.black26 : (on ? Colors.white : _green)),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: onTap == null ? Colors.black38 : (on ? Colors.white : _green),
+                  ),
+                ),
+              ]),
             ),
-            selected: _where == _Where.station,
-            onSelected: _loading ? null : (_) => _useStation(),
           ),
-        if (_stations.length > 1)
-          ActionChip(
+        ),
+      );
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFCFE3D0)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              seg(_Where.device, Icons.my_location_rounded, 'My location', _useDeviceLocation),
+              const VerticalDivider(width: 1, color: Color(0xFFCFE3D0)),
+              seg(_Where.farm, Icons.agriculture_rounded, 'Farm location', _useFarm),
+              const VerticalDivider(width: 1, color: Color(0xFFCFE3D0)),
+              seg(_Where.station, Icons.sensors_rounded, 'Weather station', hasStation ? _useStation : null),
+            ]),
+          ),
+        ),
+      ),
+      if (!hasStation && !_stationLoading)
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Text('No weather station is connected to your account yet.',
+              style: TextStyle(fontSize: 11.5, color: Colors.black54)),
+        ),
+      if (_where == _Where.station && _stations.length > 1)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: ActionChip(
             avatar: const Icon(Icons.swap_horiz_rounded, size: 16),
-            label: const Text('Other station'),
+            label: Text('Station: ${_selectedStation?.name ?? ''} · change'),
             onPressed: _loading ? null : _pickStation,
           ),
-        if (_where == _Where.search)
-          const Chip(
-            avatar: Icon(Icons.place_rounded, size: 16),
-            label: Text('Searched place'),
-          ),
-      ]);
+        ),
+      if (_where == _Where.search)
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Chip(avatar: Icon(Icons.place_rounded, size: 16), label: Text('Showing a searched place')),
+        ),
+    ]);
+  }
 
   Widget _label(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8),

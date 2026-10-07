@@ -1285,7 +1285,11 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
           onSkip:   () {}, // farmer can skip — location set later at farm
         ),
         const SizedBox(height: 16),
-        if (_crops.isNotEmpty &&
+        if (_crops.any((c) => (c['type'] ?? '').isNotEmpty && (c['stage'] ?? '').isEmpty))
+          _tipCard(
+              'Pick the growth stage for each crop — it sets the N, P and K targets your '
+              'soil test is compared with (Low / Moderate / High) and the advice you get.')
+        else if (_crops.isNotEmpty &&
             (_crops.first['type'] ?? '').isNotEmpty &&
             (_crops.first['stage'] ?? '').isNotEmpty)
           _tipCard(
@@ -1621,6 +1625,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
             ),
           ]),
         ),
+        _targetsCard(),
         _npkRow(),
         const SizedBox(height: 8),
         ..._buildNutrientAlerts(),
@@ -1675,6 +1680,75 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
           if (r != null && mounted) setState(() => _interventions.add(r));
         }),
       ],
+    );
+  }
+
+  /// What the soil test is compared against: the target N / P / K for each
+  /// crop's growth stage — or a prompt to pick the stage, without which no
+  /// Low / Moderate / High can be given (and advisories can't preselect the
+  /// farmer's level).
+  Widget _targetsCard() {
+    final crops = _crops.where((c) => (c['type'] ?? '').isNotEmpty).toList();
+    final missingStage = crops.where((c) => (c['stage'] ?? '').isEmpty).map((c) => c['type']!).toList();
+    final rows = <String>[
+      for (final c in crops)
+        if ((c['stage'] ?? '').isNotEmpty)
+          () {
+            final t = nutrientTargets(c['type']!, c['stage']!);
+            return t == null
+                ? '${c['type']} · ${c['stage']}: no targets on record'
+                : '${c['type']} · ${c['stage']}: N ${t['N']!.toStringAsFixed(0)} · '
+                    'P ${t['P']!.toStringAsFixed(0)} · K ${t['K']!.toStringAsFixed(0)} kg/ha';
+          }(),
+    ];
+    final needsStage = crops.isEmpty || missingStage.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: needsStage ? FT.warnBg : const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: needsStage ? FT.warnBorder : const Color(0xFFA5D6A7), width: 1.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          needsStage ? 'Pick the growth stage to see your targets' : 'Targets for this stage',
+          style: FT.label.copyWith(
+              color: needsStage ? FT.warnText : const Color(0xFF1B5E20), fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        for (final r in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(r, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.35)),
+          ),
+        if (needsStage) ...[
+          Text(
+            crops.isEmpty
+                ? 'Choose the crop and its growth stage in step 1. Each stage needs different amounts of '
+                    'N, P and K, so your soil test is read as Low, Moderate or High against that stage.'
+                : 'No growth stage for ${missingStage.join(', ')} yet. Without it your soil test can\'t be '
+                    'read as Low, Moderate or High — and advice can\'t match your level.',
+            style: const TextStyle(fontSize: 12, color: FT.warnText, height: 1.35),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => setState(() => _currentStep = 0),
+            icon: const Icon(Icons.arrow_back_rounded, size: 16),
+            label: const Text('Choose growth stage'),
+            style: TextButton.styleFrom(
+              foregroundColor: FT.warnText,
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ] else
+          const Text(
+            'Each box below turns Low, Moderate or High as you type your soil test value.',
+            style: TextStyle(fontSize: 11.5, color: Colors.black54, height: 1.35),
+          ),
+      ]),
     );
   }
 
@@ -1751,7 +1825,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
                         color: _statusColor(status),
                       ),
                       const SizedBox(width: 3),
-                      Text(status,
+                      Text(status == 'Optimal' ? 'Moderate' : status,
                           style: FT.label.copyWith(
                               color: _statusColor(status),
                               letterSpacing: 0.2)),

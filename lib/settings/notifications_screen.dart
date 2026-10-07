@@ -168,9 +168,14 @@ class _DayHeader extends StatelessWidget {
         child: Row(children: [
           Container(width: 4, height: 16, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
           const SizedBox(width: 8),
-          Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(width: 6),
-          Text('($count)', style: const TextStyle(fontSize: 12, color: KmColors.muted)),
+          Flexible(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+                TextSpan(text: '  ($count)', style: const TextStyle(fontSize: 12, color: KmColors.muted)),
+              ]),
+            ),
+          ),
         ]),
       );
 }
@@ -527,18 +532,27 @@ class _AlertsHeader extends StatelessWidget {
         for (final s in FarmAlertSource.values)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Row(children: [
-              Icon(s.icon, size: 14, color: _sourceColor(s)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(s.icon, size: 14, color: _sourceColor(s)),
+              ),
               const SizedBox(width: 6),
-              Text('${s.label}: ', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
               Expanded(
-                child: Text(
-                  r.readingTimeFor(s) == null
-                      ? 'not available'
-                      : s == FarmAlertSource.satellite
-                          ? 'model estimate for today'
-                          : 'reading ${fullStamp(r.readingTimeFor(s)!)} · ${relativeTime(r.readingTimeFor(s)!)}',
-                  style: const TextStyle(fontSize: 11.5, color: KmColors.muted),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                        text: '${s.label}: ',
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black87)),
+                    TextSpan(
+                      text: r.readingTimeFor(s) == null
+                          ? 'not available'
+                          : s == FarmAlertSource.satellite
+                              ? 'model estimate for today'
+                              : 'reading ${fullStamp(r.readingTimeFor(s)!)} · ${relativeTime(r.readingTimeFor(s)!)}',
+                    ),
+                  ]),
+                  style: const TextStyle(fontSize: 11.5, color: KmColors.muted, height: 1.35),
                 ),
               ),
             ]),

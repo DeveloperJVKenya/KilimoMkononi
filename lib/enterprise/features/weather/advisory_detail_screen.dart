@@ -396,11 +396,16 @@ class _AiHeader extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Wrap: the label drops below the title on narrow / large-text screens.
           const Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.auto_awesome_rounded, size: 16, color: AdvisoryColors.midGreen),
-              SizedBox(width: 6),
-              Text('AI Farm Advisor', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-            ]),
+            Text.rich(
+              TextSpan(children: [
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Icon(Icons.auto_awesome_rounded, size: 16, color: AdvisoryColors.midGreen),
+                ),
+                TextSpan(text: '  AI Farm Advisor'),
+              ]),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
             Pill('AI-generated · not verified',
                 flexible: true,
                 icon: Icons.info_outline_rounded, fg: AdvisoryColors.amber, bg: AdvisoryColors.lightAmber),
@@ -1019,11 +1024,19 @@ class SectionChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: section.color.withValues(alpha: 0.35)),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(section.icon, size: dense ? 11 : 13, color: section.color),
-          const SizedBox(width: 4),
-          Text(count == null ? section.short : '${section.short} $count',
-              style: TextStyle(fontSize: dense ? 10 : 11.5, fontWeight: FontWeight.w800, color: section.color)),
-        ]),
+        // One text (icon inline): shrinks with "…" instead of overflowing.
+        child: Text.rich(
+          TextSpan(children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Icon(section.icon, size: dense ? 11 : 13, color: section.color),
+            ),
+            TextSpan(text: ' ${count == null ? section.short : '${section.short} $count'}'),
+          ]),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+          style: TextStyle(fontSize: dense ? 10 : 11.5, fontWeight: FontWeight.w800, color: section.color),
+        ),
       );
 }

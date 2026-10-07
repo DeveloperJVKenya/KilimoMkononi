@@ -462,6 +462,76 @@ const Map<String, Map<String, Map<String, double>>> kOptimalNutrients = {
       'Mo': 0.1,
     },
   },
+  // ── Crops added in 2026 (Oct) ─────────────────────────────────────────────
+  // General guideline targets (kg/ha) per growth stage, from common East
+  // African extension recommendations — so a soil test reads as Low /
+  // Moderate / High for every crop. Field Agronomists can refine these;
+  // advisories' soil actions still say what to do at each level.
+  'Black Nightshade': {
+    'Nursery / Establishment': {'N': 40, 'P': 50, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 100, 'P': 40, 'K': 70, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Harvesting': {'N': 80, 'P': 30, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering / Seed': {'N': 40, 'P': 40, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Crotalaria': {
+    'Nursery / Establishment': {'N': 40, 'P': 50, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 100, 'P': 40, 'K': 70, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Harvesting': {'N': 80, 'P': 30, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering / Seed': {'N': 40, 'P': 40, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Kunde': {
+    'Nursery / Establishment': {'N': 40, 'P': 50, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 100, 'P': 40, 'K': 70, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Harvesting': {'N': 80, 'P': 30, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering / Seed': {'N': 40, 'P': 40, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Spinach': {
+    'Nursery / Establishment': {'N': 40, 'P': 50, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 100, 'P': 40, 'K': 70, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Harvesting': {'N': 80, 'P': 30, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering / Seed': {'N': 40, 'P': 40, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Amaranth (Pigweed)': {
+    'Nursery / Establishment': {'N': 40, 'P': 50, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 100, 'P': 40, 'K': 70, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Harvesting': {'N': 80, 'P': 30, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering / Seed': {'N': 40, 'P': 40, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Capsicum': {
+    'Nursery / Transplanting': {'N': 50, 'P': 80, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 120, 'P': 60, 'K': 120, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering and Fruit Set': {'N': 100, 'P': 60, 'K': 150, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Fruit Development': {'N': 80, 'P': 40, 'K': 180, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Cowpeas': {
+    'Vegetative': {'N': 20, 'P': 40, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering': {'N': 20, 'P': 30, 'K': 50, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Pod Development': {'N': 10, 'P': 20, 'K': 40, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Pineapple': {
+    'Establishment': {'N': 60, 'P': 40, 'K': 80, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 150, 'P': 30, 'K': 200, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering (Forcing)': {'N': 60, 'P': 20, 'K': 150, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Fruit Development': {'N': 40, 'P': 20, 'K': 200, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Arrowroots': {
+    'Establishment': {'N': 40, 'P': 50, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 80, 'P': 40, 'K': 100, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Corm Bulking': {'N': 60, 'P': 40, 'K': 150, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Maturity': {'N': 20, 'P': 20, 'K': 80, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Bananas': {
+    'Establishment': {'N': 80, 'P': 50, 'K': 120, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vegetative': {'N': 200, 'P': 40, 'K': 300, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Flowering / Shooting': {'N': 150, 'P': 30, 'K': 350, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Bunch Filling': {'N': 100, 'P': 20, 'K': 300, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
+  'Sweet Potatoes': {
+    'Establishment': {'N': 30, 'P': 40, 'K': 60, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Vine Development': {'N': 60, 'P': 40, 'K': 100, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Root Bulking': {'N': 40, 'P': 30, 'K': 150, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+    'Maturity': {'N': 20, 'P': 20, 'K': 80, 'Zn': 2.0, 'Fe': 10.0, 'Mn': 5.0, 'Cu': 1.0, 'B': 0.5, 'Mo': 0.1},
+  },
 };
 
 /// Soil level band for a nutrient. [moderate] = within ±10% of the target.

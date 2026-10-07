@@ -417,11 +417,17 @@ class _AiBlock extends ConsumerWidget {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.auto_awesome_rounded, size: 16, color: _aiColor),
-                SizedBox(width: 6),
-                Text('AI Farm Advisor', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
-              ]),
+              // One text (icon inline) so it wraps at any text size.
+              const Text.rich(
+                TextSpan(children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Icon(Icons.auto_awesome_rounded, size: 16, color: _aiColor),
+                  ),
+                  TextSpan(text: '  AI Farm Advisor'),
+                ]),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+              ),
               Pill(ai.fallback ? 'Offline advice' : 'AI-generated · not verified',
                   icon: ai.fallback ? Icons.cloud_off_rounded : Icons.info_outline_rounded,
                   flexible: true,

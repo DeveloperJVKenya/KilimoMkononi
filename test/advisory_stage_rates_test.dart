@@ -174,7 +174,7 @@ SOIL:
       expect(nutrientTargets('Kales', 'Leaf Development'), isNotNull);
       expect(nutrientTargets('Kales', 'Harvesting'), isNotNull);
       expect(nutrientTargets('Cabbages', 'Head Formation')!['N'], 80);
-      expect(nutrientTargets('Spinach', 'Vegetative'), isNull);
+      expect(nutrientTargets('Spinach', 'Vegetative')!['N'], 100); // every crop has targets now
     });
   });
 
