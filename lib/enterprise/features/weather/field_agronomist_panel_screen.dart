@@ -1,13 +1,28 @@
 // lib/enterprise/features/weather/field_agronomist_panel_screen.dart
 //
-// Field Agronomist panel (opened from the Weather Station screen).
-//   • Live conditions for any Kilimo Mkononi station, with the advisory
-//     conditions active right now and which of them still lack published
-//     advice.
-//   • Drafts / Published / Archived advisories — tap to edit, verify,
-//     publish, update, unpublish, archive.
+// Field Agronomist panel (opened from the Home dashboard and the Weather
+// Station screen; admins open it in test mode from the Admin panel).
+// Four tabs:
+//   • Insights    — every farmer's records: trends, emerging and
+//                   unidentified problems, soil status, who needs attention
+//                   (lib/enterprise/features/agronomist/insights_tab.dart)
+//   • Farmers     — each farmer who shares their records → their page and
+//                   custom advice (farmers_tab.dart, farmer_detail_screen.dart)
+//   • Activity    — farmers' entries as they come in (activity_tab.dart)
+//   • Advisories  — live conditions for any Kilimo Mkononi station, with the
+//                   conditions active now and which still lack published
+//                   advice; Drafts / Published / For farmers / Archived — tap
+//                   to edit, verify, publish, update, unpublish, archive.
 
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/activity_tab.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/agronomist_data_service.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/agronomist_widgets.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/farmer_advice.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/farmer_detail_screen.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/farmers_tab.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/insights_tab.dart';
+import 'package:kilimomkononi/screens/weather_comparison_screen.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_editor_screen.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart';
@@ -16,16 +31,24 @@ import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_ser
 import 'package:kilimomkononi/services/nuasense_service.dart';
 import 'package:kilimomkononi/utils/friendly_error.dart';
 
+/// The panel's tabs (also the `tab` arg of the agronomist_panel push route).
+enum AgronomistPanelTab { insights, farmers, activity, advisories }
+
 class FieldAgronomistPanelScreen extends StatefulWidget {
   final String? initialStationId;
 
   /// Admin test mode — see AdvisoryAccess.adminTest.
   final bool testMode;
 
+  /// Opens on this tab; default Insights, or Advisories when opened for a
+  /// station (from the Weather Station screen).
+  final AgronomistPanelTab? initialTab;
+
   const FieldAgronomistPanelScreen({
     super.key,
     this.initialStationId,
     this.testMode = false,
+    this.initialTab,
   });
 
   @override
@@ -34,7 +57,19 @@ class FieldAgronomistPanelScreen extends StatefulWidget {
 }
 
 class _FieldAgronomistPanelScreenState
-    extends State<FieldAgronomistPanelScreen> {
+    extends State<FieldAgronomistPanelScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+    length: AgronomistPanelTab.values.length,
+    vsync: this,
+    initialIndex: (widget.initialTab ??
+            (widget.initialStationId != null
+                ? AgronomistPanelTab.advisories
+                : AgronomistPanelTab.insights))
+        .index,
+  )..addListener(() {
+      if (!_tabs.indexIsChanging && mounted) setState(() {});
+    });
   List<NuaStation> _stations = [];
   String? _stationId;
   NuaSenseReading? _reading;
@@ -51,11 +86,16 @@ class _FieldAgronomistPanelScreenState
     if (_stationId != null) _loadReading();
   }
 
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadStations() async {
     final picking = _stationId == null;
     try {
-      // Every KM station (agronomist view) — the farm screens only ever
-      // show an account's own assigned stations.
+      // Every KM station (agronomists / admins see them on every screen).
       final s = await NuaSenseService.getStations(allStations: true);
       if (!mounted) return;
       setState(() {
@@ -94,6 +134,15 @@ class _FieldAgronomistPanelScreenState
     return _stationId;
   }
 
+  /// Any station's past data vs. satellite (and the last 24 h vs. Google),
+  /// with Excel / CSV downloads of chosen dates.
+  void _openComparison() => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WeatherComparisonScreen(stationId: _stationId, allStations: true, pastDates: true),
+        ),
+      );
+
   Future<void> _openEditor({
     AgronomicAdvisory? existing,
     String? condition,
@@ -115,9 +164,8 @@ class _FieldAgronomistPanelScreenState
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
+    final onAdvisories = _tabs.index == AgronomistPanelTab.advisories.index;
+    return Scaffold(
         backgroundColor: AdvisoryColors.pageBg,
         appBar: AppBar(
           backgroundColor: widget.testMode
@@ -134,36 +182,72 @@ class _FieldAgronomistPanelScreenState
               Text(
                 widget.testMode
                     ? 'TEST MODE · nothing reaches farmers'
-                    : 'Verify & publish weather advice for farmers',
+                    : 'Farmers\' records, trends & verified advice',
                 style: const TextStyle(fontSize: 11, color: Colors.white70),
               ),
             ],
           ),
           actions: [
             IconButton(
-              tooltip: 'Refresh conditions',
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: _loadReading,
+              tooltip: 'Station vs. satellite — past dates',
+              icon: const Icon(Icons.compare_arrows_rounded),
+              onPressed: _openComparison,
             ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton.extended(
-          backgroundColor: AdvisoryColors.verified,
-          foregroundColor: Colors.white,
-          onPressed: () => _openEditor(),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New advisory'),
-        ),
-        body: NestedScrollView(
-          headerSliverBuilder: (_, _) => [
-            if (widget.testMode)
-              const SliverToBoxAdapter(
-                child: TestModeStrip(
-                  text: 'Admin test mode — advisories you create or publish are '
-                      'marked TEST and are never shown to farmers. Live '
-                      'advisories are read-only.',
-                ),
+            if (onAdvisories)
+              IconButton(
+                tooltip: 'Refresh conditions',
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: _loadReading,
               ),
+          ],
+          bottom: TabBar(
+            controller: _tabs,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
+            tabs: const [
+              Tab(icon: Icon(Icons.insights_rounded, size: 18), text: 'Insights'),
+              Tab(icon: Icon(Icons.groups_rounded, size: 18), text: 'Farmers'),
+              Tab(icon: Icon(Icons.dynamic_feed_rounded, size: 18), text: 'Activity'),
+              Tab(icon: Icon(Icons.verified_rounded, size: 18), text: 'Advisories'),
+            ],
+          ),
+        ),
+        floatingActionButton: onAdvisories
+            ? FloatingActionButton.extended(
+                backgroundColor: AdvisoryColors.verified,
+                foregroundColor: Colors.white,
+                onPressed: () => _openEditor(),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('New advisory'),
+              )
+            : null,
+        body: Column(children: [
+          if (widget.testMode)
+            const TestModeStrip(
+              text: 'Admin test mode — advisories and farmer advice you create '
+                  'are marked TEST and never reach farmers. Live advisories are '
+                  'read-only.',
+            ),
+          Expanded(
+            child: TabBarView(controller: _tabs, children: [
+              InsightsTab(testMode: widget.testMode),
+              FarmersTab(testMode: widget.testMode),
+              ActivityTab(testMode: widget.testMode),
+              _advisoriesTab(),
+            ]),
+          ),
+        ]),
+    );
+  }
+
+  /// The verified-advisories workspace: live conditions + the lists.
+  Widget _advisoriesTab() => DefaultTabController(
+        length: 4,
+        child: NestedScrollView(
+          headerSliverBuilder: (_, _) => [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -178,17 +262,21 @@ class _FieldAgronomistPanelScreenState
                     _loadReading();
                   },
                   onDraft: (condition) => _openEditor(condition: condition),
+                  onCompare: _openComparison,
                 ),
               ),
             ),
             const SliverToBoxAdapter(
               child: TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 labelColor: AdvisoryColors.darkGreen,
                 indicatorColor: AdvisoryColors.verified,
                 unselectedLabelColor: Colors.black54,
                 tabs: [
                   Tab(text: 'Drafts'),
                   Tab(text: 'Published'),
+                  Tab(text: 'For farmers'),
                   Tab(text: 'Archived'),
                 ],
               ),
@@ -206,6 +294,7 @@ class _FieldAgronomistPanelScreenState
                 testMode: widget.testMode,
                 onOpen: (a) => _openEditor(existing: a),
               ),
+              _FarmerAdviceList(testMode: widget.testMode),
               _AdvisoryList(
                 status: AdvisoryStatus.archived,
                 testMode: widget.testMode,
@@ -214,9 +303,62 @@ class _FieldAgronomistPanelScreenState
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+}
+
+/// Custom advice written for individual farmers (by any agronomist).
+class _FarmerAdviceList extends StatefulWidget {
+  final bool testMode;
+  const _FarmerAdviceList({required this.testMode});
+
+  @override
+  State<_FarmerAdviceList> createState() => _FarmerAdviceListState();
+}
+
+class _FarmerAdviceListState extends State<_FarmerAdviceList> {
+  FarmerAdviceStatus? _status;
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<List<FarmerAdvice>>(
+        stream: AgronomistDataService.allAdvice(includeTest: widget.testMode),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  friendlyError(snap.error, 'Could not load farmer advice'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: AdvisoryColors.red),
+                ),
+              ),
+            );
+          }
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          final list = snap.data!.where((a) => _status == null || a.status == _status).toList();
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+            children: [
+              Wrap(spacing: 6, children: [
+                for (final st in [null, ...FarmerAdviceStatus.values])
+                  ChoiceChip(
+                    label: Text(st?.label ?? 'All'),
+                    selected: _status == st,
+                    onSelected: (_) => setState(() => _status = st),
+                  ),
+              ]),
+              const SizedBox(height: 10),
+              if (list.isEmpty)
+                const AgroEmpty(
+                  Icons.person_pin_outlined,
+                  'No custom advice yet. Open a farmer (Farmers tab) or an insight and tap "Send advice".',
+                )
+              else
+                for (final a in list) FarmerAdviceTile(a, testMode: widget.testMode, showFarmer: true),
+            ],
+          );
+        },
+      );
 }
 
 // ── Live conditions ──────────────────────────────────────────────────────────
@@ -229,6 +371,7 @@ class _LiveConditionsCard extends StatelessWidget {
   final String? error;
   final ValueChanged<String?> onStation;
   final ValueChanged<String> onDraft;
+  final VoidCallback onCompare;
 
   const _LiveConditionsCard({
     required this.stations,
@@ -238,6 +381,7 @@ class _LiveConditionsCard extends StatelessWidget {
     required this.error,
     required this.onStation,
     required this.onDraft,
+    required this.onCompare,
   });
 
   @override
@@ -371,6 +515,16 @@ class _LiveConditionsCard extends StatelessWidget {
             else
               _CoverageChips(conditions: specific.toList(), onDraft: onDraft),
           ],
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: AdvisoryColors.midGreen),
+              onPressed: stations.isEmpty ? null : onCompare,
+              icon: const Icon(Icons.history_rounded, size: 18),
+              label: const Text('Compare past data'),
+            ),
+          ),
         ],
       ),
     );

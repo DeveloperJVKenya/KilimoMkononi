@@ -1,6 +1,7 @@
 // lib/education/education_resources.dart
 
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/fluid_grid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/utils/friendly_error.dart';
@@ -10,12 +11,7 @@ class EducationResources extends StatefulWidget {
   final String schoolName;
   final String classId;
 
-  const EducationResources({
-    super.key,
-    required this.role,
-    required this.schoolName,
-    required this.classId,
-  });
+  const EducationResources({super.key, required this.role, required this.schoolName, required this.classId});
 
   @override
   State<EducationResources> createState() => _EducationResourcesState();
@@ -25,14 +21,7 @@ class _EducationResourcesState extends State<EducationResources> {
   String _selectedCategory = 'all';
   String _sortBy = 'newest';
 
-  final List<String> _categories = [
-    'all',
-    'studyMaterials',
-    'videos',
-    'documents',
-    'visualResources',
-    'externalLinks',
-  ];
+  final List<String> _categories = ['all', 'studyMaterials', 'videos', 'documents', 'visualResources', 'externalLinks'];
 
   final Map<String, String> _categoryLabels = {
     'all': 'All Resources',
@@ -62,22 +51,16 @@ class _EducationResourcesState extends State<EducationResources> {
         backgroundColor: const Color(0xFF003900),
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => _showSearchDialog(),
-          ),
+          IconButton(icon: const Icon(Icons.search), onPressed: () => _showSearchDialog()),
           if (widget.role == EduRole.teacher)
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => _showUploadDialog(),
-            ),
+            IconButton(icon: const Icon(Icons.add), onPressed: () => _showUploadDialog()),
         ],
       ),
       body: Row(
         children: [
           // Category sidebar (tablet/desktop only)
           if (!isMobile) _buildCategorySidebar(),
-          
+
           // Main content
           Expanded(
             child: Column(
@@ -100,40 +83,34 @@ class _EducationResourcesState extends State<EducationResources> {
         // Tiles draw ink/ripples on the nearest Material; it must sit above the colour.
         type: MaterialType.transparency,
         child: Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Categories',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView(
-              children: _categories.map((category) {
-                final isSelected = _selectedCategory == category;
-                return ListTile(
-                  leading: Icon(
-                    _categoryIcons[category],
-                    color: isSelected ? const Color(0xFF003900) : Colors.grey,
-                  ),
-                  title: Text(
-                    _categoryLabels[category] ?? category,
-                    style: TextStyle(
-                      color: isSelected ? const Color(0xFF003900) : Colors.black87,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                children: _categories.map((category) {
+                  final isSelected = _selectedCategory == category;
+                  return ListTile(
+                    leading: Icon(_categoryIcons[category], color: isSelected ? const Color(0xFF003900) : Colors.grey),
+                    title: Text(
+                      _categoryLabels[category] ?? category,
+                      style: TextStyle(
+                        color: isSelected ? const Color(0xFF003900) : Colors.black87,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
-                  ),
-                  selected: isSelected,
-                  selectedTileColor: const Color(0xFF003900).withValues(alpha: 0.1),
-                  onTap: () => setState(() => _selectedCategory = category),
-                );
-              }).toList(),
+                    selected: isSelected,
+                    selectedTileColor: const Color(0xFF003900).withValues(alpha: 0.1),
+                    onTap: () => setState(() => _selectedCategory = category),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -143,13 +120,7 @@ class _EducationResourcesState extends State<EducationResources> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: [
@@ -177,7 +148,7 @@ class _EducationResourcesState extends State<EducationResources> {
               ),
             ),
           if (MediaQuery.of(context).size.width < 600) const SizedBox(width: 12),
-          
+
           // Sort dropdown - flexible on mobile, fixed on desktop
           MediaQuery.of(context).size.width < 600
               ? Expanded(
@@ -253,16 +224,17 @@ class _EducationResourcesState extends State<EducationResources> {
             itemBuilder: (context, index) => _buildResourceCard(docs[index]),
           );
         } else {
-          return GridView.builder(
+          return // Fluid: designed size on phones, more columns on wider screens, tiles grow with their text.
+          SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.85,
+            child: FluidGrid.builder(
+              minTileWidth: 96,
+              minTileHeight: 113,
+              spacing: 16,
+              runSpacing: 16,
+              itemCount: docs.length,
+              itemBuilder: (context, index) => _buildResourceGridCard(docs[index]),
             ),
-            itemCount: docs.length,
-            itemBuilder: (context, index) => _buildResourceGridCard(docs[index]),
           );
         }
       },
@@ -302,10 +274,7 @@ class _EducationResourcesState extends State<EducationResources> {
                 Text('$downloadCount', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 const Spacer(),
                 if (createdAt != null)
-                  Text(
-                    _formatDate(createdAt),
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
+                  Text(_formatDate(createdAt), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               ],
             ),
           ],
@@ -335,8 +304,7 @@ class _EducationResourcesState extends State<EducationResources> {
               CircleAvatar(
                 radius: 30,
                 backgroundColor: const Color(0xFF003900),
-                child: Icon(_categoryIcons[category] ?? Icons.file_present, 
-                  color: Colors.white, size: 30),
+                child: Icon(_categoryIcons[category] ?? Icons.file_present, color: Colors.white, size: 30),
               ),
               const SizedBox(height: 12),
               Text(
@@ -373,20 +341,14 @@ class _EducationResourcesState extends State<EducationResources> {
         children: [
           Icon(Icons.folder_open, size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          Text(
-            'No resources available',
-            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-          ),
+          Text('No resources available', style: TextStyle(fontSize: 18, color: Colors.grey[600])),
           const SizedBox(height: 8),
           if (widget.role == EduRole.teacher)
             ElevatedButton.icon(
               onPressed: _showUploadDialog,
               icon: const Icon(Icons.add),
               label: const Text('Upload Resource'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF003900),
-                foregroundColor: Colors.white,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF003900), foregroundColor: Colors.white),
             ),
         ],
       ),
@@ -431,16 +393,10 @@ class _EducationResourcesState extends State<EducationResources> {
       builder: (context) => AlertDialog(
         title: const Text('Search Resources'),
         content: TextField(
-          decoration: const InputDecoration(
-            hintText: 'Enter search term...',
-            prefixIcon: Icon(Icons.search),
-          ),
+          decoration: const InputDecoration(hintText: 'Enter search term...', prefixIcon: Icon(Icons.search)),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
@@ -457,17 +413,15 @@ class _EducationResourcesState extends State<EducationResources> {
     // Implementation for file upload dialog
     showDialog(
       context: context,
-      builder: (context) => const AlertDialog(
-        title: Text('Upload Resource'),
-        content: Text('Upload dialog implementation goes here'),
-      ),
+      builder: (context) =>
+          const AlertDialog(title: Text('Upload Resource'), content: Text('Upload dialog implementation goes here')),
     );
   }
 
   void _openResource(QueryDocumentSnapshot doc) {
     // Increment view count
     doc.reference.update({'viewCount': FieldValue.increment(1)});
-    
+
     // Open resource viewer
     // Implementation depends on resource type
   }

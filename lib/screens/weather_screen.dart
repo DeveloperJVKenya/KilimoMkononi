@@ -594,9 +594,7 @@ class WeatherScreenState extends State<WeatherScreen> {
             ],
           ),
         const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
+        Center(child: FilledButton.icon(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
             onPressed: _openComparison,
             icon: const Icon(Icons.table_view_rounded, size: 18),
@@ -658,9 +656,7 @@ class WeatherScreenState extends State<WeatherScreen> {
                 style: TextStyle(fontSize: 11, color: Colors.black54)),
             if (r != null && r.isProvisioned) ...[
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
+              Center(child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF2E7D32),
                     side: const BorderSide(color: Color(0xFF2E7D32)),

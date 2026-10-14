@@ -9,6 +9,7 @@
 // Data and matching live in lib/screens/tips/farming_tips_data.dart.
 
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/fluid_grid.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kilimomkononi/screens/tips/farming_tips_data.dart';
@@ -134,21 +135,15 @@ class _FarmingTipsWidgetState extends ConsumerState<FarmingTipsWidget> {
               else
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(side, 0, side, 32),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 280,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      mainAxisExtent: 214 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.3),
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (_, i) => _CropCard(
-                        guide: shown[i],
-                        mine: mine.contains(shown[i].key),
-                        saved: saved.contains(shown[i].key),
-                        query: q,
-                      ),
-                      childCount: shown.length,
+                  // Fluid: 2 columns on phones, more on wider screens.
+                  sliver: SliverFluidGrid(
+                    minTileWidth: 150,
+                    itemCount: shown.length,
+                    itemBuilder: (_, i) => _CropCard(
+                      guide: shown[i],
+                      mine: mine.contains(shown[i].key),
+                      saved: saved.contains(shown[i].key),
+                      query: q,
                     ),
                   ),
                 ),
@@ -201,7 +196,9 @@ class _CropCard extends ConsumerWidget {
       child: InkWell(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CropGuideScreen(guide: g))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(
+          // The photo keeps its shape and scales with the card's width.
+          AspectRatio(
+            aspectRatio: 16 / 10,
             child: Stack(fit: StackFit.expand, children: [
               GuideImage(path: g.image, emoji: g.emoji),
               const DecoratedBox(

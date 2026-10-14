@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kilimomkononi/settings/appearance/button_styles.dart';
 
 /// Fonts offered in Settings. `system` keeps the platform default.
 enum AppFont {
@@ -171,7 +172,9 @@ String? fontFamilyFor(AppFont font) => switch (font) {
 ThemeData appearanceTheme(ThemeData base, AppearanceSettings s) {
   final family = fontFamilyFor(s.font);
   final themed = family == null ? base : base.copyWith(textTheme: fontTextTheme(s.font, base.textTheme));
-  return themed.copyWith(visualDensity: s.compact ? VisualDensity.compact : VisualDensity.standard);
+  return withModernButtons(
+    themed.copyWith(visualDensity: s.compact ? VisualDensity.compact : VisualDensity.standard),
+  );
 }
 
 /// Applies text size, bold text and reduced motion below it (wrap the app's

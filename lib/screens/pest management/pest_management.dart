@@ -3,6 +3,7 @@
 // Architecture mirrors disease_management_page.dart + intervention_page.dart exactly...
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:kilimomkononi/services/pest_disease_catalog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -369,12 +370,12 @@ class _PestManagementPageState extends State<PestManagementPage> {
           ),
 
           const SizedBox(height: 20),
-          TextButton.icon(
+          Center(child: TextButton.icon(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UserPestHistoryPage())),
             icon: const Icon(Icons.history_rounded, size: 16),
             label: const Text('View All Pest Interventions'),
             style: TextButton.styleFrom(foregroundColor: _T.brandMid),
-          ),
+          )),
         ],
       ),
     );
@@ -516,18 +517,14 @@ class _PestStep0PageState extends State<_PestStep0Page> {
           ]),
           const SizedBox(height: 20),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
+          Center(child: ElevatedButton(
               onPressed: (_crop != null && _stage != null && _pest != null) ? () {
                 widget.onSaved(_crop, _stage, _pest, _organic);
                 Navigator.pop(context);
               } : null,
               style: ElevatedButton.styleFrom(
                   backgroundColor: _T.brandDark, foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  disabledBackgroundColor: Colors.grey.shade300,),
               child: const Text('Next: View Pest Info', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -769,15 +766,11 @@ class _PestStep1PageState extends State<_PestStep1Page> {
           ),
           const SizedBox(height: 20),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
+          Center(child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _T.brandDark,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Back to Pest Selection',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -1269,8 +1262,9 @@ Include pre-harvest interval in warnings.
     return Scaffold(
       backgroundColor: _T.pageBg,
       appBar: _stepHeader('Intervention, Cost & Reminders', 3, 3),
+      floatingActionButton: SaveFab(onPressed: _save, busy: _saving, label: 'Save intervention'),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
         children: [
           // Context card
           Container(
@@ -1339,20 +1333,6 @@ Include pre-harvest interval in warnings.
 
           // Reminders
           _remindersCard(),
-          const SizedBox(height: 24),
-
-          // Save button
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            style: ElevatedButton.styleFrom(
-                backgroundColor: _T.brandDark, foregroundColor: Colors.white,
-                elevation: 0, padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: _saving
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : const Text('Save Intervention', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 16),
         ],
       ),
     );

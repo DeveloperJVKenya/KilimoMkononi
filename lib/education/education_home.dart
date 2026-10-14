@@ -767,8 +767,6 @@ void _listenSimulationSubmissions(String classId) {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF003900),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ],

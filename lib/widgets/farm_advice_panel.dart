@@ -23,6 +23,8 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/satellite_data_screen
     show ConditionRisk;
 import 'package:kilimomkononi/screens/Field%20Data%20Input/weather_station_screen.dart';
 import 'package:kilimomkononi/services/farm_advice_service.dart';
+import 'package:kilimomkononi/services/farm_location_service.dart';
+import 'package:kilimomkononi/services/station_preferences.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/services/weather_day_plan.dart';
 import 'package:kilimomkononi/settings/notifications/advice_providers.dart';
@@ -72,8 +74,24 @@ class FarmAdvicePanel extends ConsumerWidget {
         onTap: () => ref.invalidate(farmAdviceProvider),
       ),
       data: (a) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _StationLine(a, onRefresh: () => ref.invalidate(farmAdviceProvider)),
+        _StationLine(
+          a,
+          onRefresh: () => ref.invalidate(farmAdviceProvider),
+          // The farm in view uses the picked station (no farm selected →
+          // every farm without its own choice).
+          onPick: (id) async {
+            final plot = await FarmLocationService.getSelectedPlotId();
+            await StationPreferences.setForPlot(plot ?? StationPreferences.kAnyFarm, id);
+            ref.invalidate(farmAdviceProvider);
+          },
+        ),
         const SizedBox(height: 10),
+        if (a.forYou.isNotEmpty) ...[
+          _CategoryHeader('For you', Icons.person_pin_rounded, _verifiedColor,
+              count: a.forYou.length, subtitle: 'Written for your farm by a Field Agronomist'),
+          _ForYouBlock(a, compact: compact),
+          const SizedBox(height: 14),
+        ],
         _CategoryHeader('Farm alerts', Icons.warning_amber_rounded, _alertsColor,
             count: (a.alerts?.alerts.length ?? 0), subtitle: 'From your weather station, soil sensor and satellite'),
         _FarmAlertsBlock(a, compact: compact),
@@ -94,7 +112,6 @@ class FarmAdvicePanel extends ConsumerWidget {
               label: const Text('All alerts & advice in Notifications'),
               style: TextButton.styleFrom(
                 foregroundColor: AdvisoryColors.verified,
-                textStyle: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
           ),
@@ -106,7 +123,10 @@ class FarmAdvicePanel extends ConsumerWidget {
 class _StationLine extends StatelessWidget {
   final FarmAdvice a;
   final VoidCallback onRefresh;
-  const _StationLine(this.a, {required this.onRefresh});
+
+  /// A station picked from the dropdown (shown when there are several).
+  final ValueChanged<String> onPick;
+  const _StationLine(this.a, {required this.onRefresh, required this.onPick});
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +152,29 @@ class _StationLine extends StatelessWidget {
             Icon(Icons.sensors_rounded, size: 16, color: color),
             const SizedBox(width: 6),
             Expanded(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color))),
+            if (a.stations.length > 1)
+              PopupMenuButton<String>(
+                tooltip: 'Choose a weather station',
+                icon: const Icon(Icons.swap_horiz_rounded, size: 18, color: Colors.black54),
+                initialValue: a.stationId,
+                onSelected: onPick,
+                itemBuilder: (_) => [
+                  for (final s in a.stations)
+                    PopupMenuItem(
+                      value: s.id,
+                      child: Row(children: [
+                        Icon(s.online ? Icons.sensors_rounded : Icons.sensors_off_rounded,
+                            size: 18, color: s.online ? AdvisoryColors.midGreen : Colors.black38),
+                        const SizedBox(width: 8),
+                        Flexible(child: Text(s.name.isEmpty ? s.id : s.name, overflow: TextOverflow.ellipsis)),
+                        if (s.id == a.stationId) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.check_rounded, size: 16, color: AdvisoryColors.midGreen),
+                        ],
+                      ]),
+                    ),
+                ],
+              ),
             IconButton(
               visualDensity: VisualDensity.compact,
               tooltip: 'Check again',
@@ -354,6 +397,29 @@ class FarmAlertTile extends StatelessWidget {
   }
 }
 
+// ── For you (custom advice) ──────────────────────────────────────────────────
+
+class _ForYouBlock extends StatelessWidget {
+  final FarmAdvice a;
+  final bool compact;
+  const _ForYouBlock(this.a, {required this.compact});
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = compact ? a.forYou.take(2) : a.forYou;
+    return Column(children: [
+      for (final v in shown)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: VerifiedAdvisoryCard.fromAdvisory(v, onOpen: () => openAdvisory(context, advisory: v)),
+        ),
+      if (compact && a.forYou.length > 2)
+        Text('+${a.forYou.length - 2} more advice for you in Notifications',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _verifiedColor)),
+    ]);
+  }
+}
+
 // ── 2. Verified advice ───────────────────────────────────────────────────────
 
 class _VerifiedBlock extends StatelessWidget {
@@ -449,9 +515,7 @@ class _AiBlock extends ConsumerWidget {
             ),
             if (!ai.advice.actions.isEmpty) ...[
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
+              Center(child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _aiColor,
                     side: const BorderSide(color: _aiColor),

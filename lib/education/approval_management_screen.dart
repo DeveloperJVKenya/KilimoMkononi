@@ -316,8 +316,6 @@ class _ApprovalManagementScreenState
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.green.shade700,
                   side: BorderSide(color: Colors.green.shade300),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ],
@@ -549,39 +547,23 @@ class _ApprovalManagementScreenState
             if (_selectedTab == 'pending') ...[
               const SizedBox(height: 16),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
+              Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [ElevatedButton.icon(
                       onPressed: () => _approveUser(user),
                       icon: const Icon(Icons.check, color: Colors.white),
                       label: const Text('Approve'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
+                    ), ElevatedButton.icon(
                       onPressed: () => _denyUser(user),
                       icon: const Icon(Icons.close, color: Colors.white),
                       label: const Text('Deny'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
                       ),
-                    ),
-                  ),
-                ],
-              ),
+                    )]),
             ],
 
             if (_selectedTab == 'approved' &&

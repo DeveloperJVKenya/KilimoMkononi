@@ -182,9 +182,7 @@ class _SimulationResultScreenState extends State<SimulationResultScreen> {
             const SizedBox(height: 24),
 
             // ── Done button ──────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
+            Center(child: ElevatedButton.icon(
                 onPressed: widget.onDone,
                 icon: const Icon(Icons.check_circle, size: 22),
                 label: const Text('Done',
@@ -192,9 +190,6 @@ class _SimulationResultScreenState extends State<SimulationResultScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),

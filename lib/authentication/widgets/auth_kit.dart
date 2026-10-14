@@ -725,10 +725,8 @@ class AuthPrimaryButton extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 disabledBackgroundColor: busy ? Colors.transparent : Colors.grey.shade300,
-                shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
                 disabledForegroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
@@ -789,7 +787,6 @@ class GoogleAuthButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             backgroundColor: Colors.white,
             side: const BorderSide(color: AuthColors.border, width: 1.2),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const GoogleLogo(size: 20),

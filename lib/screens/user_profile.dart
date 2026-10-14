@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
@@ -263,10 +264,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         backgroundColor: const Color.fromARGB(255, 3, 39, 4),
         foregroundColor: Colors.white,
       ),
+      floatingActionButton: _isLoading
+          ? null
+          : SaveFab(onPressed: _updateProfile, label: 'Update profile', icon: Icons.check_rounded),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, kSaveFabSpace),
               child: Column(
                 children: [
                   // Profile Picture
@@ -375,8 +379,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 foregroundColor: const Color(0xFF2E7D32),
                                 side: const BorderSide(
                                     color: Color(0xFF81C784)),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
                           ]),
@@ -403,25 +405,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     _editableField(_wardCtrl, 'Ward', Icons.place),
                   ],
 
-                  const SizedBox(height: 40),
-
-                  // Update Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _updateProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 3, 39, 4),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Update Profile', style: TextStyle(fontSize: 18)),
-                    ),
-                  ),
                 ],
               ),
             ),

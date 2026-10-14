@@ -911,9 +911,7 @@ class _CoordsContent extends StatelessWidget {
             style: const TextStyle(fontSize: 12, color: _kAmber, height: 1.4)),
       ],
       const SizedBox(height: 10),
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
+      Center(child: ElevatedButton.icon(
           onPressed: onApply,
           icon: const Icon(Icons.pin_drop_outlined, size: 17),
           label: const Text('Place pin',
@@ -921,10 +919,6 @@ class _CoordsContent extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: _kBlue,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-            elevation: 0,
           ),
         ),
       ),
@@ -1012,9 +1006,7 @@ class _GpsStatusCard extends StatelessWidget {
           ]),
           if (isError) ...[
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
+            Center(child: OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh, size: 15, color: _kMid),
                 label: const Text('Try again',
@@ -1023,8 +1015,6 @@ class _GpsStatusCard extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: _kMid),
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ),
@@ -1098,9 +1088,6 @@ class _PinConfirmBanner extends StatelessWidget {
               backgroundColor: _kDark,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              elevation: 0,
             ),
             child: const Text('Confirm',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),

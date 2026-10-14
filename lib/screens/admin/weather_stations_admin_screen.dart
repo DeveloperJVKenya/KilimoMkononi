@@ -120,8 +120,9 @@ class _WeatherStationsAdminScreenState extends State<WeatherStationsAdminScreen>
         label: r.label,
         providerId: r.providerId,
         notes: r.notes,
+        inServiceFrom: r.inServiceFrom,
       ),
-      s == null ? 'Station "${r.label}" added' : 'Station renamed to "${r.label}"',
+      s == null ? 'Station "${r.label}" added' : 'Station "${r.label}" saved',
       'Couldn\'t save the station',
     );
   }
@@ -198,6 +199,7 @@ class _WeatherStationsAdminScreenState extends State<WeatherStationsAdminScreen>
           _kv('Coordinates', s.lat == null || s.lon == null ? '—' : '${s.lat!.toStringAsFixed(5)}, ${s.lon!.toStringAsFixed(5)}',
               selectable: true),
           _kv('Last seen', s.lastSeen == null ? '—' : DateFormat('EEE d MMM yyyy · HH:mm').format(s.lastSeen!.toLocal())),
+          _kv('In service from', s.inServiceFrom == null ? 'Not set' : DateFormat('EEE d MMM yyyy').format(s.inServiceFrom!)),
           if (s.notes.isNotEmpty) _kv('Notes', s.notes),
         ],
       ),
@@ -465,9 +467,9 @@ class _Tag extends StatelessWidget {
   );
 }
 
-/// Who else can see station data, and where: admins and Field Agronomists
-/// see every station in the Agronomist panel only (to write advice). Their
-/// farm screens follow the connections above like everyone else's.
+/// Who else can see station data: admins and Field Agronomists see every
+/// station (registered or connected) on every screen, and pick one from the
+/// station dropdown. Farmers see only the stations connected to them.
 class _PanelAccessCard extends StatelessWidget {
   final List<StationFarmer> people;
   const _PanelAccessCard(this.people);
@@ -484,11 +486,12 @@ class _PanelAccessCard extends StatelessWidget {
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         leading: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF6A1B9A)),
-        title: Text('Agronomist panel access (${people.length})',
+        title: Text('See every station (${people.length})',
             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF4A148C))),
         subtitle: const Text(
-          'Admins and Field Agronomists see every station only in the Agronomist panel, to write advice. '
-          'Like farmers, they must be connected (above) to see a station on their own farm screens.',
+          'Admins and Field Agronomists see every station on every screen (Weather, Weather Station, '
+          'Home, comparisons, Agronomist panel) and choose one from the station dropdown — no connection '
+          'needed. Weather alerts still go only to the accounts connected above.',
           style: TextStyle(fontSize: 11.5, height: 1.35),
         ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -558,6 +561,10 @@ class _StationCard extends StatelessWidget {
                   _Tag(s.providerName, const Color(0xFF1565C0)),
                   if (s.needsLabel) const _Tag('Needs a name', _kAmber),
                   if (!s.registered) const _Tag('Not added yet', Colors.black54),
+                  if (s.registered)
+                    s.inServiceFrom == null
+                        ? const _Tag('In-service date not set', _kAmber)
+                        : _Tag('In service since ${DateFormat('d MMM yyyy').format(s.inServiceFrom!)}', _kGreen),
                 ]),
               ]),
             ),
@@ -618,7 +625,7 @@ class _StationCard extends StatelessWidget {
             TextButton.icon(
               onPressed: onRename,
               icon: const Icon(Icons.edit_rounded, size: 18),
-              label: Text(s.needsLabel ? 'Give it a name' : 'Rename'),
+              label: Text(s.needsLabel ? 'Give it a name' : 'Edit'),
               style: TextButton.styleFrom(foregroundColor: s.needsLabel ? _kAmber : _kGreen),
             ),
             TextButton.icon(
@@ -707,16 +714,31 @@ InputDecoration _deco(String label, {String? hint, String? helper, Widget? suffi
   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
 );
 
-Widget _sheet(BuildContext context, String title, List<Widget> children) => Padding(
+/// A form sheet: the fields scroll, [actions] stay pinned at the bottom
+/// (above the keyboard), sized to their labels and aligned right.
+Widget _sheet(BuildContext context, String title, List<Widget> children, {List<Widget> actions = const []}) => Padding(
   padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-  child: SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 14),
-      ...children,
-    ]),
-  ),
+  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Flexible(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, actions.isEmpty ? 20 : 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 14),
+          ...children,
+        ]),
+      ),
+    ),
+    if (actions.isNotEmpty)
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0x1F000000)))),
+        child: SafeArea(
+          top: false,
+          child: Wrap(alignment: WrapAlignment.end, spacing: 10, runSpacing: 8, children: actions),
+        ),
+      ),
+  ]),
 );
 
 // ── Add / rename a station ───────────────────────────────────────────────────
@@ -726,7 +748,8 @@ class _StationFormResult {
   final String label;
   final String providerId;
   final String notes;
-  const _StationFormResult(this.gatewayId, this.label, this.providerId, this.notes);
+  final DateTime? inServiceFrom;
+  const _StationFormResult(this.gatewayId, this.label, this.providerId, this.notes, this.inServiceFrom);
 }
 
 class _StationForm extends StatefulWidget {
@@ -745,7 +768,106 @@ class _StationFormState extends State<_StationForm> {
   late final _notes = TextEditingController(text: widget.station?.notes ?? '');
   late String _provider = widget.station?.providerId ??
       (widget.providers.isEmpty ? 'nuasense' : widget.providers.first.id);
+  late DateTime? _inService = widget.station?.inServiceFrom;
+  InServiceSuggestion? _suggestion;
+  bool _suggesting = false;
+  String? _suggestError;
   String? _error;
+
+  Future<void> _pickInService() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+      initialDate: _inService ?? _suggestion?.date ?? now,
+      helpText: 'In service on the farm from',
+    );
+    if (picked != null) setState(() => _inService = picked);
+  }
+
+  Future<void> _suggest() async {
+    final g = _gateway.text.trim();
+    if (g.isEmpty) return;
+    setState(() {
+      _suggesting = true;
+      _suggestError = null;
+    });
+    try {
+      final s = await WeatherStationAdminService.suggestInService(g);
+      if (mounted) setState(() => _suggestion = s);
+    } catch (e) {
+      if (mounted) setState(() => _suggestError = friendlyError(e, 'Couldn\'t read the station\'s history'));
+    } finally {
+      if (mounted) setState(() => _suggesting = false);
+    }
+  }
+
+  Widget _inServiceField() {
+    final fmt = DateFormat('EEE d MMM yyyy');
+    final s = _suggestion;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('In service on the farm from',
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black87)),
+      const SizedBox(height: 2),
+      const Text(
+        'Readings recorded before this date (bench tests, a previous site) are left out of every comparison, '
+        'download and date range.',
+        style: TextStyle(fontSize: 11.5, color: Colors.black54, height: 1.35),
+      ),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        OutlinedButton.icon(
+          onPressed: _pickInService,
+          icon: const Icon(Icons.event_available_rounded, size: 18),
+          label: Text(_inService == null ? 'Set the date' : fmt.format(_inService!)),
+        ),
+        if (_inService != null)
+          TextButton(onPressed: () => setState(() => _inService = null), child: const Text('Clear')),
+        TextButton.icon(
+          onPressed: _suggesting ? null : _suggest,
+          icon: _suggesting
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.auto_fix_high_rounded, size: 18),
+          label: const Text('Suggest from readings'),
+        ),
+      ]),
+      if (_suggestError != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(_suggestError!, style: const TextStyle(fontSize: 12, color: _kRed)),
+        ),
+      if (s != null)
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFA5D6A7)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              s.date == null
+                  ? 'The readings have no long break${s.firstReading == null ? '' : ' since ${fmt.format(s.firstReading!)}'}'
+                      ' — check with the installer when it went up.'
+                  : 'Readings stopped on ${fmt.format(s.lastBefore!)} for ${s.gapDays} days and started again on '
+                      '${fmt.format(s.date!)} — most likely when it was installed on the farm.'
+                      '${s.firstReading == null ? '' : ' (The first reading of all was ${fmt.format(s.firstReading!)}.)'}',
+              style: const TextStyle(fontSize: 12, height: 1.35),
+            ),
+            if (s.date != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => setState(() => _inService = s.date),
+                  child: Text('Use ${fmt.format(s.date!)}'),
+                ),
+              ),
+          ]),
+        ),
+    ]);
+  }
 
   bool get _editing => widget.station != null;
 
@@ -768,13 +890,13 @@ class _StationFormState extends State<_StationForm> {
       setState(() => _error = 'Give the station a name of 2–60 characters, e.g. "Kamau farm – Nyeri".');
       return;
     }
-    Navigator.pop(context, _StationFormResult(g, l, _provider, _notes.text.trim()));
+    Navigator.pop(context, _StationFormResult(g, l, _provider, _notes.text.trim(), _inService));
   }
 
   @override
   Widget build(BuildContext context) {
     final choices = widget.unregistered.where((s) => s.providerId == _provider).toList();
-    return _sheet(context, _editing ? 'Rename station' : 'Add a weather station', [
+    return _sheet(context, _editing ? 'Edit station' : 'Add a weather station', [
       DropdownButtonFormField<String>(
         initialValue: widget.providers.any((p) => p.id == _provider) ? _provider : null,
         decoration: _deco('Provider'),
@@ -810,6 +932,8 @@ class _StationFormState extends State<_StationForm> {
         decoration: _deco('Station name', hint: 'e.g. Kamau farm – Nyeri',
             helper: 'This is what farmers and agronomists see everywhere in the app.'),
       ),
+      _inServiceField(),
+      const SizedBox(height: 14),
       TextField(
         controller: _notes,
         maxLines: 2,
@@ -818,17 +942,14 @@ class _StationFormState extends State<_StationForm> {
       ),
       if (_error != null)
         Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_error!, style: const TextStyle(color: _kRed, fontWeight: FontWeight.w700))),
-      Row(children: [
-        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel'))),
-        const SizedBox(width: 10),
-        Expanded(
-          child: FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _kGreen),
-            onPressed: _save,
-            child: Text(_editing ? 'Save name' : 'Add station'),
-          ),
-        ),
-      ]),
+    ], actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: _kGreen),
+        onPressed: _save,
+        icon: Icon(_editing ? Icons.save_rounded : Icons.add_rounded, size: 18),
+        label: Text(_editing ? 'Save name' : 'Add station'),
+      ),
     ]);
   }
 }
@@ -1013,19 +1134,14 @@ class _ConnectFarmerSheetState extends State<_ConnectFarmerSheet> {
         ),
       if (_error != null)
         Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: const TextStyle(color: _kRed, fontWeight: FontWeight.w700))),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel'))),
-        const SizedBox(width: 10),
-        Expanded(
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _kGreen),
-            onPressed: _done,
-            icon: const Icon(Icons.link_rounded, size: 18),
-            label: const Text('Connect'),
-          ),
-        ),
-      ]),
+    ], actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: _kGreen),
+        onPressed: _done,
+        icon: const Icon(Icons.link_rounded, size: 18),
+        label: const Text('Connect'),
+      ),
     ]);
   }
 
@@ -1202,25 +1318,20 @@ class _ProviderFormState extends State<_ProviderForm> {
         ),
       if (_error != null)
         Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_error!, style: const TextStyle(color: _kRed, fontWeight: FontWeight.w700))),
-      Row(children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _busy ? null : _test,
-            icon: const Icon(Icons.network_check_rounded, size: 18),
-            label: const Text('Test connection'),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _kGreen),
-            onPressed: _busy ? null : _save,
-            child: _busy
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text(_editing ? 'Save' : 'Add provider'),
-          ),
-        ),
-      ]),
+    ], actions: [
+      OutlinedButton.icon(
+        onPressed: _busy ? null : _test,
+        icon: const Icon(Icons.network_check_rounded, size: 18),
+        label: const Text('Test connection'),
+      ),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: _kGreen),
+        onPressed: _busy ? null : _save,
+        icon: _busy
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : Icon(_editing ? Icons.save_rounded : Icons.add_rounded, size: 18),
+        label: Text(_busy ? 'Saving…' : (_editing ? 'Save' : 'Add provider')),
+      ),
     ]);
   }
 }

@@ -83,6 +83,11 @@ class AdminStation {
 
   final List<StationFarmer> farmers;
 
+  /// The day the station went into service on the farm. Readings before it
+  /// (bench tests, a previous site) are excluded from every comparison,
+  /// download and date range. Null = not set yet.
+  final DateTime? inServiceFrom;
+
   const AdminStation({
     required this.gatewayId,
     this.label,
@@ -98,6 +103,7 @@ class AdminStation {
     this.lat,
     this.lon,
     this.farmers = const [],
+    this.inServiceFrom,
   });
 
   bool get needsLabel => label == null || label!.trim().isEmpty;
@@ -117,7 +123,21 @@ class AdminStation {
     lat: (m['lat'] as num?)?.toDouble(),
     lon: (m['lon'] as num?)?.toDouble(),
     farmers: _list(m['farmers']).map(StationFarmer.fromMap).toList(),
+    inServiceFrom: DateTime.tryParse(_s(m['inServiceFrom'])),
   );
+}
+
+/// Where the station's readings suggest it went into service.
+class InServiceSuggestion {
+  /// The first day the provider has readings for.
+  final DateTime? firstReading;
+
+  /// First day after the last gap of 3+ days without readings, if any.
+  final DateTime? date;
+  final DateTime? lastBefore;
+  final int gapDays;
+
+  const InServiceSuggestion({this.firstReading, this.date, this.lastBefore, this.gapDays = 0});
 }
 
 /// How the provider expects its API key.
@@ -217,13 +237,36 @@ class WeatherStationAdminService {
     );
   }
 
-  /// Registers a station or changes its label / provider / notes.
+  /// Registers a station or changes its label / provider / notes /
+  /// in-service date (null clears it).
   static Future<void> saveStation({
     required String gatewayId,
     required String label,
     required String providerId,
     String notes = '',
-  }) => _call('saveStation', {'gatewayId': gatewayId, 'label': label, 'providerId': providerId, 'notes': notes});
+    DateTime? inServiceFrom,
+  }) => _call('saveStation', {
+        'gatewayId': gatewayId,
+        'label': label,
+        'providerId': providerId,
+        'notes': notes,
+        'inServiceFrom': inServiceFrom == null ? null : _ymd(inServiceFrom),
+      });
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Reads the station's history and suggests its in-service date.
+  static Future<InServiceSuggestion> suggestInService(String gatewayId) async {
+    final d = await _call('suggestInService', {'gatewayId': gatewayId});
+    final s = _map(d['suggestion']);
+    return InServiceSuggestion(
+      firstReading: DateTime.tryParse(_s(d['firstReading'])),
+      date: DateTime.tryParse(_s(s['date'])),
+      lastBefore: DateTime.tryParse(_s(s['lastBefore'])),
+      gapDays: (s['gapDays'] as num?)?.toInt() ?? 0,
+    );
+  }
 
   static Future<void> removeStation(String gatewayId) => _call('removeStation', {'gatewayId': gatewayId});
 

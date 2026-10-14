@@ -185,7 +185,6 @@ class _SymptomCheckerPageState extends State<SymptomCheckerPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF032704),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                     ),
                     onPressed: () {
                       setState(() {

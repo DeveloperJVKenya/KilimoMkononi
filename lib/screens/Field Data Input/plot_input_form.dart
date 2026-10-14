@@ -657,6 +657,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
 
       try {
         final map = fieldData.toMap();
+        map['nutrientBands'] = nutrientBandNames(map);
         // Attach environmental snapshots for historical analysis
         // Commented out along with the IoT/satellite integration —
         // not deleted, re-enable if the feature comes back.
@@ -682,6 +683,7 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
       } catch (_) {
         // Firestore unavailable — save to offline queue
         final map = fieldData.toMap();
+        map['nutrientBands'] = nutrientBandNames(map);
         // Commented out along with the IoT/satellite integration —
         // not deleted, re-enable if the feature comes back.
         // if (_latestIot != null) map['iotSnapshot']       = _latestIot!.toMap();
@@ -1061,9 +1063,6 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
             style: ElevatedButton.styleFrom(
               backgroundColor: FT.brandDark,
               foregroundColor: FT.textOnDark,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Log it',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
@@ -2324,9 +2323,6 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
             style: ElevatedButton.styleFrom(
               backgroundColor: _kDarkGreen,
               foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Add'),
           ),
@@ -2354,26 +2350,20 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
         ),
         child: Row(children: [
           if (_currentStep > 0) ...[
-            Expanded(
-              child: OutlinedButton(
+            OutlinedButton.icon(
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
                 onPressed: () => setState(() => _currentStep--),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: FT.brandDark,
                   side: BorderSide(color: FT.borderDefault, width: 1.5),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
                 ),
-                child: Text('Back',
+                label: Text('Back',
                     style: FT.subheading
                         .copyWith(color: FT.brandDark)),
-              ),
             ),
-            const SizedBox(width: 10),
           ],
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
+          const Spacer(),
+          ElevatedButton.icon(
               onPressed: _isSaving
                   ? null
                   : () {
@@ -2387,25 +2377,24 @@ If soil moisture < 40%, urgentAction should be irrigation before fertiliser.
                 backgroundColor: FT.brandDark,
                 foregroundColor: FT.textOnDark,
                 disabledBackgroundColor: FT.borderDefault,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
               ),
-              child: _isSaving
+              icon: _isSaving
                   ? const SizedBox(
-                      width: 20, height: 20,
+                      width: 18, height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           color: FT.textOnDark))
-                  : Text(
-                      isLast
+                  : Icon(isLast ? Icons.save_rounded : Icons.arrow_forward_rounded, size: 18),
+              label: Text(
+                  _isSaving
+                      ? 'Saving…'
+                      : isLast
                           ? 'Save record'
                           : 'Next: ${_currentStep == 0 ? 'Soil & nutrients' : 'Confirm & save'}',
-                      style: FT.subheading
-                          .copyWith(color: FT.textOnDark)),
+                  overflow: TextOverflow.ellipsis,
+                  style: FT.subheading
+                      .copyWith(color: FT.textOnDark)),
             ),
-          ),
         ]),
       ),
     );

@@ -402,18 +402,13 @@ class AiAdviceCard extends StatelessWidget {
                 Text(emptyStateText,
                     style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
+                Center(child: ElevatedButton.icon(
                     onPressed: onFetch,
                     icon: const Icon(Icons.auto_awesome, size: 16),
                     label: Text(ctaLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: AiCardColors.brandDark,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),

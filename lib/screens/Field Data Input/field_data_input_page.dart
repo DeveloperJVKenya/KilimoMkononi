@@ -403,10 +403,7 @@ class _FieldDataInputPageState extends State<FieldDataInputPage>
                                 top: BorderSide(
                                     color: Color(0xFFE0E0E0))),
                           ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
+                          child: Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
                                   onPressed: _showRedefineDialog,
                                   icon: const Icon(Icons.edit_rounded, size: 16),
                                   label: const Text('Redefine'),
@@ -416,15 +413,8 @@ class _FieldDataInputPageState extends State<FieldDataInputPage>
                                         color: Color(0xFFA5D6A7)),
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 11),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
+                                ), ElevatedButton.icon(
                                   onPressed: () => _deletePlot(
                                       _plotIds[_tabController.index]),
                                   icon: const Icon(Icons.delete_outline,
@@ -433,19 +423,12 @@ class _FieldDataInputPageState extends State<FieldDataInputPage>
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.red[50],
                                     foregroundColor: Colors.red[700],
-                                    elevation: 0,
                                     side: BorderSide(
                                         color: Colors.red[200]!),
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 11),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
+                                )]),
                         ),
                       ),
                   ],

@@ -124,9 +124,7 @@ class SymptomResultPage extends StatelessWidget {
           if (likelyTypes.contains('Pest'))
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
+              child: Center(child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green[900]),
                   onPressed: () {
@@ -149,9 +147,7 @@ class SymptomResultPage extends StatelessWidget {
 
           // Pass selected symptoms to DiseaseManagementPage
           if (likelyTypes.contains('Disease'))
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
+            Center(child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700]),
                 onPressed: () {
                   Navigator.push(

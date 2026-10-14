@@ -1,5 +1,6 @@
 // lib/education/pest/pest_disease_home.dart
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/fluid_grid.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'pest_home.dart';
 import 'disease_home.dart';
@@ -13,19 +14,13 @@ class PestDiseaseHome extends StatefulWidget {
   final String schoolName;
   final String classId;
 
-  const PestDiseaseHome({
-    super.key,
-    required this.role,
-    required this.schoolName,
-    required this.classId,
-  });
+  const PestDiseaseHome({super.key, required this.role, required this.schoolName, required this.classId});
 
   @override
   State<PestDiseaseHome> createState() => _PestDiseaseHomeState();
 }
 
-class _PestDiseaseHomeState extends State<PestDiseaseHome>
-    with SingleTickerProviderStateMixin {
+class _PestDiseaseHomeState extends State<PestDiseaseHome> with SingleTickerProviderStateMixin {
   // 0 = hub, 1-4 = sections
   int _selected = 0;
   Map<String, String>? _prefillData;
@@ -75,12 +70,7 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
             flexibleSpace: FlexibleSpaceBar(
               title: const Text(
                 'Pest & Disease',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  letterSpacing: 0.3,
-                ),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 0.3),
               ),
               background: Stack(
                 fit: StackFit.expand,
@@ -91,42 +81,34 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF064E09),
-                          _kDark,
-                          const Color(0xFF0A3E0D),
-                        ],
+                        colors: [const Color(0xFF064E09), _kDark, const Color(0xFF0A3E0D)],
                       ),
                     ),
                   ),
                   // Decorative circles
                   Positioned(
-                    right: -30, top: -30,
+                    right: -30,
+                    top: -30,
                     child: Container(
-                      width: 160, height: 160,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.05),
-                      ),
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.05)),
                     ),
                   ),
                   Positioned(
-                    left: -20, bottom: -20,
+                    left: -20,
+                    bottom: -20,
                     child: Container(
-                      width: 100, height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.04),
-                      ),
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.04)),
                     ),
                   ),
                   // Icon watermark
                   Positioned(
-                    right: 24, top: 32,
-                    child: Opacity(
-                      opacity: 0.12,
-                      child: const Icon(Icons.eco, size: 80, color: Colors.white),
-                    ),
+                    right: 24,
+                    top: 32,
+                    child: Opacity(opacity: 0.12, child: const Icon(Icons.eco, size: 80, color: Colors.white)),
                   ),
                 ],
               ),
@@ -139,11 +121,7 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
               child: Text(
                 'Select a module to get started',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  letterSpacing: 0.2,
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, letterSpacing: 0.2),
               ),
             ),
           ),
@@ -151,29 +129,30 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
           // ── Core modules (pest + disease) — always visible ──
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 1.05,
+            sliver: // Fluid: designed size on phones, more columns on wider screens, tiles grow with their text.
+            SliverToBoxAdapter(
+              child: FluidGrid(
+                minTileWidth: 155,
+                minTileHeight: 148,
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  _ModuleCard(
+                    title: 'Pest\nManagement',
+                    subtitle: 'Identify & control pests',
+                    icon: Icons.pest_control,
+                    gradient: [const Color(0xFF2E7D32), const Color(0xFF388E3C)],
+                    onTap: () => _navigate(1),
+                  ),
+                  _ModuleCard(
+                    title: 'Disease\nManagement',
+                    subtitle: 'Diagnose & treat diseases',
+                    icon: Icons.coronavirus_outlined,
+                    gradient: [const Color(0xFF00695C), const Color(0xFF00897B)],
+                    onTap: () => _navigate(2),
+                  ),
+                ],
               ),
-              delegate: SliverChildListDelegate([
-                _ModuleCard(
-                  title: 'Pest\nManagement',
-                  subtitle: 'Identify & control pests',
-                  icon: Icons.pest_control,
-                  gradient: [const Color(0xFF2E7D32), const Color(0xFF388E3C)],
-                  onTap: () => _navigate(1),
-                ),
-                _ModuleCard(
-                  title: 'Disease\nManagement',
-                  subtitle: 'Diagnose & treat diseases',
-                  icon: Icons.coronavirus_outlined,
-                  gradient: [const Color(0xFF00695C), const Color(0xFF00897B)],
-                  onTap: () => _navigate(2),
-                ),
-              ]),
             ),
           ),
 
@@ -182,25 +161,25 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
-                child: Row(children: [
-                  Container(
-                    width: 3, height: 18,
-                    decoration: BoxDecoration(
-                      color: _kDark,
-                      borderRadius: BorderRadius.circular(2),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 18,
+                      decoration: BoxDecoration(color: _kDark, borderRadius: BorderRadius.circular(2)),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Diagnostic Tools',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade700,
-                      letterSpacing: 0.3,
+                    const SizedBox(width: 8),
+                    Text(
+                      'Diagnostic Tools',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade700,
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  ),
-                ]),
+                  ],
+                ),
               ),
             ),
             SliverPadding(
@@ -267,11 +246,7 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
         },
       );
     } else {
-      content = EduPhotoDiagnosisPage(
-        role: widget.role,
-        schoolName: widget.schoolName,
-        classId: widget.classId,
-      );
+      content = EduPhotoDiagnosisPage(role: widget.role, schoolName: widget.schoolName, classId: widget.classId);
     }
 
     return FadeTransition(
@@ -300,12 +275,17 @@ class _PestDiseaseHomeState extends State<PestDiseaseHome>
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.arrow_back_ios_new, size: 14, color: _kDark),
-                      const SizedBox(width: 4),
-                      Text('Back',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kDark)),
-                    ]),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.arrow_back_ios_new, size: 14, color: _kDark),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Back',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kDark),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -344,18 +324,10 @@ class _ModuleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: gradient,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
-              BoxShadow(
-                color: gradient.last.withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
+              BoxShadow(color: gradient.last.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 6)),
             ],
           ),
           child: Padding(
@@ -374,20 +346,12 @@ class _ModuleCard extends StatelessWidget {
                 const Spacer(),
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, height: 1.2),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -435,11 +399,9 @@ class _ToolRow extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 50, height: 50,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(14)),
                 child: Icon(icon, color: Colors.white, size: 24),
               ),
               const SizedBox(width: 14),
@@ -447,40 +409,35 @@ class _ToolRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
                         ),
-                      ),
-                      if (badge != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6A1B9A),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            badge!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6A1B9A),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badge!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ]),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
+                    const SizedBox(height: 3),
+                    Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                   ],
                 ),
               ),

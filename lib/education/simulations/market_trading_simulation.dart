@@ -534,8 +534,7 @@ class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
               icon: Icon(_day >= _totalDays ? Icons.flag : Icons.calendar_today),
               label: Text(_day >= _totalDays ? '🏁 Close Market' : '⏭ Next Day'),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 12)),
+                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,),
             )),
             const SizedBox(width: 10),
             IconButton(icon: const Icon(Icons.help_outline, color: Colors.white),
@@ -576,8 +575,7 @@ class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
           IconButton(icon: const Icon(Icons.add_circle, color: Colors.green, size: 22),
               onPressed: () => setState(() => _qty++)),
         ]),
-        Row(children: [
-          Expanded(child: ElevatedButton.icon(
+        Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [ElevatedButton.icon(
             onPressed: () => _trade(true),
             icon: const Icon(Icons.shopping_cart, size: 16),
             label: Text('BUY ×$_qty\nKES ${(c.price * _qty).toStringAsFixed(0)}',
@@ -585,9 +583,7 @@ class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
                 style: const TextStyle(fontSize: 11)),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
-          )),
-          const SizedBox(width: 8),
-          Expanded(child: ElevatedButton.icon(
+          ), ElevatedButton.icon(
             onPressed: c.owned >= _qty ? () => _trade(false) : null,
             icon: const Icon(Icons.sell, size: 16),
             label: Text('SELL ×$_qty\nKES ${(c.price * _qty).toStringAsFixed(0)}',
@@ -595,8 +591,7 @@ class _MarketTradingSimulationState extends State<MarketTradingSimulation> {
                 style: const TextStyle(fontSize: 11)),
             style: ElevatedButton.styleFrom(
                 backgroundColor: _mktAmber, foregroundColor: Colors.black87),
-          )),
-        ]),
+          )]),
       ]),
     );
   }

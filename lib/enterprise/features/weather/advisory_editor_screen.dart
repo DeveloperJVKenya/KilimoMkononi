@@ -1006,11 +1006,13 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
           color: Colors.white,
           border: Border(top: BorderSide(color: AdvisoryColors.border)),
         ),
-        child: Row(
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 10,
+          runSpacing: 8,
           children: [
             if (!_isPublished)
-              Expanded(
-                child: OutlinedButton(
+              OutlinedButton(
                   onPressed: _saving
                       ? null
                       : () => _save(
@@ -1019,11 +1021,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                         ),
                   child: const Text('Save draft'),
                 ),
-              ),
-            if (!_isPublished) const SizedBox(width: 10),
-            Expanded(
-              flex: 2,
-              child: FilledButton.icon(
+            FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: AdvisoryColors.verified,
                 ),
@@ -1046,7 +1044,6 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                     : const Icon(Icons.verified_rounded, size: 18),
                 label: Text(publishLabel),
               ),
-            ),
           ],
         ),
       ),

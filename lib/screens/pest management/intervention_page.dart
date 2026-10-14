@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
@@ -350,8 +351,9 @@ Future<void> _scheduleReminder({
         title: const Text('Pest Intervention',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white)),
       ),
+      floatingActionButton: SaveFab(onPressed: _save, busy: _saving, label: 'Save intervention'),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
         children: [
           // ── Context ────────────────────────────────────────────────────────
           Container(
@@ -414,25 +416,13 @@ Future<void> _scheduleReminder({
           const SizedBox(height: 24),
 
           // ── Actions ────────────────────────────────────────────────────────
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            style: ElevatedButton.styleFrom(backgroundColor: _T.brandDark, foregroundColor: Colors.white,
-                elevation: 0, padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: _saving
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : const Text('Save Intervention', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
+          Center(child: OutlinedButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(
                 builder: (_) => ViewInterventionsPage(pestData: widget.pestData, notificationsPlugin: widget.notificationsPlugin))),
             style: OutlinedButton.styleFrom(foregroundColor: _T.brandDark,
-                side: const BorderSide(color: _T.borderDef, width: 1.5),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                side: const BorderSide(color: _T.borderDef, width: 1.5),),
             child: const Text('View All Saved Interventions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          ),
+          )),
           const SizedBox(height: 16),
         ],
       ),
@@ -504,14 +494,11 @@ Future<void> _scheduleReminder({
           const Text('Get product names, quantities and timing tailored to this pest, crop and stage.',
               style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
           const SizedBox(height: 12),
-          SizedBox(width: double.infinity,
-            child: ElevatedButton.icon(
+          Center(child: ElevatedButton.icon(
               onPressed: _fetchAiAdvice,
               icon: const Icon(Icons.auto_awesome, size: 16),
               label: const Text('Get AI pest advice', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: _T.brandDark,
-                  elevation: 0, padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: _T.brandDark,),
             ),
           ),
         ],

@@ -300,16 +300,11 @@ class _ActionCard extends StatelessWidget {
           // ── CTA button ───────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.all(14),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
+            child: Center(child: ElevatedButton(
                 onPressed: onTap,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: buttonColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
                 ),
                 child: Text(buttonLabel,
                     style: const TextStyle(

@@ -90,23 +90,19 @@ class SymptomResultPage extends StatelessWidget {
                       ),
                     const SizedBox(height: 30),
                     if (types.contains('Pest'))
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
+                      Center(child: ElevatedButton.icon(
                           icon: const Icon(Icons.bug_report),
                           label: const Text("Go to Pest Management", style: TextStyle(fontSize: 18)),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green[900], padding: const EdgeInsets.all(16)),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green[900],),
                           onPressed: () => onGoToManagement?.call(diagnosisData),
                         ),
                       ),
                     if (types.contains('Disease')) const SizedBox(height: 12),
                     if (types.contains('Disease'))
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
+                      Center(child: ElevatedButton.icon(
                           icon: const Icon(Icons.local_hospital),
                           label: const Text("Go to Disease Management", style: TextStyle(fontSize: 18)),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700], padding: const EdgeInsets.all(16)),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700],),
                           onPressed: () => onGoToManagement?.call(diagnosisData),
                         ),
                       ),

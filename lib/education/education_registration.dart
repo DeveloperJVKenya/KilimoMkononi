@@ -609,8 +609,6 @@ class _EducationRegistrationScreenState
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _roleColor,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
                       ),
                       onPressed: _resolvingCode ? null : _lookupSchoolCode,
                       child: _resolvingCode
@@ -785,16 +783,10 @@ class _EducationRegistrationScreenState
             const SizedBox(height: 16),
 
             // Submit button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
+            Center(child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       _hasAcceptedTerms ? _roleColor : Colors.grey.shade300,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: _hasAcceptedTerms ? 4 : 0,
                 ),
                 onPressed: (_loading || !_hasAcceptedTerms) ? null : _register,
                 child: _loading

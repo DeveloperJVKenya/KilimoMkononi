@@ -131,8 +131,7 @@ class _PrimaryClassSummarySheetState extends State<PrimaryClassSummarySheet> {
     ElevatedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh, size: 16),
         label: const Text('Try again'),
         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF003900),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+            foregroundColor: Colors.white,)),
   ]));
 
   Widget _buildSummary() {

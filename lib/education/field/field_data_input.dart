@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:http/http.dart' as http;
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/education/data/field_management_tips.dart';
@@ -185,7 +186,11 @@ class _FieldDataInputState extends State<FieldDataInput>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: isTeacher ? 3 : 2, vsync: this);
+    _tabController = TabController(length: isTeacher ? 3 : 2, vsync: this)
+      // The floating Save button follows the tab.
+      ..addListener(() {
+        if (!_tabController.indexIsChanging && mounted) setState(() {});
+      });
     _initializeFirestore();
     _loadPreviousAnalysis();
     for (final c in [
@@ -295,7 +300,7 @@ class _FieldDataInputState extends State<FieldDataInput>
 
     return SingleChildScrollView(
       controller: _fieldTabScrollCtrl,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
       child: Form(
         key: _formKey,
         child: Column(
@@ -429,21 +434,6 @@ class _FieldDataInputState extends State<FieldDataInput>
 
             if (isTeacher) const SizedBox(height: 4),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _submitFieldIssue,
-                icon: _isSaving
-                    ? const SizedBox(width: 16, height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.send),
-                label: Text(_isSaving ? 'Submitting...' : 'Submit Issue'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.all(14),
-                ),
-              ),
-            ),
 
             if (isStudent) ...[
               const SizedBox(height: 28),
@@ -504,9 +494,7 @@ class _FieldDataInputState extends State<FieldDataInput>
               const SizedBox(height: 12),
             ],
             // AI analysis button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
+            Center(child: OutlinedButton.icon(
                 onPressed: _isCardLoading('field_general_${_selectedCrop}_$_selectedIssue')
                     ? null
                     : () => _runAiFieldAnalysis(null),
@@ -1065,18 +1053,13 @@ Keep language practical for Kenyan secondary school teachers.
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
+              child: Center(child: ElevatedButton.icon(
                   onPressed: () => Navigator.pop(ctx),
                   icon: const Icon(Icons.check_circle_outline, size: 18),
                   label: const Text('Got it!'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF8F00),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -1154,7 +1137,7 @@ Keep language practical for Kenyan secondary school teachers.
 
     return SingleChildScrollView(
       controller: _soilTabScrollCtrl,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1282,22 +1265,6 @@ Keep language practical for Kenyan secondary school teachers.
           const SizedBox(height: 20),
 
           // Save soil data button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isSaving ? null : _submitSoilTestByTeacher,
-              icon: _isSaving
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.save),
-              label: Text(_isSaving ? 'Saving…' : 'Save Soil Data for Class'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.all(14),
-              ),
-            ),
-          ),
 
           // ── Saved soil tests list with quiz generation button ──
           const SizedBox(height: 28),
@@ -1388,9 +1355,7 @@ Keep language practical for Kenyan secondary school teachers.
             ],
             const SizedBox(height: 10),
             // ── Generate Quiz button ──
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
+            Center(child: OutlinedButton.icon(
                 onPressed: _isCardLoading('soilquiz_$docId')
                     ? null
                     : () => _generateSoilQuizFromData(data, docId),
@@ -1842,7 +1807,7 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
 
     return SingleChildScrollView(
       controller: _soilTabScrollCtrl,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1963,21 +1928,6 @@ Return exactly 7 items: 5 MCQ followed by 2 essay.
             maxLines: 3,
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isSaving ? null : _submitStudentSoilObservation,
-              icon: _isSaving
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.send),
-              label: Text(_isSaving ? 'Submitting…' : 'Submit My Observations'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.all(14),
-              ),
-            ),
-          ),
 
           const SizedBox(height: 28),
           const Divider(),
@@ -3386,6 +3336,27 @@ Write a 2–3 sentence teaching comment for this student's soil observation. Be 
     }
   }
 
+  /// The current tab's save action (none on Reviews).
+  Widget? _sectionSaveFab() => switch (_tabController.index) {
+        0 => SaveFab(
+            onPressed: _submitFieldIssue,
+            busy: _isSaving,
+            label: 'Submit issue',
+            busyLabel: 'Submitting…',
+            icon: Icons.send_rounded,
+          ),
+        1 => isTeacher
+            ? SaveFab(onPressed: _submitSoilTestByTeacher, busy: _isSaving, label: 'Save soil data')
+            : SaveFab(
+                onPressed: _submitStudentSoilObservation,
+                busy: _isSaving,
+                label: 'Submit observations',
+                busyLabel: 'Submitting…',
+                icon: Icons.send_rounded,
+              ),
+        _ => null,
+      };
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  BUILD
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3421,6 +3392,7 @@ Write a 2–3 sentence teaching comment for this student's soil observation. Be 
           ),
         ),
       ),
+      floatingActionButton: _sectionSaveFab(),
       body: TabBarView(
         controller: _tabController,
         children: [

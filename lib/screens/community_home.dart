@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/fluid_grid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/screens/community_chat.dart';
@@ -34,9 +35,7 @@ class _CommunityHomeScreenState extends State<CommunityHomeScreen> {
   Future<void> _toggleChannel(String channelId) async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to join channels')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to join channels')));
       return;
     }
 
@@ -48,13 +47,12 @@ class _CommunityHomeScreenState extends State<CommunityHomeScreen> {
       }
     });
 
-    await _firestore.collection('Users').doc(userId).update({
-      'joinedChannels': _joinedChannels,
-    });
+    await _firestore.collection('Users').doc(userId).update({'joinedChannels': _joinedChannels});
   }
 
   // Helper method to get responsive values (from home.dart)
-  double _getResponsiveValue(BuildContext context, {
+  double _getResponsiveValue(
+    BuildContext context, {
     required double mobile,
     required double tablet,
     required double desktop,
@@ -69,36 +67,14 @@ class _CommunityHomeScreenState extends State<CommunityHomeScreen> {
     }
   }
 
-  // Helper method to get cross-axis count for grid
-  int _getCrossAxisCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width < 600) {
-      return 2;
-    } else if (width < 1200) {
-      return 3;
-    } else {
-      return 4;
-    }
-  }
-
   Widget _buildChannelButton(String title, String channelId, IconData icon) {
     final isJoined = _joinedChannels.contains(channelId);
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CommunityChatScreen(channelId: channelId),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => CommunityChatScreen(channelId: channelId)));
       },
       child: Container(
-        padding: EdgeInsets.all(_getResponsiveValue(
-          context,
-          mobile: 15,
-          tablet: 20,
-          desktop: 25,
-        )),
+        padding: EdgeInsets.all(_getResponsiveValue(context, mobile: 15, tablet: 20, desktop: 25)),
         decoration: BoxDecoration(
           color: const Color.fromARGB(255, 3, 39, 4),
           borderRadius: BorderRadius.circular(12.0),
@@ -114,27 +90,13 @@ class _CommunityHomeScreenState extends State<CommunityHomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: _getResponsiveValue(
-                context,
-                mobile: 35,
-                tablet: 40,
-                desktop: 45,
-              ),
-              color: Colors.white,
-            ),
+            Icon(icon, size: _getResponsiveValue(context, mobile: 35, tablet: 40, desktop: 45), color: Colors.white),
             const SizedBox(height: 8),
             Text(
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: _getResponsiveValue(
-                  context,
-                  mobile: 14,
-                  tablet: 16,
-                  desktop: 18,
-                ),
+                fontSize: _getResponsiveValue(context, mobile: 14, tablet: 16, desktop: 18),
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -144,12 +106,7 @@ class _CommunityHomeScreenState extends State<CommunityHomeScreen> {
               icon: Icon(
                 isJoined ? Icons.remove_circle : Icons.add_circle,
                 color: isJoined ? Colors.red : Colors.green,
-                size: _getResponsiveValue(
-                  context,
-                  mobile: 24,
-                  tablet: 28,
-                  desktop: 32,
-                ),
+                size: _getResponsiveValue(context, mobile: 24, tablet: 28, desktop: 32),
               ),
               onPressed: () => _toggleChannel(channelId),
             ),
@@ -217,24 +174,27 @@ class _CommunityHomeScreenState extends State<CommunityHomeScreen> {
                 horizontal: _getResponsiveValue(context, mobile: 16, tablet: 20, desktop: 24),
                 vertical: _getResponsiveValue(context, mobile: 20, tablet: 25, desktop: 30),
               ),
-              child: GridView.count(
-                crossAxisCount: _getCrossAxisCount(context),
-                childAspectRatio: _getResponsiveValue(context, mobile: 1.0, tablet: 1.1, desktop: 1.2),
-                mainAxisSpacing: _getResponsiveValue(context, mobile: 10, tablet: 15, desktop: 20),
-                crossAxisSpacing: _getResponsiveValue(context, mobile: 10, tablet: 15, desktop: 20),
-                children: channels.map((channel) {
-                  return _buildChannelButton(
-                    channel['title']!,
-                    channel['id']!,
-                    channel['title']!.contains('Pests')
-                        ? Icons.bug_report
-                        : channel['title']!.contains('Soil')
-                            ? Icons.eco
-                            : channel['title']!.contains('Market')
-                                ? Icons.store
-                                : Icons.cloud,
-                  );
-                }).toList(),
+              // Fluid: as many columns as fit; tiles grow with their text.
+              child: SingleChildScrollView(
+                child: FluidGrid(
+                  minTileWidth: 140,
+                  minTileHeight: 120,
+                  spacing: _getResponsiveValue(context, mobile: 10, tablet: 15, desktop: 20),
+                  runSpacing: _getResponsiveValue(context, mobile: 10, tablet: 15, desktop: 20),
+                  children: channels.map((channel) {
+                    return _buildChannelButton(
+                      channel['title']!,
+                      channel['id']!,
+                      channel['title']!.contains('Pests')
+                          ? Icons.bug_report
+                          : channel['title']!.contains('Soil')
+                          ? Icons.eco
+                          : channel['title']!.contains('Market')
+                          ? Icons.store
+                          : Icons.cloud,
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ),

@@ -17,6 +17,8 @@ dependencies:
   firebase_auth: ^6.0.2
   logger: ^2.5.0
   url_launcher: ^6.3.1
+  # Web only: guards the notification click handler (lib/services/web_notification_guard_web.dart).
+  web: ^1.1.1
   image_picker: ^1.1.2
   provider: ^6.1.2
   flutter_local_notifications: ^22.3.1

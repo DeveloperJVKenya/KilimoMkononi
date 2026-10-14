@@ -247,24 +247,14 @@ Widget _sheetFrame(BuildContext context, String title, List<Widget> children, Vo
             const SizedBox(height: 12),
             ...children,
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
+            Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton(
+                  ), FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: AdvisoryColors.verified),
                     onPressed: onSave,
                     child: const Text('Done'),
-                  ),
-                ),
-              ],
-            ),
+                  )]),
           ],
         ),
       ),

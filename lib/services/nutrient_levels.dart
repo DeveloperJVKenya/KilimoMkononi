@@ -589,3 +589,9 @@ Map<String, NutrientBand> bandsFromFieldData(Map<String, dynamic> d) {
 /// When the field record was taken (for "measured on …").
 DateTime? fieldDataTime(Map<String, dynamic> d) =>
     d['timestamp'] is Timestamp ? (d['timestamp'] as Timestamp).toDate() : null;
+
+/// [bandsFromFieldData] as names ({'N': 'low', …}) — saved on each field
+/// record as `nutrientBands`, so the Cloud Functions can flag low nutrients
+/// to Field Agronomists without a copy of the targets table.
+Map<String, String> nutrientBandNames(Map<String, dynamic> d) =>
+    bandsFromFieldData(d).map((k, v) => MapEntry(k, v.name));

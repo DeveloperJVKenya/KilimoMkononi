@@ -16,6 +16,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/fluid_grid.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -562,14 +563,15 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
                     else
                       SliverPadding(
                         padding: EdgeInsets.fromLTRB(side, 0, side, admin ? 96 : 32),
-                        sliver: SliverGrid(
-                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 540,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            mainAxisExtent: 166 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.35),
-                          ),
-                          delegate: SliverChildBuilderDelegate((_, i) {
+                        // Fluid: 1 column on phones, more on wider screens;
+                        // each card as tall as its content.
+                        sliver: SliverFluidGrid(
+                          minTileWidth: 300,
+                          maxColumns: 4,
+                          spacing: 10,
+                          runSpacing: 10,
+                          itemCount: shown.length,
+                          itemBuilder: (_, i) {
                             final m = shown[i];
                             final isSaved = saved.contains(m.fileName);
                             return _ManualCard(
@@ -579,7 +581,7 @@ class _ManualsScreenState extends ConsumerState<ManualsScreen> {
                               onDownload: () => _download(m),
                               onMore: () => _actions(m, saved: isSaved, admin: admin),
                             );
-                          }, childCount: shown.length),
+                          },
                         ),
                       ),
                   ],
@@ -720,32 +722,26 @@ class _ManualCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFDDEFDF),
-                        foregroundColor: _kGreen,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: onRead,
-                      icon: const Icon(Icons.chrome_reader_mode_rounded, size: 18),
-                      label: const Text('Read'),
+              const SizedBox(height: 8),
+              // Sized to the labels; drops to a second line on a narrow card.
+              Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 6, children: [
+                FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFDDEFDF),
+                      foregroundColor: _kGreen,
+                      visualDensity: VisualDensity.compact,
                     ),
+                    onPressed: onRead,
+                    icon: const Icon(Icons.chrome_reader_mode_rounded, size: 18),
+                    label: const Text('Read'),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(foregroundColor: _kGreen, visualDensity: VisualDensity.compact),
-                      onPressed: onDownload,
-                      icon: Icon(saved ? Icons.folder_open_rounded : Icons.download_rounded, size: 18),
-                      label: Text(saved ? 'Open file' : 'Download'),
-                    ),
+                OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(foregroundColor: _kGreen, visualDensity: VisualDensity.compact),
+                    onPressed: onDownload,
+                    icon: Icon(saved ? Icons.folder_open_rounded : Icons.download_rounded, size: 18),
+                    label: Text(saved ? 'Open file' : 'Download'),
                   ),
-                  const SizedBox(width: 6),
-                ],
-              ),
+              ]),
             ],
           ),
         ),
@@ -916,7 +912,6 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
                 ),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                   foregroundColor: _kGreen,
                 ),
                 onPressed: _uploading ? null : _pick,
@@ -963,7 +958,6 @@ class _UploadSheetState extends ConsumerState<_UploadSheet> {
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: _kGreen,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: _file == null || _uploading ? null : _upload,
                 icon: const Icon(Icons.cloud_upload_rounded),

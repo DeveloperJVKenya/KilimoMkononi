@@ -47,6 +47,7 @@ const CHANNEL = {
   weather: "km_weather_alerts",
   advisories: "km_advisories",
   approvals: "km_approvals",
+  farmerActivity: "km_farmer_activity",
   general: "km_general",
 };
 const ROUTE = {
@@ -54,6 +55,8 @@ const ROUTE = {
   notifications: "notifications",
   eduHome: "edu_home",
   advisory: "advisory",
+  agronomistFarmer: "agronomist_farmer",
+  agronomistPanel: "agronomist_panel",
 };
 const ICON = "ic_stat_km";
 const COLOR = "#2A6B2A";
@@ -70,6 +73,8 @@ const TTL_SECONDS = {
   advisory: 2 * 24 * 60 * 60,
   approval_request: 7 * 24 * 60 * 60,
   approval_decision: 7 * 24 * 60 * 60,
+  farmer_activity: 24 * 60 * 60,
+  farmer_digest: 24 * 60 * 60,
   general: 3 * 24 * 60 * 60,
 };
 
@@ -479,6 +484,9 @@ function collapseKeyFor(n) {
   const d = n.data || {};
   if (n.type === "weather_alert" && d.gatewayId && d.category) return `wx_${d.gatewayId}_${d.category}`;
   if (n.type === "advisory" && d.advisoryId) return `adv_${d.advisoryId}`;
+  // A farmer's newer entry replaces the older push about them; one digest a day.
+  if (n.type === "farmer_activity" && d.farmerUid) return `farm_${d.farmerUid}`;
+  if (n.type === "farmer_digest") return "farm_digest";
   return null;
 }
 
@@ -612,6 +620,8 @@ function prefKeyFor(type) {
     case "advisory": return "advisories";
     case "approval_request":
     case "approval_decision": return "approvals";
+    case "farmer_activity":
+    case "farmer_digest": return "farmerActivity";
     default: return null;
   }
 }
@@ -640,9 +650,9 @@ async function usersWantingPush(uids, type) {
 /**
  * Inbox item for each user, and a push to the devices of those whose
  * Notification Settings allow it (the inbox keeps a dated record either
- * way). Removes tokens FCM says are dead.
+ * way). Removes tokens FCM says are dead. `{ push: false }` = inbox only.
  */
-async function deliverToUsers(uids, n) {
+async function deliverToUsers(uids, n, { push = true } = {}) {
   const db = getFirestore();
   const unique = [...new Set(uids.filter(Boolean))];
   if (!unique.length) return { users: 0, sent: 0 };
@@ -665,6 +675,7 @@ async function deliverToUsers(uids, n) {
     await batch.commit();
   }
 
+  if (!push) return { users: unique.length, pushed: 0, sent: 0 };
   const pushTo = await usersWantingPush(unique, n.type || "general");
   const tokens = pushTo.length ? await tokensFor(pushTo) : [];
   let sent = 0;

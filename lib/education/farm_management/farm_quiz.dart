@@ -365,10 +365,6 @@ class _FarmQuizScreenState extends State<FarmQuizScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryGreen,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.all(18),
-                        minimumSize: const Size(double.infinity, 56),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -379,9 +375,6 @@ class _FarmQuizScreenState extends State<FarmQuizScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: primaryGreen,
                         side: const BorderSide(color: primaryGreen),
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -392,9 +385,6 @@ class _FarmQuizScreenState extends State<FarmQuizScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey.shade700,
                         side: BorderSide(color: Colors.grey.shade400),
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ],

@@ -24,7 +24,10 @@
 // Admin actions — callable `manageWeatherStations({ action, ... })`:
 //   overview         providers + every station (provider listings ∪ registry
 //                    ∪ assignments) with label, status and connected farmers
-//   saveStation      register / relabel a station (gatewayId, label, providerId, notes)
+//   saveStation      register / relabel a station (gatewayId, label, providerId, notes,
+//                    inServiceFrom — readings before it are excluded everywhere)
+//   suggestInService the likely in-service date from the station's readings
+//                    (first day after its last gap of ≥ 3 days)
 //   removeStation    delete its registration and all its assignments
 //   assign           connect an account (farmer, agronomist or admin) to a
 //                    station. An account can hold several stations; its others
@@ -212,7 +215,7 @@ function createStationRegistry({ NUASENSE_KEY, NUASENSE_BASE }) {
 
 // ── Admin callable ───────────────────────────────────────────────────────────
 
-function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASENSE_KEY, notifyUser }) {
+function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASENSE_KEY, notifyUser, suggestInService }) {
   const db = () => getFirestore();
 
   async function log(adminUid, action) {
@@ -258,7 +261,7 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
     return snap.docs.filter((d) => (d.data().platform ?? PLATFORM) === PLATFORM);
   }
 
-  /** Admins and Field Agronomists — every station, but in the Agronomist panel only. */
+  /** Admins and Field Agronomists — they see every station on every screen. */
   async function panelAccess() {
     const [admins, agronomists] = await Promise.all([
       db().collection("Admins").get(),
@@ -327,10 +330,12 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
         online: raw.online === true || raw.status === "online",
         lastSeen: raw.last_seen || null,
         notes: m.notes || "",
+        // Readings before this date are excluded everywhere (weather_history.js).
+        inServiceFrom: m.inServiceFrom || null,
         // Backend identification only (shown under "Technical details").
-        deviceName: raw.name || raw.location || null,
-        lat: raw.lat ?? raw.latitude ?? null,
-        lon: raw.lon ?? raw.longitude ?? null,
+        deviceName: raw.name || (typeof raw.location === "string" ? raw.location : null),
+        lat: raw.location?.lat ?? raw.lat ?? raw.latitude ?? null,
+        lon: raw.location?.lon ?? raw.lon ?? raw.longitude ?? null,
         farmers: (assigned.get(g) || []).map((a) => ({
           ...(users.get(a.uid) || { uid: a.uid, name: "", email: "", phone: "" }),
           farms: Object.entries(prefs.get(a.uid) || {}).filter(([, gw]) => gw === g).map(([plot]) => plot),
@@ -354,15 +359,26 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
     if (providerId !== BUILTIN_PROVIDER && !(await db().doc(`stationProviders/${providerId}`).get()).exists) {
       throw new HttpsError("invalid-argument", "Unknown station provider.");
     }
+    // In service from (YYYY-MM-DD): readings before it are excluded everywhere.
+    const inServiceFrom = d?.inServiceFrom ? String(d.inServiceFrom) : null;
+    if (inServiceFrom && (!/^\d{4}-\d{2}-\d{2}$/.test(inServiceFrom) || Number.isNaN(Date.parse(inServiceFrom)))) {
+      throw new HttpsError("invalid-argument", "Pick the date the station went into service.");
+    }
+    if (inServiceFrom && Date.parse(inServiceFrom) > Date.now()) {
+      throw new HttpsError("invalid-argument", "The in-service date can't be in the future.");
+    }
     const ref = db().doc(`weatherStations/${gatewayId}`);
     const existing = await ref.get();
     await ref.set({
       gatewayId, label, providerId,
+      inServiceFrom,
       notes: String(d?.notes ?? "").trim().slice(0, 500),
       updatedAt: FieldValue.serverTimestamp(), updatedBy: admin,
       ...(existing.exists ? {} : { createdAt: FieldValue.serverTimestamp(), createdBy: admin }),
     }, { merge: true });
-    await log(admin, `${existing.exists ? "Renamed" : "Registered"} weather station "${label}" (${gatewayId})`);
+    const before = existing.exists ? existing.data().inServiceFrom || null : null;
+    await log(admin, `${existing.exists ? "Updated" : "Registered"} weather station "${label}" (${gatewayId})` +
+      (inServiceFrom !== before ? ` · in service from ${inServiceFrom || "(not set)"}` : ""));
     return { ok: true };
   }
 
@@ -542,6 +558,12 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
       case "testProvider": return testProvider(d);
       case "removeProvider": return removeProvider(admin, d);
       case "searchUsers": return searchUsers(d);
+      case "suggestInService": {
+        const g = String(d?.gatewayId ?? "");
+        if (!GATEWAY_RE.test(g)) throw new HttpsError("invalid-argument", "Unknown station.");
+        if (!suggestInService) throw new HttpsError("unimplemented", "Not available.");
+        return suggestInService(g);
+      }
       default: throw new HttpsError("invalid-argument", `Unknown action '${d.action}'`);
     }
   });

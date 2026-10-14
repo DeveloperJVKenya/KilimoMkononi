@@ -512,8 +512,7 @@ class _FarmPlantingSimulationState extends State<FarmPlantingSimulation> {
               icon: Icon(_day >= 30 ? Icons.flag : Icons.wb_sunny),
               label: Text(_day >= 30 ? '🏁 End Season' : '⏩ Next Day'),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 12)),
+                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,),
             )),
             const SizedBox(width: 10),
             IconButton(icon: const Icon(Icons.help_outline, color: Colors.white),

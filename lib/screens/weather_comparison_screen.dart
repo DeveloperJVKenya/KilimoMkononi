@@ -1,17 +1,19 @@
 // lib/screens/weather_comparison_screen.dart
 //
-// Weather forecast → "Compare with weather station": Google's weather and the
-// farm's weather station side by side (WeatherComparisonService), for the
-// station of the farm in view:
-//   • Right now — Google | Station | Difference per measure
-//   • How close they were over 24 h — average difference / gap per measure
-//   • Hour by hour (last 24 h) — both RECORDED values for each hour
-// "Download Excel" / "Download CSV" save it straight away as
-// "Google to Weather station Comparison data --YYYY-MM-DD"
-// (lib/utils/weather_comparison_export.dart).
+// Weather comparison, two tabs:
+//   Last 24 hours — Google's weather and the weather station side by side
+//     (WeatherComparisonService): right now, how close they were over 24 h,
+//     hour by hour; downloads "Google to Weather station Comparison data
+//     --YYYY-MM-DD" (lib/utils/weather_comparison_export.dart).
+//   Past dates — the station vs. NASA POWER satellite data for any past
+//     dates, hour by hour or day by day, with Excel / CSV downloads of the
+//     chosen dates (lib/screens/weather_history_view.dart).
+// Farmers compare their own stations; the Agronomist panel opens it with
+// allStations: true (any Kilimo Mkononi station).
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:kilimomkononi/screens/weather_history_view.dart';
 import 'package:kilimomkononi/services/weather_comparison.dart';
 import 'package:kilimomkononi/utils/file_saver.dart';
 import 'package:kilimomkononi/utils/friendly_error.dart';
@@ -27,7 +29,13 @@ const _kBorder = Color(0xFFE0E4DF);
 class WeatherComparisonScreen extends StatefulWidget {
   /// Compare this station (default: the one for the farm in view).
   final String? stationId;
-  const WeatherComparisonScreen({super.key, this.stationId});
+
+  /// Field Agronomists / admins: any Kilimo Mkononi station.
+  final bool allStations;
+
+  /// Open on the "Past dates" tab.
+  final bool pastDates;
+  const WeatherComparisonScreen({super.key, this.stationId, this.allStations = false, this.pastDates = false});
 
   @override
   State<WeatherComparisonScreen> createState() => _WeatherComparisonScreenState();
@@ -51,7 +59,7 @@ class _WeatherComparisonScreenState extends State<WeatherComparisonScreen> {
       _error = null;
     });
     try {
-      final d = await WeatherComparisonService.build(stationId: widget.stationId);
+      final d = await WeatherComparisonService.build(stationId: widget.stationId, allStations: widget.allStations);
       if (mounted) setState(() => _data = d);
     } on NoStationForComparison catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -95,22 +103,38 @@ class _WeatherComparisonScreenState extends State<WeatherComparisonScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => DefaultTabController(
+        length: 2,
+        initialIndex: widget.pastDates ? 1 : 0,
+        child: Scaffold(
+          backgroundColor: _kPage,
+          appBar: AppBar(
+            backgroundColor: _kDark,
+            foregroundColor: Colors.white,
+            title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Weather comparison', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              Text('Weather station vs. Google and satellite', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
+            ]),
+            bottom: const TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              indicatorColor: Colors.white,
+              tabs: [
+                Tab(icon: Icon(Icons.public_rounded, size: 18), text: 'Last 24 hours · Google'),
+                Tab(icon: Icon(Icons.satellite_alt_rounded, size: 18), text: 'Past dates · Satellite'),
+              ],
+            ),
+          ),
+          body: TabBarView(children: [
+            _last24(),
+            WeatherHistoryView(stationId: widget.stationId, allStations: widget.allStations),
+          ]),
+        ),
+      );
+
+  Widget _last24() {
     final d = _data;
-    return Scaffold(
-      backgroundColor: _kPage,
-      appBar: AppBar(
-        backgroundColor: _kDark,
-        foregroundColor: Colors.white,
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Google vs. weather station', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          Text('Side by side · last 24 hours', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
-        ]),
-        actions: [
-          IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded), onPressed: _loading ? null : _load),
-        ],
-      ),
-      body: _loading && d == null
+    return _loading && d == null
           ? const Center(child: CircularProgressIndicator(color: _kStation))
           : _error != null && d == null
           ? _Message(_error!, onRetry: _load)
@@ -138,8 +162,7 @@ class _WeatherComparisonScreenState extends State<WeatherComparisonScreen> {
                   const _Legend(),
                 ],
               ),
-            ),
-    );
+            );
   }
 }
 

@@ -3833,18 +3833,18 @@ class _DiseaseManagementPageState extends State<DiseaseManagementPage> {
           ),
 
           const SizedBox(height: 20),
-          TextButton.icon(
+          Center(child: TextButton.icon(
             onPressed: _showOrganicDiseaseGuide,
             icon: const Icon(Icons.eco_outlined, size: 16),
             label: const Text('Organic Disease Guide'),
             style: TextButton.styleFrom(foregroundColor: const Color(0xFF2A6B2A)),
-          ),
-          TextButton.icon(
+          )),
+          Center(child: TextButton.icon(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UserDiseaseHistoryPage())),
             icon: const Icon(Icons.history_rounded, size: 16),
             label: const Text('View All Disease Interventions'),
             style: TextButton.styleFrom(foregroundColor: const Color(0xFF2A6B2A)),
-          ),
+          )),
           const SizedBox(height: 16),
         ],
       ),
@@ -4000,18 +4000,14 @@ class _DiseaseStep0PageState extends State<_DiseaseStep0Page> {
           ]),
           const SizedBox(height: 20),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
+          Center(child: ElevatedButton(
               onPressed: (_crop != null && _stage != null && _disease != null) ? () {
                 widget.onSaved(_crop, _stage, _disease, _organic);
                 Navigator.pop(context);
               } : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: darkGreen, foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade300,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                disabledBackgroundColor: Colors.grey.shade300,),
               child: const Text('Confirm Selection', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -4535,16 +4531,11 @@ dosage per litre and timing in "how".
           const SizedBox(height: 14),
 
           // ── 6. Back button ─────────────────────────────────────────────────
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
+          Center(child: OutlinedButton(
               onPressed: () => Navigator.pop(context),
               style: OutlinedButton.styleFrom(
                 foregroundColor: _darkGreen,
                 side: const BorderSide(color: Color(0xFF2A6B2A)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Back to Disease Selection',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
@@ -4566,8 +4557,6 @@ dosage per litre and timing in "how".
         style: OutlinedButton.styleFrom(
           foregroundColor: _accent,
           side: BorderSide(color: _accent.withValues(alpha: 0.5)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         ),
       );
     }
@@ -4583,21 +4572,17 @@ dosage per litre and timing in "how".
           const SizedBox(height: 8),
         ],
         if (_usePhoto)
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(
+          Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
               onPressed: () => _pickPhoto(ImageSource.camera),
               icon: const Icon(Icons.camera_alt, size: 16),
               label: const Text('Take photo'),
               style: OutlinedButton.styleFrom(foregroundColor: _accent, side: BorderSide(color: _accent.withValues(alpha: 0.5))),
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: OutlinedButton.icon(
+            ), OutlinedButton.icon(
               onPressed: () => _pickPhoto(ImageSource.gallery),
               icon: const Icon(Icons.photo_library, size: 16),
               label: const Text('Gallery'),
               style: OutlinedButton.styleFrom(foregroundColor: _accent, side: BorderSide(color: _accent.withValues(alpha: 0.5))),
-            )),
-          ]),
+            )]),
         const SizedBox(height: 8),
         AiAdviceCard(
           headerTitle: 'AI Disease Advisor',

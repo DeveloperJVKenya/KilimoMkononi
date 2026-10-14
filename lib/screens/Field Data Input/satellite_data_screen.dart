@@ -22,6 +22,7 @@
 //
 // No changes to NasaPowerService or IotSensorService APIs.
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/fluid_grid.dart';
 import 'package:kilimomkononi/services/nasa_power_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1080,15 +1081,8 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
     ];
 
     return Column(children: [
-      GridView.count(
-        crossAxisCount: 3,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 1.4,
-        children: tiles,
-      ),
+      // Fluid: 3 across on phones, more on wide screens; tiles grow with text.
+      FluidGrid(minTileWidth: 96, minTileHeight: 72, spacing: 8, runSpacing: 8, children: tiles),
       const SizedBox(height: 6),
       Row(children: [
         const Icon(Icons.access_time, size: 11, color: Colors.black38),
@@ -1244,7 +1238,6 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
     style: OutlinedButton.styleFrom(
       foregroundColor: _C.midGreen,
       side: BorderSide(color: _C.midGreen.withValues(alpha: 0.4)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     ),
   );
@@ -1471,7 +1464,6 @@ class _SatelliteDataScreenState extends State<SatelliteDataScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: _C.midGreen,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
       ]),

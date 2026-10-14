@@ -171,8 +171,7 @@ class _PrimaryFarmingStoryScreenState
         label: const Text('Try again'),
         style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2E7D32),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            foregroundColor: Colors.white,),
       ),
     ]));
 
@@ -251,15 +250,11 @@ class _PrimaryFarmingStoryScreenState
               style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 10),
-            SizedBox(width: double.infinity,
-              child: ElevatedButton(
+            Center(child: ElevatedButton(
                 onPressed: _checkAnswer,
                 style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
+                    foregroundColor: Colors.white,),
                 child: const Text('Check my answer',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
               ),
@@ -302,31 +297,21 @@ class _PrimaryFarmingStoryScreenState
               ]),
             ),
             const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: OutlinedButton.icon(
+            Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
                 onPressed: _load,
                 icon: const Icon(Icons.auto_stories, size: 16),
                 label: const Text('New story'),
                 style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF2E7D32),
-                    side: const BorderSide(color: Color(0xFF2E7D32)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: ElevatedButton.icon(
+                    side: const BorderSide(color: Color(0xFF2E7D32)),),
+              ), ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.check, size: 16),
                 label: const Text('Done'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
-              )),
-            ]),
+                    foregroundColor: Colors.white,),
+              )]),
           ],
         ]),
       ),

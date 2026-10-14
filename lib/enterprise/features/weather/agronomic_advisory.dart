@@ -67,6 +67,10 @@ class AgronomicAdvisory {
   /// Built from the AI advisor (not verified, never stored as an advisory).
   final bool isAi;
 
+  /// Custom advice a Field Agronomist wrote for this farmer only
+  /// (farmer_advice/{id}, see agronomist/farmer_advice.dart).
+  final bool isDirect;
+
   const AgronomicAdvisory({
     required this.id,
     required this.title,
@@ -89,6 +93,7 @@ class AgronomicAdvisory {
     this.testOnly = false,
     this.actions = AdviceActions.empty,
     this.isAi = false,
+    this.isDirect = false,
   });
 
   Set<AdviceSection> get sections => actions.sections;

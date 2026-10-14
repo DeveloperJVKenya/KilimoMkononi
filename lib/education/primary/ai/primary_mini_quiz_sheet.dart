@@ -140,8 +140,7 @@ class _PrimaryMiniQuizSheetState extends State<PrimaryMiniQuizSheet> {
       const SizedBox(height: 20),
       ElevatedButton.icon(onPressed: _loadQuestions,
         icon: const Icon(Icons.refresh, size: 16), label: const Text('Try again'),
-        style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+        style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,)),
     ]));
 
   Widget _buildQuestion(Color c) {
@@ -186,11 +185,8 @@ class _PrimaryMiniQuizSheetState extends State<PrimaryMiniQuizSheet> {
                 style: TextStyle(fontSize: 13, color: Colors.amber.shade900, height: 1.4))),
           ])),
         const SizedBox(height: 16),
-        SizedBox(width: double.infinity,
-          child: ElevatedButton(onPressed: _onNext,
-            style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        Center(child: ElevatedButton(onPressed: _onNext,
+            style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,),
             child: Text(_currentIndex + 1 >= _questions.length
                 ? 'See my results 🎉' : 'Next question →',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)))),
@@ -217,20 +213,12 @@ class _PrimaryMiniQuizSheetState extends State<PrimaryMiniQuizSheet> {
         Text(msg, style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
             textAlign: TextAlign.center),
         const SizedBox(height: 28),
-        Row(children: [
-          Expanded(child: OutlinedButton.icon(onPressed: _loadQuestions,
+        Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(onPressed: _loadQuestions,
             icon: const Icon(Icons.refresh, size: 16), label: const Text('Try again'),
-            style: OutlinedButton.styleFrom(foregroundColor: c, side: BorderSide(color: c),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
-          const SizedBox(width: 12),
-          Expanded(child: ElevatedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: c, side: BorderSide(color: c),)), ElevatedButton.icon(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.check, size: 16), label: const Text('Done'),
-            style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
-        ]),
+            style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,))]),
       ]));
   }
 }

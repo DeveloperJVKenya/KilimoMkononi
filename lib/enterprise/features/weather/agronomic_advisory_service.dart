@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' show Icons;
 import 'package:http/http.dart' as http;
+import 'package:kilimomkononi/enterprise/features/agronomist/farmer_advice.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory.dart';
 import 'package:kilimomkononi/enterprise/features/weather/structured_advice.dart';
@@ -76,15 +77,36 @@ class AgronomicAdvisoryService {
   // ── Farmer view ───────────────────────────────────────────────────────────
 
   /// One advisory (e.g. the one a notification points to); null if it was
-  /// removed or isn't visible to this user (unpublished / test).
+  /// removed or isn't visible to this user (unpublished / test). Custom
+  /// advice written for this farmer (farmer_advice) opens the same way.
   static Future<AgronomicAdvisory?> byId(String id) async {
     try {
       final d = await _col.doc(id).get();
-      return d.exists ? AgronomicAdvisory.fromDoc(d) : null;
+      if (d.exists) return AgronomicAdvisory.fromDoc(d);
+    } on FirebaseException catch (e) {
+      if (e.code != 'permission-denied') rethrow;
+    }
+    try {
+      final f = await _db.collection('farmer_advice').doc(id).get();
+      return f.exists ? FarmerAdvice.fromDoc(f).toAdvisory() : null;
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') return null;
       rethrow;
     }
+  }
+
+  /// Custom advice Field Agronomists sent to [uid], newest first. The query
+  /// filters what the rules check (own, sent, not test).
+  static Future<List<AgronomicAdvisory>> directFor(String uid) async {
+    final snap = await _db
+        .collection('farmer_advice')
+        .where('farmerUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'sent')
+        .where('testOnly', isEqualTo: false)
+        .get();
+    final list = snap.docs.map((d) => FarmerAdvice.fromDoc(d).toAdvisory()).toList()
+      ..sort((a, b) => (b.publishedAt ?? DateTime(0)).compareTo(a.publishedAt ?? DateTime(0)));
+    return list;
   }
 
   /// The farmer's crops from their field records (fielddata.crops[].type) —

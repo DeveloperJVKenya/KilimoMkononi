@@ -168,9 +168,11 @@ class WeatherComparisonService {
   /// Builds the comparison for the station of the farm in view (the
   /// farmer's own choice — see StationPreferences), at the station's
   /// location (the farm's, if the station reports none).
-  static Future<WeatherComparison> build({String? stationId}) async {
+  ///
+  /// [allStations]: Field Agronomists / admins comparing any KM station.
+  static Future<WeatherComparison> build({String? stationId, bool allStations = false}) async {
     final plot = await FarmLocationService.getSelectedPlotId();
-    final stations = await NuaSenseService.getStations();
+    final stations = await NuaSenseService.getStations(allStations: allStations);
     if (stations.isEmpty) throw NoStationForComparison();
     final id = stationId ?? await NuaSenseService.stationIdForPlot(plot);
     final station = stations.where((s) => s.id == id).firstOrNull ?? stations.first;
@@ -188,8 +190,12 @@ class WeatherComparisonService {
     }
 
     final results = await Future.wait<Object?>([
-      NuaSenseService.getLatestReading(stationId: station.id).then<Object?>((r) => r).catchError((_) => null),
-      NuaSenseService.get24hHistory(stationId: station.id).then<Object?>((r) => r).catchError((_) => const <NuaSenseHourPoint>[]),
+      NuaSenseService.getLatestReading(stationId: station.id, allStations: allStations)
+          .then<Object?>((r) => r)
+          .catchError((_) => null),
+      NuaSenseService.get24hHistory(stationId: station.id, allStations: allStations)
+          .then<Object?>((r) => r)
+          .catchError((_) => const <NuaSenseHourPoint>[]),
       GoogleWeatherService.forLocation(lat, lon).then<Object?>((r) => r).catchError((_) => null),
       GoogleWeatherService.historyForLocation(lat, lon).then<Object?>((r) => r).catchError((_) => const <GoogleHistoryHour>[]),
       if (!usedFarm) GoogleWeatherService.placeName(lat, lon),

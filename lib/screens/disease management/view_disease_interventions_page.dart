@@ -398,8 +398,7 @@ class _RecordCardState extends State<_RecordCard> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: ElevatedButton.styleFrom(backgroundColor: _kDark, foregroundColor: Colors.white,
-                elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            style: ElevatedButton.styleFrom(backgroundColor: _kDark, foregroundColor: Colors.white,),
             child: const Text('Save'),
           ),
         ],
@@ -439,8 +438,7 @@ class _RecordCardState extends State<_RecordCard> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, date),
-              style: ElevatedButton.styleFrom(backgroundColor: _kDark, foregroundColor: Colors.white,
-                  elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              style: ElevatedButton.styleFrom(backgroundColor: _kDark, foregroundColor: Colors.white,),
               child: const Text('Set'),
             ),
           ],
@@ -488,8 +486,7 @@ class _RecordCardState extends State<_RecordCard> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white,),
             child: const Text('Delete'),
           ),
         ],

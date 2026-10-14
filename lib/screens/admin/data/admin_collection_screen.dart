@@ -397,14 +397,14 @@ class _Toolbar extends ConsumerWidget {
                 ),
               for (final f in spec.filters) _FilterChip(spec: spec, filter: f, view: view, query: query),
               if (query.hasFilters)
-                TextButton.icon(
+                Center(child: TextButton.icon(
                   onPressed: () {
                     search.clear();
                     q.clearFilters();
                   },
                   icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
                   label: const Text('Clear'),
-                ),
+                )),
             ]),
           ),
         ],

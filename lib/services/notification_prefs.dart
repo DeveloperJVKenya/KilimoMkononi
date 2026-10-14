@@ -3,7 +3,7 @@
 // A user's notification preferences — what the Notification Settings screen
 // edits, and what actually decides what reaches them:
 //
-//   push, weatherAlerts, advisories, approvals
+//   push, weatherAlerts, advisories, approvals, farmerActivity (agronomists)
 //       → read by the Cloud Functions before pushing to the user's devices
 //         (functions/notifications.js → deliverToUsers). Turning one off stops
 //         the push; the in-app Inbox still keeps a dated record of it.
@@ -39,6 +39,10 @@ class NotificationPrefs {
   final int taskReminderHour;
   final int taskReminderMinute;
 
+  /// Field Agronomists only: pushes about farmers' new entries and the
+  /// daily digest (the inbox keeps them either way).
+  final bool farmerActivity;
+
   const NotificationPrefs({
     this.push = true,
     this.weatherAlerts = true,
@@ -50,6 +54,7 @@ class NotificationPrefs {
     this.taskReminders = true,
     this.taskReminderHour = 7,
     this.taskReminderMinute = 0,
+    this.farmerActivity = true,
   });
 
   static const defaults = NotificationPrefs();
@@ -65,6 +70,7 @@ class NotificationPrefs {
     bool? taskReminders,
     int? taskReminderHour,
     int? taskReminderMinute,
+    bool? farmerActivity,
   }) =>
       NotificationPrefs(
         push: push ?? this.push,
@@ -77,6 +83,7 @@ class NotificationPrefs {
         taskReminders: taskReminders ?? this.taskReminders,
         taskReminderHour: taskReminderHour ?? this.taskReminderHour,
         taskReminderMinute: taskReminderMinute ?? this.taskReminderMinute,
+        farmerActivity: farmerActivity ?? this.farmerActivity,
       );
 
   /// Push for the advice crop topics is wanted only if both are on.
@@ -93,6 +100,7 @@ class NotificationPrefs {
         'taskReminders': taskReminders,
         'taskReminderHour': taskReminderHour,
         'taskReminderMinute': taskReminderMinute,
+        'farmerActivity': farmerActivity,
       };
 
   factory NotificationPrefs.fromMap(Map<String, dynamic>? m) {
@@ -114,6 +122,7 @@ class NotificationPrefs {
       taskReminders: b('taskReminders'),
       taskReminderHour: i('taskReminderHour', 7, 23),
       taskReminderMinute: i('taskReminderMinute', 0, 59),
+      farmerActivity: b('farmerActivity'),
     );
   }
 

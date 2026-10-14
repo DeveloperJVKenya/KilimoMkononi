@@ -10,6 +10,7 @@
 
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -245,8 +246,16 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
           ),
         ),
       ),
+      // Appears once there is something to save (a diagnosed problem);
+      // enabled when the farmer has said what they applied.
+      floatingActionButton: SaveFab(
+        visible: _result != null && !_result!.isRejected && !_result!.isHealthy,
+        onPressed: (_intervention != null && _intervention!.isNotEmpty) ? _save : null,
+        busy: _saving,
+        label: 'Save diagnosis',
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _tile(0, 'Select Crop & Stage',   _s0()),
           _tile(1, 'Upload & Diagnose',      _s1()),
@@ -359,27 +368,21 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
     ],
 
     // Upload buttons
-    Row(children: [
-      Expanded(child: ElevatedButton.icon(
+    Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [ElevatedButton.icon(
         onPressed: () => _pick(ImageSource.camera),
         icon: const Icon(Icons.camera_alt, size: 18),
         label: const Text('Camera'),
-        style: ElevatedButton.styleFrom(backgroundColor: _dark, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 13)),
-      )),
-      const SizedBox(width: 10),
-      Expanded(child: OutlinedButton.icon(
+        style: ElevatedButton.styleFrom(backgroundColor: _dark, foregroundColor: Colors.white,),
+      ), OutlinedButton.icon(
         onPressed: () => _pick(ImageSource.gallery),
         icon: const Icon(Icons.image, size: 18),
         label: const Text('Gallery'),
-        style: OutlinedButton.styleFrom(foregroundColor: _accent, side: const BorderSide(color: _accent), padding: const EdgeInsets.symmetric(vertical: 13)),
-      )),
-    ]),
+        style: OutlinedButton.styleFrom(foregroundColor: _accent, side: const BorderSide(color: _accent),),
+      )]),
     const SizedBox(height: 14),
 
     // Diagnose button
-    SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
+    Center(child: ElevatedButton.icon(
         onPressed: (_photoBytes != null && _selectedCrop != null && !_analyzing) ? _analyze : null,
         icon: _analyzing
             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -388,8 +391,6 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFE65100), foregroundColor: Colors.white,
           disabledBackgroundColor: Colors.grey.shade300,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
     ),
@@ -624,23 +625,6 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
         ]),
       ]),
     ),
-    const SizedBox(height: 20),
-
-    SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: (_intervention != null && _intervention!.isNotEmpty && !_saving) ? _save : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _dark, foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.grey.shade300,
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: _saving
-            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white), strokeWidth: 2))
-            : const Text('Save Diagnosis & Intervention', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-      ),
-    ),
   ]);
 
   // ── Shared helpers ─────────────────────────────────────────────────────────
@@ -654,15 +638,11 @@ class _PhotoDiagnosisPageState extends State<PhotoDiagnosisPage> {
 
   Widget _lbl(String t) => Text(t, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54));
 
-  Widget _nextBtn(String label, {required VoidCallback onTap, bool enabled = true}) => SizedBox(
-    width: double.infinity,
-    child: ElevatedButton(
+  Widget _nextBtn(String label, {required VoidCallback onTap, bool enabled = true}) => Center(child: ElevatedButton(
       onPressed: enabled ? onTap : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: _dark, foregroundColor: Colors.white,
         disabledBackgroundColor: Colors.grey.shade300,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
     ),

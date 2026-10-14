@@ -54,6 +54,7 @@ void main() {
       expect(NotificationPrefs.defaults.toMap().keys.toSet(), {
         'push', 'weatherAlerts', 'advisories', 'approvals', 'fieldReminders', 'pestReminders',
         'diseaseReminders', 'taskReminders', 'taskReminderHour', 'taskReminderMinute',
+        'farmerActivity',
       });
     });
   });

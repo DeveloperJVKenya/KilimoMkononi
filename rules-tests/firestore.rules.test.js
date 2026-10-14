@@ -566,3 +566,141 @@ test("station preferences: each farmer picks their own farms' stations, nobody e
   await assertFails(setDoc(mine, { userId: "farmer", plots: {}, isAdmin: true }));
   await assertFails(setDoc(mine, { userId: "farmer", plots: "gw1" }));
 });
+
+// ═════════════════════════════════════════════════════════════════════
+//  Field Agronomists × farmers: custom advice, privacy, activity feed
+// ═════════════════════════════════════════════════════════════════════
+function farmerAdviceData(uid, { version = 1, status = "draft", farmerUid = "farmer", extra = {} } = {}) {
+  return {
+    farmerUid, farmerName: "F", title: "Aphids on your kales", main: "Spray neem extract this evening",
+    doList: ["Check leaf undersides"], avoidList: [], why: "You reported aphids twice.",
+    crops: ["Kales"], pestChecks: [{ name: "Aphids", signs: "", ifFound: "" }],
+    basedOn: { kind: "pest", id: "r1", label: "Aphids" }, batchId: null,
+    platform: "km", status, version, testOnly: false,
+    updatedBy: uid, updatedByName: uid, updatedAt: serverTimestamp(),
+    ...(version === 1 ? { createdBy: uid, createdByName: uid, createdAt: serverTimestamp() } : {}),
+    ...(status === "sent" ? { sentBy: uid, sentByName: uid, sentAt: serverTimestamp(), notifyVersion: version } : {}),
+    ...extra,
+  };
+}
+
+function writeFarmerAdvice(db, id, data, { withHistory = true, create = true } = {}) {
+  const b = writeBatch(db);
+  const ref = doc(db, `farmer_advice/${id}`);
+  create ? b.set(ref, data) : b.update(ref, data);
+  if (withHistory) {
+    b.set(doc(db, `farmer_advice/${id}/history/v${data.version}`), {
+      version: data.version, action: "x", status: data.status,
+      byUid: data.updatedBy, byName: data.updatedBy, at: serverTimestamp(), snapshot: {},
+    });
+  }
+  return b.commit();
+}
+
+test("farmer advice: only agronomists write, always with an audit entry and the sender recorded", async () => {
+  await seedAgronomist();
+  await assertFails(writeFarmerAdvice(as("farmer"), "fa1", farmerAdviceData("farmer")));
+  await assertFails(writeFarmerAdvice(as("agro"), "fa1", farmerAdviceData("agro"), { withHistory: false }));
+  await assertSucceeds(writeFarmerAdvice(as("agro"), "fa1", farmerAdviceData("agro")));
+  await assertSucceeds(writeFarmerAdvice(as("agro"), "fa1",
+    farmerAdviceData("agro", { version: 2, status: "sent" }), { create: false }));
+  // Forged sender, a skipped version or moving it to another farmer: rejected.
+  await assertFails(writeFarmerAdvice(as("agro"), "fa1",
+    farmerAdviceData("agro", { version: 3, status: "sent", extra: { sentBy: "someoneElse" } }), { create: false }));
+  await assertFails(writeFarmerAdvice(as("agro"), "fa1",
+    farmerAdviceData("agro", { version: 5, status: "sent" }), { create: false }));
+  await assertFails(writeFarmerAdvice(as("agro"), "fa1",
+    farmerAdviceData("agro", { version: 3, status: "sent", farmerUid: "banned" }), { create: false }));
+  // Withdrawing keeps the sender (update() leaves those fields as they are);
+  // sent advice can't be deleted.
+  const withdrawn = farmerAdviceData("agro", { version: 3, status: "withdrawn" });
+  await assertSucceeds(writeFarmerAdvice(as("agro"), "fa1", withdrawn, { create: false }));
+  await assertFails(deleteDoc(doc(as("agro"), "farmer_advice/fa1")));
+  // Bounded content, known statuses only.
+  await assertFails(writeFarmerAdvice(as("agro"), "fa2", farmerAdviceData("agro", { extra: { main: "" } })));
+  await assertFails(writeFarmerAdvice(as("agro"), "fa3", farmerAdviceData("agro", { extra: { status: "published" } })));
+  // A never-sent draft can be deleted.
+  await assertSucceeds(writeFarmerAdvice(as("agro"), "fa4", farmerAdviceData("agro")));
+  await assertSucceeds(deleteDoc(doc(as("agro"), "farmer_advice/fa4")));
+});
+
+test("farmer advice: the farmer reads only their own sent, non-test advice", async () => {
+  await seedAgronomist();
+  await writeFarmerAdvice(as("agro"), "sent1", farmerAdviceData("agro", { status: "sent" }));
+  await writeFarmerAdvice(as("agro"), "draft1", farmerAdviceData("agro"));
+  await writeFarmerAdvice(as("agro"), "other1", farmerAdviceData("agro", { status: "sent", farmerUid: "banned" }));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "farmer_advice/test1"),
+      { ...farmerAdviceData("admin", { status: "sent" }), testOnly: true, updatedAt: new Date(), sentAt: new Date(), createdAt: new Date() });
+  });
+
+  await assertSucceeds(getDoc(doc(as("farmer"), "farmer_advice/sent1")));
+  await assertFails(getDoc(doc(as("farmer"), "farmer_advice/draft1")));
+  await assertFails(getDoc(doc(as("farmer"), "farmer_advice/other1")));
+  await assertFails(getDoc(doc(as("farmer"), "farmer_advice/test1")));
+  await assertSucceeds(getDocs(query(collection(as("farmer"), "farmer_advice"),
+    where("farmerUid", "==", "farmer"), where("status", "==", "sent"), where("testOnly", "==", false))));
+  await assertFails(getDocs(query(collection(as("farmer"), "farmer_advice"), where("farmerUid", "==", "farmer"))));
+  await assertFails(getDocs(collection(as("farmer"), "farmer_advice/sent1/history")));
+  // Agronomists see the team's advice; never edit an admin's TEST advice.
+  await assertSucceeds(getDocs(collection(as("agro"), "farmer_advice")));
+  await assertFails(writeFarmerAdvice(as("agro"), "test1",
+    farmerAdviceData("agro", { version: 2, status: "sent" }), { create: false }));
+});
+
+test("farmer advice: never for a farmer who stopped sharing", async () => {
+  await seedAgronomist();
+  await assertSucceeds(setDoc(doc(as("farmer"), "privacySettings/farmer"),
+    { shareWithAgronomists: false, updatedAt: serverTimestamp() }));
+  await assertFails(writeFarmerAdvice(as("agro"), "fa1", farmerAdviceData("agro")));
+  await assertSucceeds(setDoc(doc(as("farmer"), "privacySettings/farmer"),
+    { shareWithAgronomists: true, updatedAt: serverTimestamp() }));
+  await assertSucceeds(writeFarmerAdvice(as("agro"), "fa1", farmerAdviceData("agro")));
+});
+
+test("privacy settings: owner only, valid fields only", async () => {
+  const ok = { shareWithAgronomists: false, updatedAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(as("farmer"), "privacySettings/farmer"), ok));
+  await assertSucceeds(getDoc(doc(as("farmer"), "privacySettings/farmer")));
+  await assertFails(getDoc(doc(as("stranger"), "privacySettings/farmer")));
+  await assertFails(setDoc(doc(as("stranger"), "privacySettings/farmer"), ok));
+  await assertFails(setDoc(doc(as("farmer"), "privacySettings/farmer"), { shareWithAgronomists: "no" }));
+  await assertFails(setDoc(doc(as("farmer"), "privacySettings/farmer"), { ...ok, isAdmin: true }));
+});
+
+test("farmer activity feed: agronomists read, nobody writes; farm records stay private", async () => {
+  await seedAgronomist();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "farmerActivity/a1"), { farmerUid: "farmer", kind: "pest", notable: true, at: new Date() });
+    await setDoc(doc(ctx.firestore(), "fielddata/f1"), { userId: "farmer", plotId: "A" });
+  });
+  await assertSucceeds(getDocs(query(collection(as("agro"), "farmerActivity"), where("notable", "==", true))));
+  await assertFails(getDocs(collection(as("farmer"), "farmerActivity")));
+  await assertFails(setDoc(doc(as("agro"), "farmerActivity/a2"), { farmerUid: "farmer" }));
+  // Agronomists read farmers' records only through the Cloud Function.
+  await assertFails(getDoc(doc(as("agro"), "fielddata/f1")));
+  await assertFails(getDocs(collection(as("agro"), "agronomistAccessLog")));
+});
+
+test("notification settings: Field Agronomists' farmer-activity switch", async () => {
+  const prefs = {
+    push: true, weatherAlerts: true, advisories: true, approvals: true,
+    fieldReminders: true, pestReminders: true, diseaseReminders: true, taskReminders: true,
+    taskReminderHour: 7, taskReminderMinute: 0, farmerActivity: false, updatedAt: serverTimestamp(),
+  };
+  await assertSucceeds(setDoc(doc(as("farmer"), "notificationPrefs/farmer"), prefs));
+  await assertFails(setDoc(doc(as("farmer"), "notificationPrefs/farmer"), { ...prefs, farmerActivity: "off" }));
+});
+
+test("weather archive: server-only — no farmer or agronomist reads or writes it directly", async () => {
+  await seedAgronomist();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "weatherArchive/gw1/days/2026-10-03"), { day: "2026-10-03", station: {} });
+  });
+  for (const who of ["farmer", "agro"]) {
+    await assertFails(getDoc(doc(as(who), "weatherArchive/gw1/days/2026-10-03")));
+    await assertFails(getDocs(collection(as(who), "weatherArchive/gw1/days")));
+    await assertFails(setDoc(doc(as(who), "weatherArchive/gw1/days/2026-10-04"), { day: "2026-10-04" }));
+  }
+  await assertSucceeds(getDoc(doc(as("admin"), "weatherArchive/gw1/days/2026-10-03")));
+});

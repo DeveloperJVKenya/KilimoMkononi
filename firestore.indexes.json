@@ -519,6 +519,33 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "farmerActivity",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "notable", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "farmerActivity",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "farmerUid", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "records",
+      "fieldPath": "timestamp",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
     }
   ]
 }

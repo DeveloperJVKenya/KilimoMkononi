@@ -514,7 +514,7 @@ class _CropCrisisSetupScreenState extends State<CropCrisisSetupScreen>
               ])),
             ])),
           const SizedBox(height: 24),
-          SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          Center(child: ElevatedButton.icon(
             onPressed: _generating ? null : _generate,
             icon: _generating
                 ? const SizedBox(width: 20, height: 20,
@@ -523,9 +523,7 @@ class _CropCrisisSetupScreenState extends State<CropCrisisSetupScreen>
             label: Text(_generating ? 'Generating crisis story…' : '🎮 Generate & Play',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _generating ? Colors.grey : _crisis, foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              backgroundColor: _generating ? Colors.grey : _crisis, foregroundColor: Colors.white,),
           )),
           const SizedBox(height: 8),
           Center(child: Text('⏱ ~15 seconds to generate',
@@ -803,19 +801,17 @@ class _CropCrisisPlayScreenState extends State<CropCrisisPlayScreen>
               ),
               const SizedBox(height: 10),
               if (!_revealed)
-                SizedBox(width: double.infinity, child: ElevatedButton(
+                Center(child: ElevatedButton(
                   onPressed: _selectedId != null ? _confirm : null,
                   style: ElevatedButton.styleFrom(
                       backgroundColor: _darkGreen, foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      disabledBackgroundColor: Colors.grey.shade300,),
                   child: Text(_selectedId == null ? 'Select an option above' : '✅ Confirm Decision',
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 ))
               else
                 Column(children: [
-                  SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                  Center(child: OutlinedButton.icon(
                     onPressed: () => Navigator.push(context, MaterialPageRoute(
                         builder: (_) => TutorChatScreen(
                           topic: 'Crop Crisis Management', grade: '',
@@ -830,20 +826,17 @@ class _CropCrisisPlayScreenState extends State<CropCrisisPlayScreen>
                     style: OutlinedButton.styleFrom(
                         foregroundColor: _darkGreen,
                         side: const BorderSide(color: _darkGreen),
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        padding: const EdgeInsets.symmetric(vertical: 11),),
                   )),
                   const SizedBox(height: 8),
-                  SizedBox(width: double.infinity, child: ElevatedButton.icon(
+                  Center(child: ElevatedButton.icon(
                     onPressed: _evaluating ? null : _next,
                     icon: Icon(_isLast ? Icons.analytics : Icons.arrow_forward),
                     label: Text(_isLast ? '📊 Get AI Feedback' : 'Next Stage →',
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: _isLast ? Colors.deepOrange : _darkGreen,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        foregroundColor: Colors.white,),
                   )),
                   if (_posStreak >= 3)
                     Container(margin: const EdgeInsets.only(top: 10),

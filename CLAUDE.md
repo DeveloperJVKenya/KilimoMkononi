@@ -73,6 +73,28 @@ npm run logs     # firebase functions:log
   formatted Excel workbook (`lib/utils/xlsx_writer.dart` — our own small .xlsx writer on `archive`;
   the `excel` package conflicts with lottie's archive 4) or CSV, saved directly as
   "Google to Weather station Comparison data --YYYY-MM-DD" (`lib/utils/file_saver.dart`).
+  Its second tab, "Past dates · Satellite" (`lib/screens/weather_history_view.dart`), compares the
+  station with NASA POWER satellite data for ANY past dates the station has (its in-service date →
+  today, ≤ 365 days back, ≤ 366 days at a time): presets 7 / 30 / 90 days or Custom (From / To pickers
+  + "Compare these dates"), hour by hour (≤ 31 days) or day by day (Kenyan EAT days: averages, rain
+  total), live when the range ends today (latest recorded hour, refresh every 5 min), Excel / CSV of
+  exactly the chosen dates ("Station to Satellite Comparison data --<start>_to_<end>",
+  `lib/utils/weather_history_export.dart`). Data: the `weatherHistory` callable
+  (`functions/weather_history.js`) — NuaSense `weather` with ISO `start`/`end` + `resolution: hourly`
+  and NASA POWER hourly (server-side: no CORS; at the station's `location.lat/lon`, which never
+  reach the app). POWER lags ~2–3 days.
+  ACCURACY: station values are exactly as recorded and satellite values exactly as NASA publishes
+  them — never estimated or filled. Each station has an in-service date
+  (`weatherStations/{id}.inServiceFrom`, Admin → Weather Stations → Edit, "Suggest from readings" =
+  first day after the last ≥ 3-day gap in its readings); readings before it (bench tests, a previous
+  site) are excluded from ranges, comparisons and downloads. Every recorded hour is saved
+  permanently in `weatherArchive/{gatewayId}/days/{YYYY-MM-DD}` (UTC days, `station` / `satellite`
+  maps keyed "HH"; server-only, no client rules) by the hourly `weatherArchiveSweep` (last 48 h,
+  satellite last 10 days, one-off backfill per station from its first day); comparisons read the
+  archive and fetch + save only missing days and today / yesterday. Pairing / daily aggregation is in Dart
+  (`lib/services/weather_history_comparison.dart`, tested). Farmers: own stations; Field Agronomists /
+  admins open it from the Agronomist panel (app-bar button, "Compare past data") with
+  `allStations: true` — any KM station, both tabs.
 - **Climate data**: `nasa_power_service.dart` hits NASA POWER directly (no key).
 
 ### Offline-first writes
@@ -131,6 +153,13 @@ top of it. Don't hand-roll classId parsing elsewhere.
 - Tests: `cd functions && npm test` (emulator; FCM is faked) or `npm run test:unit`.
 - Deploy functions with `FUNCTIONS_DISCOVERY_TIMEOUT=120 firebase deploy --only functions` — the
   default 10 s code-analysis timeout often fails on a cold start ("An unexpected error").
+  Give every new function a `maxInstances` (triggers: `TRIGGER_OPTS` in agronomist.js) — the
+  default of 100 reserves regional CPU quota and deploys then fail with "Quota exceeded for total
+  allowable CPU". If that happens, redeploy the failed functions a few at a time
+  (`--only functions:a,functions:b`); a failed *create* leaves an "https" placeholder that must be
+  deleted (`firebase functions:delete <name>`) before it can be created again.
+  The emulators (rules-tests, `functions/npm test`) need JDK 21 (Temurin 21 is installed; set
+  `JAVA_HOME` to it for Firebase commands — the user-level JAVA_HOME is JDK 17 for Android).
 - IoT soil data is intentionally simulated (`IotDataSource.simulated` in iot_sensor_service.dart).
 
 ### State / DI
@@ -152,6 +181,26 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   Update them whenever you change the rules.
 
 ## Notes for future changes
+- Buttons (whole app): one modern style from `lib/settings/appearance/button_styles.dart`, applied
+  in `appearanceTheme` — 44 px, 12 px radius, flat, sized to the label. In a screen's `styleFrom()`
+  set colours (and `side`) only; no padding / shape / elevation / big textStyle, never
+  `SizedBox(width: double.infinity)` or `minimumSize: Size.fromHeight(…)` around a button (two
+  actions side by side: `Wrap(alignment: WrapAlignment.end, spacing: 10, …)`, which wraps on narrow
+  screens; one line in a fixed-height card: `Row(mainAxisAlignment: end, [Flexible(btn), …])`).
+  Buttons that are direct ListView children get stretched — wrap them in `Center`.
+  `test/button_style_test.dart` enforces this.
+- Grids of cards are fluid: `FluidGrid` / `FluidGrid.builder` (inside a scroll view) or
+  `SliverFluidGrid` (CustomScrollView, rows built lazily) from `lib/widgets/fluid_grid.dart` —
+  columns from the width (`minTileWidth`, `maxColumns`), each row as tall as its tallest tile
+  (`minTileHeight` keeps a designed minimum). Never `childAspectRatio` / fixed `mainAxisExtent`
+  for tiles with text (they overflow on small phones and large text sizes). A photo in a tile
+  uses `AspectRatio`, not `Expanded`. `test/fluid_grid_test.dart` enforces this.
+- Save actions are always on screen: form screens use `SaveFab` (`lib/widgets/save_fab.dart`) as
+  their `floatingActionButton` (busy → "Saving…", `visible:` until saving makes sense) and give the
+  scroll view `kSaveFabSpace` bottom padding; forms embedded in a tab use `FloatingSaveArea`; tabbed
+  screens switch the FAB per tab (education Field Data). Wizards / editors keep a sticky bottom bar;
+  bottom-sheet forms pin their action row below the scrolling fields (Farm Management sheets,
+  `_sheet(actions:)` in the weather-stations admin). Never leave Save at the end of a long scroll.
 - Errors shown on screen always go through `friendlyError(e, 'Couldn\'t save')`
   (`lib/utils/friendly_error.dart`) — never `'$e'`, `e.toString()` or `snapshot.error` in the UI.
   It maps Firebase / auth / network / HTTP errors to plain text and logs the technical error.
@@ -173,7 +222,10 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
 - Home navigation: bottom tabs Home / Manuals / Settings under ONE Home app bar (tab screens take
   `embedded: true` and drop their own app bar). Notifications open from the app-bar bell only —
   not a tab or menu item; Help & support lives in Settings, not the menu. Pages opened from the
-  menu return to the Home tab with the menu open (`_navigateTo`).
+  menu return to the Home tab with the menu open (`_navigateTo`). Field Agronomists (live
+  `Agronomists/{uid}` listener) get the Agronomist panel on Home: a card under the greeting, a
+  hero chip, an app-bar button and a menu item (real mode). Admins without the role keep test
+  mode, opened only from the Admin panel.
 - Field Data Input (`field_data_input_home_page.dart`) is a hub with TOP tabs (in the app bar)
   Record / Weather station / Plot history / Season analysis — the app-wide bottom navigation stays on
   Home. Those screens take `embedded: true` (no app bar of their own); tabs build on first open, then
@@ -195,13 +247,20 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   station through its own provider (`createStationRegistry`), and `/stations` returns the label as
   `name` — coordinates stay as lat/lon for backend use and are never shown (plot locations show the
   county + "GPS pin set").
-  Access: EVERY account (farmers, Field Agronomists, admins) sees a station on its farm screens only
-  when connected (`stationAssignments`). Only the Field Agronomist panel asks for `scope: "all"`
-  (`NuaSenseService.getStations/getLatestReading(allStations: true)`), granted to agronomists /
-  admins. The admin only connects stations to an account (it can hold several); the FARMER chooses
+  Access: FARMERS see only the stations connected to their account (`stationAssignments`). FIELD
+  AGRONOMISTS and ADMINS see EVERY KM station — registered (`weatherStations`) or connected — on
+  every screen (Weather, Weather Station, Home farm advice, comparisons, Agronomist panel) and pick
+  one from the station dropdown; no connection needed. The app asks for `scope: "all"`
+  automatically for them (`NuaSenseService.seesAllStations()` — Agronomists/{uid} or Admins/{uid},
+  cached 10 min; also `weatherHistory`); the server grants it only to them
+  (`getAllPlatformStationIds`). Weather alert pushes still follow connections only.
+  The admin connects stations to an account (it can hold several); the FARMER chooses
   which farm / plot uses which station on the Weather Station screen (picker + "Choose a station
   for each farm"), saved in `stationPreferences/{uid}` (`lib/services/station_preferences.dart`,
-  owner-only rules; never grants access). Screens about a farm pick its station with
+  owner-only rules; never grants access); `plots[StationPreferences.kAnyFarm]` is the fallback for
+  farms without their own choice (Home's station dropdown sets it when no farm is selected).
+  Station listings nest coordinates as `location: {lat, lon}` — `NuaStation.fromJson` reads both
+  shapes (the Weather screen's forecast follows the picked station's position). Screens about a farm pick its station with
   `NuaSenseService.stationIdForPlot` / `stationForPlot(..., choices:)` (no choice → first station).
   Station caches are keyed by the signed-in account.
 - Farmer auth screens (login, registration, Google "finish setup") share
@@ -261,3 +320,31 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
     values are placeholder zeros, so only "general" advice applies and no AI/day plan is shown.
   - Tests: `test/advisory_test.dart`, `test/advisory_widgets_test.dart`,
     `test/advisory_actions_test.dart` (layout at 360px), advisory cases in `rules-tests/`.
+- Agronomist panel = hub with tabs Insights / Farmers / Activity / Advisories
+  (`field_agronomist_panel_screen.dart`, `AgronomistPanelTab`; opened from the Weather Station screen
+  it starts on Advisories). Farmer sections live in `lib/enterprise/features/agronomist/`:
+  - **Agronomists never read farmers' collections directly** — the rules don't allow it. Records come
+    from the `agronomistData` callable (`functions/agronomist.js`): action `insights` (every farmer's
+    pest/disease rows for 2× the period + latest soil test per plot, deduped across
+    `farmer_issues` / `farmer_diagnoses` / legacy collections) and action `farmer` (one farmer's full
+    record; every call logged in `agronomistAccessLog`). Aggregation is in Dart:
+    `insights_engine.dart` (trends, NEW / RISING / SPREADING, unidentified clusters, soil bands,
+    attention) and `farmer_findings.dart` — pure, tested in `test/agronomist_insights_test.dart`.
+    The insights query needs the `records.timestamp` collection-group index (firestore.indexes.json).
+  - Sharing: `privacySettings/{uid}.shareWithAgronomists` (missing = on; Settings → Privacy; one-time
+    notice on Home). Kept OUT of `Users/{uid}` (profile saves are full `.set()`s). Opted-out farmers
+    appear only as anonymous counts (`f: null`), get no feed entries / notifications, and the rules
+    refuse `farmer_advice` for them.
+  - Custom advice: `farmer_advice/{id}` — one farmer per doc (several = one doc each + `batchId`),
+    same fields as advisories, `draft → sent → withdrawn`, `history/v{n}` audit in the same write
+    (`AgronomistDataService.save` / `createForMany`). Farmers see it in Home / Notifications "For you"
+    and open it in `AdvisoryDetailScreen` (`byId` falls back to farmer_advice; `isDirect`). Pushed
+    by `onFarmerAdviceSent` (type `advisory`, data `direct`). Admin test mode → `testOnly`, push to
+    the admin only.
+  - Agronomist notifications: triggers on farmer_issues / farmer_diagnoses / pest & disease records /
+    fielddata / advisoryResponses → `farmerActivity` (live feed; deterministic ids so a record saved to
+    two collections counts once) + inbox for every agronomist; push only when notable, max 1 per farmer
+    per hour (`agronomistPushState`); `agronomistDailyDigest` at 18:00. Channel `km_farmer_activity`,
+    routes `agronomist_farmer` / `agronomist_panel`, pref `farmerActivity` (agronomists only).
+    Field records save `nutrientBands` (`nutrientBandNames`) so the functions can flag low nutrients
+    without a copy of the targets table.

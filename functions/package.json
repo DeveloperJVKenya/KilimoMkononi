@@ -8,7 +8,7 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "firebase emulators:exec --only firestore --project demo-kilimomkononi --config ../firebase.json \"node --test\"",
+    "test": "firebase emulators:exec --only firestore --project demo-kilimomkononi --config ../firebase.json \"node --test --test-concurrency=1\"",
     "test:unit": "node --test"
   },
   "engines": {

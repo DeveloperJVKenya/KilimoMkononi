@@ -206,9 +206,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
               const SizedBox(height: 10),
 
               // Camera / gallery buttons
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton.icon(
+              Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
                     icon: const Icon(Icons.camera_alt, size: 16),
                     label: const Text('Camera'),
                     style: OutlinedButton.styleFrom(
@@ -217,11 +215,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                     onPressed: () => _pickImage(ImageSource.camera),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
+                  ), OutlinedButton.icon(
                     icon: const Icon(Icons.photo_library, size: 16),
                     label: const Text('Gallery'),
                     style: OutlinedButton.styleFrom(
@@ -230,9 +224,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                     onPressed: () => _pickImage(ImageSource.gallery),
-                  ),
-                ),
-              ]),
+                  )]),
 
               // Photo preview
               if (_imageBytes != null) ...[
@@ -261,9 +253,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
               const SizedBox(height: 10),
 
               // Analyse button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
+              Center(child: ElevatedButton.icon(
                   icon: _isLoading
                       ? const SizedBox(width: 16, height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -273,7 +263,6 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
                     backgroundColor: Colors.teal.shade700,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 11),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: _isLoading ? null : _analyse,
                 ),
@@ -412,9 +401,7 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
           const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
+            child: Center(child: ElevatedButton.icon(
                 icon: const Icon(Icons.auto_fix_high, size: 16),
                 label: const Text('Use This Result — Pre-fill Form',
                     style: TextStyle(fontWeight: FontWeight.bold)),
@@ -422,7 +409,6 @@ class _EduPhotoDiagnosisButtonState extends State<EduPhotoDiagnosisButton> {
                   backgroundColor: Colors.teal.shade700,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: _useSuggestion,
               ),

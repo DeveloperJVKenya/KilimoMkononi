@@ -37,6 +37,7 @@ enum XStyle {
   sectionGoogle,
   sectionStation,
   sectionDiff,
+  headerSatellite,
 }
 
 class XCell {
@@ -237,7 +238,8 @@ class XlsxWorkbook {
   // Fonts: 0 normal, 1 title, 2 subtitle (grey italic), 3 bold white,
   //        4 bold, 5 note (grey), 6 diff (dark orange)
   // Fills: 0 none, 1 gray125 (required), 2 dark green, 3 Google blue,
-  //        4 station green, 5 orange, 6 zebra, 7 light blue, 8 light green, 9 light orange
+  //        4 station green, 5 orange, 6 zebra, 7 light blue, 8 light green, 9 light orange,
+  //        10 satellite purple
   // Borders: 0 none, 1 thin grey
   // NumFmts: 164 "0.0", 165 "+0.0;-0.0;0.0"
   static const _styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -252,7 +254,7 @@ class XlsxWorkbook {
       '<font><sz val="10"/><color rgb="FF5F6B5F"/><name val="Calibri"/></font>'
       '<font><b/><sz val="11"/><color rgb="FFB45309"/><name val="Calibri"/></font>'
       '</fonts>'
-      '<fills count="10">'
+      '<fills count="11">'
       '<fill><patternFill patternType="none"/></fill>'
       '<fill><patternFill patternType="gray125"/></fill>'
       '<fill><patternFill patternType="solid"><fgColor rgb="FF1B5E20"/><bgColor indexed="64"/></patternFill></fill>'
@@ -263,6 +265,7 @@ class XlsxWorkbook {
       '<fill><patternFill patternType="solid"><fgColor rgb="FFE8F0FE"/><bgColor indexed="64"/></patternFill></fill>'
       '<fill><patternFill patternType="solid"><fgColor rgb="FFE8F5E9"/><bgColor indexed="64"/></patternFill></fill>'
       '<fill><patternFill patternType="solid"><fgColor rgb="FFFFF3E0"/><bgColor indexed="64"/></patternFill></fill>'
+      '<fill><patternFill patternType="solid"><fgColor rgb="FF6A1B9A"/><bgColor indexed="64"/></patternFill></fill>'
       '</fills>'
       '<borders count="2">'
       '<border><left/><right/><top/><bottom/><diagonal/></border>'
@@ -270,7 +273,7 @@ class XlsxWorkbook {
       '<top style="thin"><color rgb="FFD0D7D0"/></top><bottom style="thin"><color rgb="FFD0D7D0"/></bottom><diagonal/></border>'
       '</borders>'
       '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-      '<cellXfs count="18">'
+      '<cellXfs count="19">'
       // 0 plain
       '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
       // 1 title
@@ -307,6 +310,8 @@ class XlsxWorkbook {
       '<xf numFmtId="0" fontId="4" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
       // 17 section difference (light orange band)
       '<xf numFmtId="0" fontId="4" fillId="9" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
+      // 18 header satellite (purple)
+      '<xf numFmtId="0" fontId="3" fillId="10" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
       '</cellXfs>'
       '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
       '</styleSheet>';

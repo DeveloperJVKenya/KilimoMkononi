@@ -104,17 +104,13 @@ class AskTutorButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
+    return Center(child: OutlinedButton.icon(
         onPressed: onTap,
         icon: const Icon(Icons.psychology_outlined, size: 20),
         label: Text(label, style: const TextStyle(fontSize: 14)),
         style: OutlinedButton.styleFrom(
           foregroundColor: _appGreen,
           side: const BorderSide(color: _appGreen),
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );

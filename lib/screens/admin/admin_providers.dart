@@ -109,6 +109,18 @@ const kAdminStats = <AdminStat>[
     Color(0xFF00695C),
   ),
   AdminStat(
+    'farmer_advice',
+    'Advice for farmers',
+    Icons.person_pin_rounded,
+    Color(0xFF00796B),
+  ),
+  AdminStat(
+    'agronomistAccessLog',
+    'Farmer record views',
+    Icons.visibility_rounded,
+    Color(0xFF455A64),
+  ),
+  AdminStat(
     'supportMessages',
     'Support messages',
     Icons.support_agent_rounded,

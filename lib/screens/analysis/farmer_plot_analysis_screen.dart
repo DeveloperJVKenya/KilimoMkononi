@@ -676,9 +676,7 @@ class _FarmerGenerateCard extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 13, color: Colors.grey.shade600)),
             ] else
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
+              Center(child: ElevatedButton.icon(
                   onPressed: onGenerate,
                   icon: const Icon(Icons.auto_awesome, size: 18),
                   label: Text(
@@ -690,9 +688,6 @@ class _FarmerGenerateCard extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _appGreen,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),

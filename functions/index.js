@@ -255,16 +255,22 @@ async function isAgronomist(uid) {
 }
 
 /**
- * Every station assigned to any Kilimo Mkononi farmer. Field Agronomists
- * need live conditions for all KM stations to write advice; they only get
- * weather readings, never farmer data (assignments stay server-side).
+ * Every Kilimo Mkononi station: those registered in Admin → Weather Stations
+ * (weatherStations) and any assigned to a KM account. Field Agronomists and
+ * admins see all of them on every screen and pick one from the station
+ * dropdown; they only get weather readings, never farmer data (assignments
+ * stay server-side).
  */
 async function getAllPlatformStationIds() {
-  const snap = await getFirestore()
-    .collection("stationAssignments")
-    .where("platform", "==", PLATFORM)
-    .get();
-  return [...new Set(snap.docs.map((d) => d.data().gatewayId))];
+  const db = getFirestore();
+  const [assigned, registered] = await Promise.all([
+    db.collection("stationAssignments").where("platform", "==", PLATFORM).get(),
+    db.collection("weatherStations").get(),
+  ]);
+  return [...new Set([
+    ...assigned.docs.map((d) => d.data().gatewayId),
+    ...registered.docs.map((d) => d.id),
+  ].filter(Boolean))];
 }
 
 /**
@@ -304,11 +310,11 @@ exports.getNuaSenseData = onCall(
       throw new HttpsError("invalid-argument", `Unknown endpoint '${endpoint}'`);
     }
 
-    // Every screen shows only the stations assigned to this account —
-    // admins and Field Agronomists included. Only the Field Agronomist panel
-    // asks for scope "all" (to write advice for every KM station), and only
-    // agronomists / admins get it. Being an admin or agronomist never gives
-    // a farm view of stations the account isn't connected to.
+    // Farmers see only the stations assigned to their account. Field
+    // Agronomists and admins ask for scope "all" on every screen (the app's
+    // NuaSenseService.seesAllStations) and pick a station from a dropdown;
+    // only they are granted it — a farmer asking for "all" still gets only
+    // their own stations.
     const allStations = scope === "all" &&
       ((await isAgronomist(uid)) || (await isPlatformAdmin(request.auth)));
     const ownedStationIds = allStations
@@ -376,11 +382,27 @@ async function isPlatformAdmin(auth) {
 // disconnect farmers (functions/stations.js). assignStationToUser stays for
 // older admin tools and does the same as action "assign".
 const { deliverToUsers } = require("./notifications");
+
+// ── Past weather: each station's recorded hours (permanently archived) vs
+// NASA POWER satellite — see functions/weather_history.js. Used by the
+// Weather comparison screen ("Past dates"), the Agronomist panel and the
+// station admin's in-service date suggestion.
+const { createWeatherHistoryFunction } = require("./weather_history");
+const weatherHistoryFns = createWeatherHistoryFunction({
+  registry: stationRegistry,
+  NUASENSE_KEY,
+  getOwnedStationIds,
+  getAllPlatformStationIds,
+  isAgronomist,
+  isPlatformAdmin,
+});
+
 exports.manageWeatherStations = createStationAdminFunction({
   registry: stationRegistry,
   isPlatformAdmin,
   PLATFORM,
   NUASENSE_KEY,
+  suggestInService: weatherHistoryFns.suggestFor,
   notifyUser: (uid, n) => deliverToUsers([uid], {
     title: n.title,
     body: n.body,
@@ -504,3 +526,14 @@ exports.syncWebTopics = createWebTopicsFunction();
 // Station screen (lib/services/google_weather_service.dart).
 const { createGoogleWeatherFunction } = require("./google_weather");
 exports.getGoogleWeather = createGoogleWeatherFunction({ GOOGLE_WEATHER_KEY });
+
+// ── Field Agronomists × farmers' records — see functions/agronomist.js ───────
+// Insights + farmer records for the Agronomist panel, the farmer activity
+// feed / pushes / daily digest, and custom advice for one farmer.
+const { createAgronomistFunctions } = require("./agronomist");
+Object.assign(exports, createAgronomistFunctions({ isPlatformAdmin }));
+
+// Past weather (station vs NASA POWER satellite) — the weatherHistory callable
+// and the hourly weatherArchiveSweep are created above, before the station admin.
+exports.weatherHistory = weatherHistoryFns.weatherHistory;
+exports.weatherArchiveSweep = weatherHistoryFns.weatherArchiveSweep;

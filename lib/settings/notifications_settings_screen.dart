@@ -15,6 +15,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'package:kilimomkononi/settings/notifications/notification_providers.dart';
@@ -30,6 +31,11 @@ final notificationPermissionProvider = FutureProvider.autoDispose<PermissionStat
     return null;
   }
 });
+
+/// Field Agronomists get a "Farmer activity" switch.
+final _isAgronomistProvider = FutureProvider.autoDispose<bool>(
+  (ref) async => (await AgronomicAdvisoryService.access()) == AdvisoryAccess.agronomist,
+);
 
 class NotificationsSettingsScreen extends ConsumerWidget {
   final bool isEducation;
@@ -147,6 +153,18 @@ class _SettingsBody extends ConsumerWidget {
                 enabled: p.push,
                 onChanged: (v) => _save(context, ref, p.copyWith(advisories: v), 'Verified advice ${onOff(v)}'),
               ),
+              if (ref.watch(_isAgronomistProvider).value == true)
+                _SwitchRow(
+                  icon: Icons.groups_rounded,
+                  color: KmColors.blue,
+                  title: 'Farmer activity',
+                  subtitle: 'Field Agronomists: farmers\' new pest, disease and soil problems (at most one per '
+                      'farmer an hour) and the 6 pm daily summary',
+                  value: p.farmerActivity,
+                  enabled: p.push,
+                  onChanged: (v) =>
+                      _save(context, ref, p.copyWith(farmerActivity: v), 'Farmer activity ${onOff(v)}'),
+                ),
             ],
             _SwitchRow(
               icon: Icons.how_to_reg_rounded,

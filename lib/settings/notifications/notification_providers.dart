@@ -46,6 +46,7 @@ enum InboxKind {
   weather('Weather alert', Icons.thunderstorm_rounded, KmColors.orange),
   advice('Verified advice', Icons.verified_rounded, KmColors.green),
   approval('Approvals', Icons.how_to_reg_rounded, KmColors.blue),
+  farmer('Farmer activity', Icons.groups_rounded, KmColors.blue),
   reminder('Reminder', Icons.alarm_rounded, KmColors.purple),
   general('General', Icons.notifications_rounded, KmColors.teal);
 
@@ -98,6 +99,7 @@ class InboxItem {
   InboxKind get kind {
     if (type == 'weather_alert' || channel == KmChannel.weatherAlerts.id) return InboxKind.weather;
     if (type == 'advisory' || channel == KmChannel.advisories.id) return InboxKind.advice;
+    if (type.startsWith('farmer_') || channel == KmChannel.farmerActivity.id) return InboxKind.farmer;
     if (type.startsWith('approval') || channel == KmChannel.approvals.id) return InboxKind.approval;
     if (channel == KmChannel.reminders.id) return InboxKind.reminder;
     return InboxKind.general;
@@ -151,7 +153,8 @@ enum InboxFilter {
   soil('Soil'),
   pests('Pests'),
   diseases('Diseases'),
-  approvals('Approvals');
+  approvals('Approvals'),
+  farmers('Farmers');
 
   final String label;
   const InboxFilter(this.label);
@@ -165,6 +168,7 @@ enum InboxFilter {
         InboxFilter.pests => i.sections.contains(AdviceSection.pests),
         InboxFilter.diseases => i.sections.contains(AdviceSection.diseases),
         InboxFilter.approvals => i.kind == InboxKind.approval,
+        InboxFilter.farmers => i.kind == InboxKind.farmer,
       };
 }
 

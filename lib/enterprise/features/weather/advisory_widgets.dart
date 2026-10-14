@@ -277,6 +277,12 @@ class VerifiedAdvisoryCard extends StatelessWidget {
   /// Opens the action screen ("Check & log"); null hides the button.
   final VoidCallback? onOpen;
 
+  /// Custom advice a Field Agronomist wrote for this farmer only.
+  final bool forYou;
+
+  /// Its title, shown above the advice (custom advice).
+  final String? title;
+
   const VerifiedAdvisoryCard({
     super.key,
     required this.advice,
@@ -290,6 +296,8 @@ class VerifiedAdvisoryCard extends StatelessWidget {
     this.testOnly = false,
     this.actions = AdviceActions.empty,
     this.onOpen,
+    this.forYou = false,
+    this.title,
   });
 
   factory VerifiedAdvisoryCard.fromAdvisory(
@@ -306,6 +314,8 @@ class VerifiedAdvisoryCard extends StatelessWidget {
         verifiedAt: a.publishedAt,
         stationScoped: a.isStationScoped,
         testOnly: a.testOnly,
+        forYou: a.isDirect,
+        title: a.isDirect && a.title.trim().isNotEmpty ? a.title.trim() : null,
       );
 
   @override
@@ -330,17 +340,21 @@ class VerifiedAdvisoryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.verified_rounded,
+                Icon(
+                  forYou ? Icons.person_pin_rounded : Icons.verified_rounded,
                   size: 16,
                   color: AdvisoryColors.verified,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    preview
-                        ? 'Preview · Verified by Field Agronomist'
-                        : 'Verified by Field Agronomist',
+                    forYou
+                        ? (preview
+                            ? 'Preview · Advice for you from a Field Agronomist'
+                            : 'Advice for you · from a Field Agronomist')
+                        : preview
+                            ? 'Preview · Verified by Field Agronomist'
+                            : 'Verified by Field Agronomist',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
@@ -348,8 +362,10 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Flexible(child: ConditionPill(condition, label: conditionLabel)),
+                if (!forYou) ...[
+                  const SizedBox(width: 6),
+                  Flexible(child: ConditionPill(condition, label: conditionLabel)),
+                ],
               ],
             ),
           ),
@@ -359,6 +375,17 @@ class VerifiedAdvisoryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (title != null) ...[
+                  Text(
+                    title!,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: AdvisoryColors.darkGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 if (crops.isNotEmpty) ...[
                   CropChips(crops),
                   const SizedBox(height: 10),
@@ -394,7 +421,11 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        stationScoped ? 'This station' : 'All stations',
+                        forYou
+                            ? 'Written for your farm'
+                            : stationScoped
+                                ? 'This station'
+                                : 'All stations',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -408,9 +439,7 @@ class VerifiedAdvisoryCard extends StatelessWidget {
                 ),
                 if (onOpen != null) ...[
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
+                  Center(child: FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: AdvisoryColors.verified,
                       ),

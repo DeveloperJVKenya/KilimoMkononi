@@ -145,8 +145,7 @@ class _PrimaryFillBlankSheetState extends State<PrimaryFillBlankSheet> {
       const SizedBox(height: 20),
       ElevatedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh, size: 16),
         label: const Text('Try again'),
-        style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+        style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,)),
     ]),
   );
 
@@ -252,15 +251,12 @@ class _PrimaryFillBlankSheetState extends State<PrimaryFillBlankSheet> {
           ]),
         ),
         const SizedBox(height: 16),
-        SizedBox(width: double.infinity,
-          child: ElevatedButton.icon(
+        Center(child: ElevatedButton.icon(
             onPressed: _load,
             icon: const Icon(Icons.arrow_forward_rounded, size: 16),
             label: const Text('Next sentence →'),
             style: ElevatedButton.styleFrom(
-                backgroundColor: c, foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                backgroundColor: c, foregroundColor: Colors.white,),
           )),
       ],
     ]);

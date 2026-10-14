@@ -366,12 +366,6 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryGreen,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.all(20),
-                        minimumSize:
-                            const Size(double.infinity, 60),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(12)),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -385,11 +379,6 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
                         foregroundColor: primaryGreen,
                         side: const BorderSide(
                             color: primaryGreen),
-                        minimumSize:
-                            const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(12)),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -402,11 +391,6 @@ class _FieldQuizScreenState extends State<FieldQuizScreen> {
                         foregroundColor: Colors.grey.shade700,
                         side: BorderSide(
                             color: Colors.grey.shade400),
-                        minimumSize:
-                            const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(12)),
                       ),
                     ),
                   ],

@@ -535,10 +535,7 @@ class _StudentSimCard extends StatelessWidget {
 
               if (showReviewed) ...[
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
+                Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
                         icon: const Icon(Icons.visibility, size: 16),
                         label: const Text('View Results'),
                         onPressed: () => _openStudentResult(context),
@@ -546,19 +543,12 @@ class _StudentSimCard extends StatelessWidget {
                           foregroundColor: Colors.green,
                           side: const BorderSide(color: Colors.green),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
+                      ), ElevatedButton.icon(
                         icon: const Icon(Icons.replay, size: 16),
                         label: const Text('Tap to start →'),
                         onPressed: () => _launchInteractive(context),
                         style: ElevatedButton.styleFrom(backgroundColor: _simGreen),
-                      ),
-                    ),
-                  ],
-                ),
+                      )]),
               ] else if (!isDone)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),

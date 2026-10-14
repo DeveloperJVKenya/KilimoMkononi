@@ -626,9 +626,7 @@ class _EducationWeatherForecastState
                                     Divider(thickness: 1)),
                           ]),
                         ),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
+                        Center(child: OutlinedButton.icon(
                             onPressed: _showSimBuilder,
                             icon: const Icon(
                                 Icons.play_circle_outline,
@@ -644,13 +642,6 @@ class _EducationWeatherForecastState
                               side: const BorderSide(
                                   color: primaryGreen,
                                   width: 1.5),
-                              padding:
-                                  const EdgeInsets.symmetric(
-                                      vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                          10)),
                             ),
                           ),
                         ),
@@ -682,17 +673,14 @@ class _EducationWeatherForecastState
               onSubmitted: (_) => _fetchWeather(),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
+            Center(child: ElevatedButton.icon(
                 onPressed:
                     _loading ? null : _fetchWeather,
                 icon: const Icon(Icons.cloud_download),
                 label: const Text('Load Forecast'),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: primaryGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(16)),
+                    foregroundColor: Colors.white,),
               ),
             ),
 
@@ -916,10 +904,6 @@ class _EducationWeatherForecastState
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryGreen,
                           foregroundColor: Colors.white,
-                          minimumSize:
-                              const Size(double.infinity, 52),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 14),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -942,8 +926,6 @@ class _EducationWeatherForecastState
                           foregroundColor: primaryGreen,
                           side: const BorderSide(
                               color: primaryGreen),
-                          minimumSize:
-                              const Size(double.infinity, 44),
                         ),
                       ),
                     ],

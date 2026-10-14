@@ -3,6 +3,7 @@ import 'package:kilimomkononi/education/widgets/edu_ai_advice_card.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:kilimomkononi/models/education_user.dart';
 import 'package:kilimomkononi/utils/firestore_helper.dart';
 import 'package:kilimomkononi/education/data/pest_interventions.dart';
@@ -1135,9 +1136,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                 // First reply: teacher commented but student hasn't replied yet
                 if (isReviewed && gradeUnlocked && teacherComment.isNotEmpty && studentReply == null) ...[
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
+                  Center(child: ElevatedButton.icon(
                       onPressed: () => _showStudentReplyDialog(doc.id, data, replyNumber: 1),
                       icon: const Icon(Icons.reply, size: 16),
                       label: const Text('Reply to Teacher',
@@ -1145,7 +1144,6 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.indigo,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
@@ -1153,9 +1151,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                 // Second reply: teacher posted follow-up but student hasn't replied again
                 if (teacherFollowUp != null && studentReply2 == null) ...[
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
+                  Center(child: ElevatedButton.icon(
                       onPressed: () => _showStudentReplyDialog(doc.id, data, replyNumber: 2),
                       icon: const Icon(Icons.reply, size: 16),
                       label: const Text('Reply to Follow-up',
@@ -1163,7 +1159,6 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepPurple,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
@@ -1228,9 +1223,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                 // ── AI Tutor button (available to students after submission) ──
                 if (isReviewed) ...[
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
+                  Center(child: ElevatedButton.icon(
                       onPressed: _aiLoading
                           ? null
                           : () => _runAiPestAnalysis({
@@ -1248,7 +1241,6 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepPurple,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
@@ -1417,22 +1409,6 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
               validator: (v) => v?.trim().isEmpty ?? true ? 'Please write your answer' : null,
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _submitStudentAnswer,
-                icon: _isSaving
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.send),
-                label: Text(_isSaving ? 'Submitting...' : 'Submit My Answer',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
             const SizedBox(height: 8),
             Text(
               'Your teacher will review your answer',
@@ -1672,9 +1648,22 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
       imagePath = pestDetails[key]?['imagePath'] as String? ?? 'assets/pests/default.jpg';
     }
 
-    return SingleChildScrollView(
+    return FloatingSaveArea(
+      fab: SaveFab(
+        // Students: submit their answer once a pest is picked. Teachers:
+        // log (or update) the optional field observation.
+        visible: isStudent
+            ? (_selectedCrop != null && _selectedStage != null && _selectedPest != null)
+            : (isTeacher && _selectedPest != null && _canEdit),
+        onPressed: isStudent ? _submitStudentAnswer : _saveEntry,
+        busy: _isSaving,
+        label: isStudent ? 'Submit answer' : (_editingId == null ? 'Log observation' : 'Update entry'),
+        busyLabel: isStudent ? 'Submitting…' : 'Saving…',
+        icon: isStudent ? Icons.send_rounded : Icons.save_rounded,
+      ),
+      child: SingleChildScrollView(
       controller: _scrollCtrl,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
       child: Form(
         key: _formKey,
         child: Column(
@@ -1820,19 +1809,6 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
                 enabled: _canEdit,
               ),
               const SizedBox(height: 16),
-              if (_canEdit)
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _saveEntry,
-                    icon: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Icon(Icons.save),
-                    label: Text(_editingId == null ? 'Log Observation (Optional)' : 'Update Entry'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
-                    ),
-                  ),
-                ),
               if (_editingId != null && _canEdit)
                 Center(child: TextButton(
                   onPressed: _resetForm,
@@ -1957,6 +1933,7 @@ Language: practical for a Kenyan secondary school teacher. Be concise.
           ],
         ),
       ),
+    ),
     );
   }
 

@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:kilimomkononi/widgets/save_fab.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
@@ -511,8 +512,9 @@ active ingredient in "why", dosage per litre and timing in "how".
     return Scaffold(
       backgroundColor: _T.pageBg,
       appBar: _diseaseStepHeader(3, 3),
+      floatingActionButton: SaveFab(onPressed: _save, busy: _saving, label: 'Save intervention'),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kSaveFabSpace),
         children: [
           // ── Context ────────────────────────────────────────────────────────
           Container(
@@ -590,26 +592,14 @@ active ingredient in "why", dosage per litre and timing in "how".
           const SizedBox(height: 24),
 
           // ── Actions ────────────────────────────────────────────────────────
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            style: ElevatedButton.styleFrom(backgroundColor: _T.brandDark, foregroundColor: Colors.white,
-                elevation: 0, padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: _saving
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : const Text('Save Intervention', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
+          Center(child: OutlinedButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(
                 builder: (_) => const UserDiseaseHistoryPage())),
             style: OutlinedButton.styleFrom(foregroundColor: _T.brandDark,
-                side: const BorderSide(color: _T.borderDef, width: 1.5),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                side: const BorderSide(color: _T.borderDef, width: 1.5),),
             child: const Text('View Intervention History',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          ),
+          )),
           const SizedBox(height: 16),
         ],
       ),

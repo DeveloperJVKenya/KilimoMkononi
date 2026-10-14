@@ -163,7 +163,12 @@ class _AdvisoryDetailScreenState extends State<AdvisoryDetailScreen> {
         backgroundColor: AdvisoryColors.darkGreen,
         foregroundColor: Colors.white,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(a?.isAi == true ? 'AI advice' : 'Verified advice',
+          Text(
+              a?.isAi == true
+                  ? 'AI advice'
+                  : a?.isDirect == true
+                      ? 'Advice for you'
+                      : 'Verified advice',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           const Text('Check your crops and log what you do',
               style: TextStyle(fontSize: 11.5, color: Colors.white70)),

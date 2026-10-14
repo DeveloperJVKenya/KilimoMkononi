@@ -124,8 +124,6 @@ class _PestSimulationScreenState extends State<PestSimulationScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryGreen,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       },
@@ -271,8 +269,6 @@ class _PestSimulationScreenState extends State<PestSimulationScreen> {
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryGreen,
-                            padding: const EdgeInsets.all(20),
-                            minimumSize: const Size(double.infinity, 60),
                           ),
                         ),
                       ],
@@ -392,7 +388,7 @@ class _PestSimulationPlayScreenState extends State<PestSimulationPlayScreen> {
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 56)),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryGreen,),
               child: const Text('Submit Choice', style: TextStyle(fontSize: 18, color: Colors.white)),
             ),
           ],

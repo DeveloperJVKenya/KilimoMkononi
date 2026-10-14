@@ -7,6 +7,10 @@
 //
 //   stationPreferences/{uid}  { userId, plots: { plotId: gatewayId }, updatedAt }
 //
+// plots[kAnyFarm] is the station used wherever a farm has no choice of its
+// own (and when no farm is selected) — e.g. a Field Agronomist picking a
+// station from Home's dropdown.
+//
 // It never grants access — stationAssignments does (server-side); a choice
 // pointing at a station the account no longer has is simply ignored.
 
@@ -16,6 +20,9 @@ import 'package:flutter/foundation.dart';
 
 class StationPreferences {
   StationPreferences._();
+
+  /// Key in `plots` for "every farm without its own choice".
+  static const kAnyFarm = '_any';
 
   // Per account, so another account on the same phone never sees them.
   static final Map<String, Map<String, String>> _cache = {};

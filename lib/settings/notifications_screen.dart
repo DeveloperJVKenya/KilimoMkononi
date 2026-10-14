@@ -294,15 +294,22 @@ class _InboxTab extends ConsumerWidget {
         InboxFilter.pests => KmColors.orange,
         InboxFilter.diseases => KmColors.red,
         InboxFilter.approvals => KmColors.purple,
+        InboxFilter.farmers => KmColors.blue,
       };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(inboxFilterProvider);
     final items = ref.watch(filteredInboxProvider);
+    // "Farmers" (Field Agronomists' farmer activity) only when there is some.
+    final hasFarmerItems =
+        (ref.watch(inboxProvider).value ?? const <InboxItem>[]).any((i) => i.kind == InboxKind.farmer);
     return Column(children: [
       _chips<InboxFilter>(
-        values: InboxFilter.values,
+        values: [
+          for (final f in InboxFilter.values)
+            if (f != InboxFilter.farmers || hasFarmerItems || filter == InboxFilter.farmers) f,
+        ],
         selected: filter,
         label: (f) => f.label,
         color: _filterColor,

@@ -27,6 +27,7 @@
 // weather station screen's refresh button.
 
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/services/station_preferences.dart';
@@ -271,14 +272,20 @@ class NuaStation {
     required this.online,
   });
 
-  factory NuaStation.fromJson(Map<String, dynamic> j) => NuaStation(
+  /// NuaSense sends coordinates as `location: {lat, lon, elevation_m}`;
+  /// other providers may send flat lat / lon.
+  factory NuaStation.fromJson(Map<String, dynamic> j) {
+    final loc = j['location'] is Map ? j['location'] as Map : const {};
+    double? n(Object? v) => v is num ? v.toDouble() : null;
+    return NuaStation(
         id:   j['gateway_id']?.toString() ?? j['id']?.toString() ?? '',
-        name: j['name']?.toString() ?? j['location']?.toString() ?? 'Station',
-        lat:  (j['lat'] as num?)?.toDouble() ?? (j['latitude'] as num?)?.toDouble(),
-        lon:  (j['lon'] as num?)?.toDouble() ?? (j['longitude'] as num?)?.toDouble(),
+        name: j['name']?.toString() ?? (j['location'] is String ? j['location'] as String : null) ?? 'Station',
+        lat:  n(j['lat']) ?? n(j['latitude']) ?? n(loc['lat']),
+        lon:  n(j['lon']) ?? n(j['longitude']) ?? n(loc['lon']),
         lastSeen: DateTime.tryParse(j['last_seen']?.toString() ?? ''),
         online: j['online'] == true || j['status']?.toString() == 'online',
       );
+  }
 }
 
 // ── Forecast point (new, July 2026) ─────────────────────────────────────────
@@ -325,6 +332,43 @@ class NuaSenseService {
     return '$uid|${allStations ? 'all' : 'mine'}|${stationId ?? ''}';
   }
 
+  // ── Who sees which stations ───────────────────────────────────────────────
+  //
+  // Farmers see the stations connected to their account. Field Agronomists
+  // and admins see EVERY Kilimo Mkononi station on every screen and pick one
+  // from the station dropdown — the server grants them scope "all"
+  // (getNuaSenseData / weatherHistory) and refuses it to anyone else.
+
+  static final Map<String, (DateTime, Future<bool>)> _privileged = {};
+
+  /// Is the signed-in account a Field Agronomist or an admin? Checked once
+  /// per account (re-checked after 10 minutes, so a new role applies soon).
+  static Future<bool> seesAllStations() {
+    String uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    } catch (_) {
+      return Future.value(false);
+    }
+    if (uid.isEmpty) return Future.value(false);
+    final hit = _privileged[uid];
+    if (hit != null && DateTime.now().difference(hit.$1) < _cacheDuration) return hit.$2;
+    final check = _checkPrivileged(uid);
+    _privileged[uid] = (DateTime.now(), check);
+    return check;
+  }
+
+  static Future<bool> _checkPrivileged(String uid) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      if ((await db.collection('Agronomists').doc(uid).get()).exists) return true;
+      return (await db.collection('Admins').doc(uid).get()).exists;
+    } catch (_) {
+      _privileged.remove(uid); // try again next time (e.g. offline)
+      return false;
+    }
+  }
+
   static bool _cacheValid(String key) =>
       _cachedAt[key] != null &&
       DateTime.now().difference(_cachedAt[key]!) < _cacheDuration;
@@ -334,6 +378,7 @@ class NuaSenseService {
   static void clearCache({String? stationId}) {
     if (stationId == null) {
       _myStations.clear();
+      _privileged.clear();
       _cachedReadings.clear();
       _cachedHistories.clear();
       _cachedAt.clear();
@@ -359,9 +404,9 @@ class NuaSenseService {
   /// Pass [stationId] once a farmer has selected one of their own stations
   /// (see [getStations]); omit to use the account's default gateway.
   ///
-  /// [allStations]: the Field Agronomist panel's view of every KM station
-  /// (agronomists / admins only — the server refuses anyone else). Every
-  /// other screen shows only the stations assigned to this account.
+  /// [allStations]: every KM station (agronomists / admins only — the
+  /// server refuses anyone else). Agronomists and admins get it on every
+  /// screen anyway (see [seesAllStations]); farmers see their own stations.
   static Future<NuaSenseReading> getLatestReading({String? stationId, bool allStations = false}) async {
     final key = _key(stationId, allStations: allStations);
     if (_cacheValid(key) && _cachedReadings[key] != null) {
@@ -394,7 +439,9 @@ class NuaSenseService {
     Map<String, String> choices = const {},
   }) {
     if (stations.isEmpty) return null;
-    final chosen = plotId == null ? null : choices[plotId];
+    // This farm's own choice, else the "any farm" choice (StationPreferences).
+    String? valid(String? id) => id != null && stations.any((s) => s.id == id) ? id : null;
+    final chosen = valid(plotId == null ? null : choices[plotId]) ?? valid(choices[StationPreferences.kAnyFarm]);
     if (chosen != null) {
       for (final s in stations) {
         if (s.id == chosen) return s;
@@ -677,10 +724,12 @@ class NuaSenseService {
   }) async {
     try {
       final fn  = FirebaseFunctions.instance.httpsCallable('getNuaSenseData');
+      // Agronomists / admins: every station, on every screen.
+      final all = allStations || await seesAllStations();
       final res = await fn.call({
         'endpoint': endpoint,
         'params': params,
-        if (allStations) 'scope': 'all',
+        if (all) 'scope': 'all',
       });
       return Map<String, dynamic>.from(res.data as Map);
     } catch (e) {

@@ -433,16 +433,9 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
+                          Center(child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.teal,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(16)),
-                                elevation: 5,
                               ),
                               onPressed: _loading ? null : _login,
                               child: _loading
@@ -469,18 +462,13 @@ class _EducationLoginScreenState extends State<EducationLoginScreen> {
                             ],
                           ),
                           const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: OutlinedButton.icon(
+                          Center(child: OutlinedButton.icon(
                               onPressed: _loading ? null : _handleGoogleSignIn,
                               icon: const GoogleLogo(size: 20),
                               label: const Text('Continue with Google',
                                   style: TextStyle(fontSize: 16, color: Colors.black87)),
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: Colors.grey.shade400),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16)),
                               ),
                             ),
                           ),

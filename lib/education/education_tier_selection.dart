@@ -629,17 +629,11 @@ class _EducationTierSelectionScreenState
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
+                child: Center(child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _selectedTiers.isNotEmpty
                           ? const Color(0xFF003900)
                           : Colors.grey.shade300,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      elevation: _selectedTiers.isNotEmpty ? 4 : 0,
                     ),
                     onPressed:
                         (_saving || _selectedTiers.isEmpty) ? null : _save,
@@ -761,10 +755,7 @@ class _EducationTierSelectionScreenState
                   ),
                   const SizedBox(height: 16),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: OutlinedButton.icon(
+                  Center(child: OutlinedButton.icon(
                       onPressed: () {
                         Clipboard.setData(
                             ClipboardData(text: _newlyGeneratedCode!));
@@ -780,8 +771,6 @@ class _EducationTierSelectionScreenState
                         foregroundColor: const Color(0xFF003900),
                         side: const BorderSide(
                             color: Color(0xFF003900), width: 1.5),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
@@ -818,15 +807,9 @@ class _EducationTierSelectionScreenState
                   const Spacer(),
                   const SizedBox(height: 20),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton(
+                  Center(child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF003900),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        elevation: 4,
                       ),
                       onPressed: () =>
                           Navigator.pushReplacementNamed(context, '/edu_home'),

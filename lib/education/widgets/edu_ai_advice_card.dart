@@ -190,9 +190,7 @@ Future<void> showEduAiResultDialog({
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               color: _EduColors.pageBg,
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
+              child: Center(child: ElevatedButton.icon(
                   onPressed: () => Navigator.pop(ctx),
                   icon: const Icon(Icons.check_circle_outline, size: 18),
                   label: const Text('Got it!',
@@ -200,10 +198,6 @@ Future<void> showEduAiResultDialog({
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _EduColors.brand,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
                   ),
                 ),
               ),
@@ -699,9 +693,7 @@ class EduAiResultCard extends StatelessWidget {
       // ── Use result button ─────────────────────────────────────────────────
       if (onUseResult != null) ...[
         const SizedBox(height: 14),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
+        Center(child: ElevatedButton.icon(
             icon: const Icon(Icons.auto_fix_high, size: 18),
             label: Text(
               'Use Result & Go to ${isPest ? "Pest Data" : "Disease Data"} Tab',
@@ -710,10 +702,6 @@ class EduAiResultCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: _EduColors.brand,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
             ),
             onPressed: () => onUseResult!({
               'crop':  selectedCrop ?? '',
@@ -825,17 +813,11 @@ class EduAiLoadingButton extends StatelessWidget {
     ]);
 
     if (filled) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
+      return Center(child: ElevatedButton(
           onPressed: loading ? null : onPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: _EduColors.brand,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             if (loading)
@@ -852,17 +834,13 @@ class EduAiLoadingButton extends StatelessWidget {
       );
     }
 
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
+    return Center(child: OutlinedButton(
         onPressed: loading ? null : onPressed,
         style: OutlinedButton.styleFrom(
           side: BorderSide(
               color: loading ? Colors.grey.shade300 : _EduColors.brand,
               width: 1.5),
           padding: const EdgeInsets.symmetric(vertical: 11),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
         ),
         child: child,
       ),

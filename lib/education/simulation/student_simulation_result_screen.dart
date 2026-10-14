@@ -410,9 +410,7 @@ class _ResultBody extends StatelessWidget {
           const SizedBox(height: 8),
 
           // Try Again Button - Launches the SAME simulation again
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
+          Center(child: ElevatedButton.icon(
               // Inside the "Try This Simulation Again" ElevatedButton onPressed:
 // Inside _ResultBody > Try Again button onPressed:
 onPressed: () {
@@ -457,8 +455,6 @@ onPressed: () {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange.shade700,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -466,17 +462,13 @@ onPressed: () {
           const SizedBox(height: 12),
 
           // Back to Simulations
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
+          Center(child: ElevatedButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back),
               label: const Text('Back to All Simulations'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),

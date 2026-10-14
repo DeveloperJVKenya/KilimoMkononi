@@ -484,8 +484,7 @@ class _FarmFinancialManagementSimulationState
               icon: Icon(_month >= _decisions.length - 1 ? Icons.flag : Icons.arrow_forward),
               label: Text(_month >= _decisions.length - 1 ? '🏁 Annual Report' : '📅 Next Month'),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 12)),
+                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,),
             )),
             const SizedBox(width: 10),
             IconButton(icon: const Icon(Icons.help_outline, color: Colors.white),

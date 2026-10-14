@@ -595,9 +595,7 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
                                     const Expanded(child: Divider(thickness: 1)),
                                   ]),
                                 ),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
+                                Center(child: OutlinedButton.icon(
                                     onPressed: _selectedCrop == null ? null : _showSimBuilder,
                                     icon: const Icon(Icons.play_circle_outline, size: 22),
                                     label: const Text('Run Interactive Simulation',
@@ -605,8 +603,6 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: primaryGreen,
                                       side: const BorderSide(color: primaryGreen, width: 1.5),
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     ),
                                   ),
                                 ),
@@ -705,8 +701,6 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryGreen,
                       foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 52),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -725,7 +719,6 @@ class _EducationFarmingTipsState extends State<EducationFarmingTips> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: primaryGreen,
                       side: const BorderSide(color: primaryGreen),
-                      minimumSize: const Size(double.infinity, 44),
                     ),
                   ),
                 ],
@@ -933,8 +926,7 @@ class _FarmingSimulationScreenState extends State<FarmingSimulationScreen> {
             onPressed: _submit,
             style: ElevatedButton.styleFrom(
                 backgroundColor: primaryGreen,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 56)),
+                foregroundColor: Colors.white,),
             child: const Text('Submit Choice', style: TextStyle(fontSize: 18)),
           ),
         ]),

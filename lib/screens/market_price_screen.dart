@@ -914,10 +914,8 @@ class _ReportDetails extends ConsumerWidget {
         ],
         const SizedBox(height: 18),
         if (mine)
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: _kRed, padding: const EdgeInsets.symmetric(vertical: 13)),
+          Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: _kRed,),
                 onPressed: () async {
                   if (!await _confirmDelete(context)) return;
                   await PriceReportsRepository.delete(r.id);
@@ -925,21 +923,15 @@ class _ReportDetails extends ConsumerWidget {
                 },
                 icon: const Icon(Icons.delete_outline_rounded),
                 label: const Text('Delete'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: _kAccent, padding: const EdgeInsets.symmetric(vertical: 13)),
+              ), FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: _kAccent,),
                 onPressed: () {
                   Navigator.pop(context);
                   showPriceForm(context, ref, existing: r);
                 },
                 icon: const Icon(Icons.edit_rounded),
                 label: const Text('Edit'),
-              ),
-            ),
-          ])
+              )])
         else
           Wrap(spacing: 10, runSpacing: 10, children: [
             OutlinedButton.icon(
@@ -1194,7 +1186,7 @@ class _PriceFormState extends State<_PriceForm> {
                   ),
                 const Spacer(),
                 FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _kAccent, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+                  style: FilledButton.styleFrom(backgroundColor: _kAccent,),
                   onPressed: _saving ? null : _save,
                   icon: _saving
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

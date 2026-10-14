@@ -43,6 +43,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:kilimomkononi/config/push_config.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
+import 'package:kilimomkononi/services/web_notification_guard.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
@@ -58,6 +59,8 @@ enum KmChannel {
       'Follow-ups and field activity reminders you set', Importance.high),
   approvals('km_approvals', 'Approvals',
       'Education account approval requests and decisions', Importance.high),
+  farmerActivity('km_farmer_activity', 'Farmer activity',
+      'Field Agronomists: new pest, disease and soil records from farmers', Importance.high),
   sync('km_sync', 'Offline sync', 'Records saved offline and synced later', Importance.low),
   general('km_general', 'General', 'Other Kilimo Mkononi notifications',
       Importance.defaultImportance);
@@ -82,6 +85,13 @@ class KmRoute {
   /// An advisory (verified advice, or a weather alert carrying advice):
   /// opens the action screen. Args: advisoryId, optional alertTitle.
   static const advisory = 'advisory';
+
+  /// Field Agronomists: one farmer's records (args: farmerUid).
+  static const agronomistFarmer = 'agronomist_farmer';
+
+  /// Field Agronomists: the panel (args: tab — insights, farmers, activity,
+  /// advisories).
+  static const agronomistPanel = 'agronomist_panel';
 }
 
 /// Background/terminated handler. The system already displays notification
@@ -138,6 +148,9 @@ class NotificationService {
       ),
       onDidReceiveNotificationResponse: (r) => _handleTap(_routeFromPayload(r.payload)),
     );
+    // Web: the plugin's click handler crashed on Firebase Messaging's
+    // service-worker messages — replace it with one that ignores them.
+    if (kIsWeb) guardWebNotificationClicks((payload) => _handleTap(_routeFromPayload(payload)));
 
     final android =
         plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();

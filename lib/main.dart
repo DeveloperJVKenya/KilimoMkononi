@@ -1,5 +1,8 @@
 // main.dart
 import 'package:kilimomkononi/enterprise/features/weather/advisory_detail_screen.dart';
+import 'package:kilimomkononi/enterprise/features/agronomist/farmer_detail_screen.dart';
+import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
+import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -103,7 +106,29 @@ void _openNotificationRoute(String route, Map<String, String> args) {
         nav.push(MaterialPageRoute(
             builder: (_) => AdvisoryDetailScreen(advisoryId: id, alertTitle: args['alertTitle'])));
       }
+    case KmRoute.agronomistFarmer:
+    case KmRoute.agronomistPanel:
+      _openAgronomistRoute(nav, route, args);
   }
+}
+
+/// Farmer-activity pushes (Field Agronomists): a farmer's page, or the panel
+/// on a tab. Admins without the agronomist role open them in test mode.
+Future<void> _openAgronomistRoute(NavigatorState nav, String route, Map<String, String> args) async {
+  final access = await AgronomicAdvisoryService.access();
+  if (access == AdvisoryAccess.none) {
+    nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    return;
+  }
+  final test = access == AdvisoryAccess.adminTest;
+  final farmer = args['farmerUid'];
+  if (route == KmRoute.agronomistFarmer && farmer != null && farmer.isNotEmpty) {
+    nav.push(MaterialPageRoute(builder: (_) => FarmerDetailScreen(farmerUid: farmer, testMode: test)));
+    return;
+  }
+  final tab = AgronomistPanelTab.values.where((t) => t.name == args['tab']).firstOrNull;
+  nav.push(MaterialPageRoute(
+      builder: (_) => FieldAgronomistPanelScreen(testMode: test, initialTab: tab ?? AgronomistPanelTab.activity)));
 }
 
 class MyApp extends ConsumerWidget {

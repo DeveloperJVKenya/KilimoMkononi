@@ -374,27 +374,17 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
             const SizedBox(height: 16),
 
             // Camera / gallery
-            Row(children: [
-              Expanded(
-                child: OutlinedButton.icon(
+            Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('Camera'),
-                  style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14)),
+                  style: OutlinedButton.styleFrom(),
                   onPressed: () => _pickImage(ImageSource.camera),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
+                ), OutlinedButton.icon(
                   icon: const Icon(Icons.photo_library),
                   label: const Text('Gallery'),
-                  style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14)),
+                  style: OutlinedButton.styleFrom(),
                   onPressed: () => _pickImage(ImageSource.gallery),
-                ),
-              ),
-            ]),
+                )]),
             const SizedBox(height: 16),
 
             // Photo preview
@@ -430,8 +420,6 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal.shade700,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               onPressed: _isLoading ? null : _analyse,
             ),
@@ -581,8 +569,6 @@ class _EduPhotoDiagnosisPageState extends State<EduPhotoDiagnosisPage> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.teal.shade700,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          minimumSize: const Size(double.infinity, 56),
         ),
         onPressed: _useResult,
       ),

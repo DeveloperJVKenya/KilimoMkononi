@@ -100,7 +100,7 @@ final sectionFeedProvider =
   // Advice in effect now, and live farm alerts.
   final a = advice.value;
   if (a != null) {
-    for (final v in a.verified) {
+    for (final v in [...a.forYou, ...a.verified]) {
       if (!hits(v.sections) || !_cropsMatch(v.crops, crops)) continue;
       seenAdvisories.add(v.id);
       out.add(SectionFeedItem(

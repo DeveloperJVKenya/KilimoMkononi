@@ -560,9 +560,7 @@ class _EducationMarketPriceState
                                         thickness: 1)),
                               ]),
                             ),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
+                            Center(child: OutlinedButton.icon(
                                 onPressed: _showSimBuilder,
                                 icon: const Icon(
                                     Icons.play_circle_outline,
@@ -580,14 +578,6 @@ class _EducationMarketPriceState
                                   side: const BorderSide(
                                       color: primaryGreen,
                                       width: 1.5),
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                  shape:
-                                      RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius
-                                                  .circular(10)),
                                 ),
                               ),
                             ),
@@ -644,10 +634,6 @@ class _EducationMarketPriceState
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryGreen,
                           foregroundColor: Colors.white,
-                          minimumSize:
-                              const Size(double.infinity, 52),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 14),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -670,8 +656,6 @@ class _EducationMarketPriceState
                           foregroundColor: primaryGreen,
                           side: const BorderSide(
                               color: primaryGreen),
-                          minimumSize:
-                              const Size(double.infinity, 44),
                         ),
                       ),
                     ],

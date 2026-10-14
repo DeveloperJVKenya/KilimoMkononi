@@ -152,8 +152,6 @@ class _FieldSimulationScreenState extends State<FieldSimulationScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryGreen,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       },
@@ -347,8 +345,6 @@ class _FieldSimulationScreenState extends State<FieldSimulationScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryGreen,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ),
@@ -460,7 +456,7 @@ class _FieldSimulationPlayScreenState extends State<FieldSimulationPlayScreen> {
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, minimumSize: const Size(double.infinity, 56)),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryGreen,),
               child: const Text('Submit Choice', style: TextStyle(fontSize: 18, color: Colors.white)),
             ),
           ],

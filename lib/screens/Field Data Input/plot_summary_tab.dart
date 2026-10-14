@@ -487,10 +487,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
                   const SizedBox(height: 14),
 
                   // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
+                  Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
                           onPressed: () =>
                               _editPlot(context, entry, docId),
                           icon: const Icon(Icons.edit_outlined, size: 14),
@@ -502,14 +499,8 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
                                 color: Color(0xFFA5D6A7)),
                             padding:
                                 const EdgeInsets.symmetric(vertical: 9),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
+                        ), OutlinedButton.icon(
                           onPressed: () =>
                               _deletePlot(context, docId),
                           icon: const Icon(Icons.delete_outline, size: 14),
@@ -520,17 +511,10 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
                             side: BorderSide(color: Colors.red[200]!),
                             padding:
                                 const EdgeInsets.symmetric(vertical: 9),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
+                        )]),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
+                  Center(child: ElevatedButton.icon(
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -548,11 +532,8 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _darkGreen,
                         foregroundColor: Colors.white,
-                        elevation: 0,
                         padding:
                             const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ),
@@ -950,9 +931,6 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
             style: ElevatedButton.styleFrom(
               backgroundColor: _darkGreen,
               foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Save'),
           ),
@@ -1049,10 +1027,7 @@ class _PlotSummaryTabState extends State<PlotSummaryTab>
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8))),
+                foregroundColor: Colors.white,),
             child: const Text('Delete'),
           ),
         ],

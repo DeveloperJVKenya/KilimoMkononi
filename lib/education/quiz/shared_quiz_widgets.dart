@@ -387,12 +387,10 @@ class _EduQuizBuilderState extends State<EduQuizBuilder> {
                 const SizedBox(height: 24),
 
                 // Generate Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
+                Center(child: ElevatedButton.icon(
                     icon: _isGenerating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.auto_awesome),
                     label: Text(_isGenerating ? 'Generating…' : 'Generate Questions'),
-                    style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+                    style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.white,),
                     onPressed: _isGenerating
                         ? null
                         : () {
@@ -1030,15 +1028,11 @@ Future<void> _onMcqTap(int sel) async {
   const SizedBox(height: 20),
 
   // Clear Next Button with better label when it's the last question
-  SizedBox(
-    width: double.infinity,
-    child: ElevatedButton(
+  Center(child: ElevatedButton(
       onPressed: _isSubmitting ? null : _onMcqNext,
       style: ElevatedButton.styleFrom(
         backgroundColor: _green,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: _isSubmitting
           ? const SizedBox(
@@ -1105,9 +1099,7 @@ Future<void> _onMcqTap(int sel) async {
           const SizedBox(height: 20),
 
           if (!_essaySubmitted)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
+            Center(child: ElevatedButton.icon(
                 icon: _isMarkingEssay
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
                     : const Icon(Icons.send),
@@ -1115,8 +1107,6 @@ Future<void> _onMcqTap(int sel) async {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _isMarkingEssay ? null : _onSubmitEssay,
               ),
@@ -1149,14 +1139,11 @@ Future<void> _onMcqTap(int sel) async {
               ),
             ),
             const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
+            Center(child: ElevatedButton(
                 onPressed: _onEssayNext,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: Text(_isLastQuestion ? 'Finish Quiz' : 'Next Question'),
               ),
@@ -1185,14 +1172,11 @@ Future<void> _onMcqTap(int sel) async {
               ]),
             ),
             const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
+            Center(child: ElevatedButton(
                 onPressed: _onEssayNext,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: Text(_isLastQuestion ? 'Finish Quiz' : 'Next Question'),
               ),
@@ -1950,9 +1934,7 @@ class _SimulationReviewPanelState extends State<_SimulationReviewPanel> {
               maxLines: 2,
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
+            Center(child: ElevatedButton.icon(
                 icon: _isSaving
                     ? const SizedBox(
                         width: 16, height: 16,
@@ -1965,10 +1947,6 @@ class _SimulationReviewPanelState extends State<_SimulationReviewPanel> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12),
                 ),
                 onPressed: _isSaving ? null : _finalise,
               ),
@@ -2235,9 +2213,7 @@ class _EssayAnswerReviewTileState
           ),
           const SizedBox(height: 12),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
+          Center(child: ElevatedButton.icon(
               icon: _isSaving
                   ? const SizedBox(
                       width: 16,
@@ -2251,10 +2227,6 @@ class _EssayAnswerReviewTileState
               style: ElevatedButton.styleFrom(
                 backgroundColor: _green,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: _isSaving ? null : _approve,
             ),
@@ -2575,18 +2547,13 @@ class _AskTutorButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
+    return Center(child: OutlinedButton.icon(
         onPressed: onTap,
         icon: const Icon(Icons.psychology_outlined, size: 20),
         label: Text(label, style: const TextStyle(fontSize: 14)),
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF003900),
           side: const BorderSide(color: Color(0xFF003900)),
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );

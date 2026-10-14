@@ -230,6 +230,116 @@ service cloud.firestore {
     }
 
     // ════════════════════════════════════════════════════════════════
+    //  Custom advice for one farmer — written by Field Agronomists from
+    //  the farmer's records (Agronomist panel → a farmer → Send advice).
+    //  Same content and audit trail as agronomic_advisories; the farmer
+    //  reads only their own SENT, non-test advice (queries must filter
+    //  farmerUid == me, status == 'sent', testOnly == false). Never for a
+    //  farmer who turned sharing off (privacySettings).
+    // ════════════════════════════════════════════════════════════════
+    match /farmer_advice/{adviceId} {
+      function adviceHistoryDoc(v) {
+        return /databases/$(database)/documents/farmer_advice/$(adviceId)/history/$('v' + string(v));
+      }
+      function farmerShares(f) {
+        let p = /databases/$(database)/documents/privacySettings/$(f);
+        return !exists(p) || get(p).data.get('shareWithAgronomists', true) == true;
+      }
+      function validFarmerAdvice() {
+        let d = request.resource.data;
+        return d.farmerUid is string && d.farmerUid.size() > 0 && d.farmerUid.size() <= 128 &&
+               d.get('farmerName', '') is string && d.get('farmerName', '').size() <= 120 &&
+               d.get('title', '') is string && d.get('title', '').size() <= 200 &&
+               d.crops is list && d.crops.size() <= 20 &&
+               d.main is string && d.main.size() > 0 && d.main.size() <= 300 &&
+               d.doList is list && d.doList.size() <= 10 &&
+               d.avoidList is list && d.avoidList.size() <= 10 &&
+               d.why is string && d.why.size() <= 600 &&
+               (!('soilActions' in d) || (d.soilActions is list && d.soilActions.size() <= 20)) &&
+               (!('pestChecks' in d) || (d.pestChecks is list && d.pestChecks.size() <= 10)) &&
+               (!('diseaseChecks' in d) || (d.diseaseChecks is list && d.diseaseChecks.size() <= 10)) &&
+               (!('basedOn' in d) || d.basedOn == null || (d.basedOn is map && d.basedOn.size() <= 6)) &&
+               d.status in ['draft', 'sent', 'withdrawn'] &&
+               d.platform == 'km' &&
+               d.testOnly == false &&
+               d.version is int &&
+               (!('notifyVersion' in d) ||
+                  (d.notifyVersion is int && d.notifyVersion <= d.version)) &&
+               d.updatedBy == uid() &&
+               d.updatedAt == request.time &&
+               // Sending = the sender is recorded, now.
+               (d.status != 'sent' || (d.sentBy == uid() && d.sentAt == request.time)) &&
+               existsAfter(adviceHistoryDoc(d.version));
+      }
+      function keepsSender() {
+        let d = request.resource.data;
+        let o = resource.data;
+        return d.get('sentBy', null) == o.get('sentBy', null) &&
+               d.get('sentByName', null) == o.get('sentByName', null) &&
+               d.get('sentAt', null) == o.get('sentAt', null) &&
+               d.get('notifyVersion', null) == o.get('notifyVersion', null);
+      }
+
+      allow read: if signedIn() &&
+                     ((resource.data.farmerUid == uid() &&
+                       resource.data.status == 'sent' &&
+                       resource.data.testOnly == false) ||
+                      isAgronomist());
+      allow create: if isAgronomist() && validFarmerAdvice() &&
+                       farmerShares(request.resource.data.farmerUid) &&
+                       request.resource.data.version == 1 &&
+                       request.resource.data.createdBy == uid() &&
+                       request.resource.data.createdAt == request.time;
+      allow update: if isAgronomist() && validFarmerAdvice() &&
+                       resource.data.get('testOnly', false) == false &&
+                       request.resource.data.farmerUid == resource.data.farmerUid &&
+                       request.resource.data.version == resource.data.version + 1 &&
+                       request.resource.data.createdBy == resource.data.createdBy &&
+                       request.resource.data.createdByName == resource.data.createdByName &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       (request.resource.data.status != 'sent' ||
+                          farmerShares(request.resource.data.farmerUid)) &&
+                       (request.resource.data.status == 'sent' || keepsSender());
+      // Only never-sent drafts can be deleted; sent advice is withdrawn.
+      allow delete: if isAgronomist() &&
+                       resource.data.get('testOnly', false) == false &&
+                       resource.data.status == 'draft' &&
+                       resource.data.get('sentAt', null) == null;
+
+      match /history/{entryId} {
+        allow read: if isAgronomist();
+        allow create: if isAgronomist() &&
+                         request.resource.data.byUid == uid() &&
+                         request.resource.data.at == request.time &&
+                         entryId == 'v' + string(request.resource.data.version) &&
+                         getAfter(/databases/$(database)/documents/farmer_advice/$(adviceId))
+                           .data.version == request.resource.data.version;
+        allow delete: if isAgronomist() &&
+                         !existsAfter(/databases/$(database)/documents/farmer_advice/$(adviceId)) &&
+                         get(/databases/$(database)/documents/farmer_advice/$(adviceId)).data.status == 'draft' &&
+                         get(/databases/$(database)/documents/farmer_advice/$(adviceId)).data.get('sentAt', null) == null;
+      }
+    }
+
+    // Farmers' privacy choices (lib/services/privacy_settings.dart):
+    // shareWithAgronomists — missing = on. Read by the Cloud Functions
+    // (functions/agronomist.js) and the farmer_advice rules above.
+    match /privacySettings/{ownerId} {
+      allow read: if signedIn() && uid() == ownerId;
+      allow create, update: if signedIn() && uid() == ownerId &&
+                               request.resource.data.keys().hasOnly(['shareWithAgronomists', 'updatedAt']) &&
+                               request.resource.data.shareWithAgronomists is bool;
+    }
+
+    // Live feed of farmers' entries for the Agronomist panel — written only
+    // by the Cloud Functions, and only for farmers who share their records.
+    // agronomistAccessLog / agronomistPushState: server only (admins read
+    // them through the catch-all).
+    match /farmerActivity/{entryId} {
+      allow read: if isAgronomist();
+    }
+
+    // ════════════════════════════════════════════════════════════════
     //  Push notifications
     //   deviceTokens/{fcmToken} {uid}  — one doc per device; a new sign-in
     //     on a shared phone moves the device to the new user.
@@ -251,7 +361,8 @@ service cloud.firestore {
         return d.keys().hasOnly(['push', 'weatherAlerts', 'advisories', 'approvals',
                                  'fieldReminders', 'pestReminders', 'diseaseReminders',
                                  'taskReminders', 'taskReminderHour', 'taskReminderMinute',
-                                 'updatedAt']) &&
+                                 'farmerActivity', 'updatedAt']) &&
+               d.get('farmerActivity', true) is bool &&
                d.push is bool && d.weatherAlerts is bool && d.advisories is bool &&
                d.approvals is bool && d.fieldReminders is bool && d.pestReminders is bool &&
                d.diseaseReminders is bool && d.taskReminders is bool &&
@@ -271,9 +382,11 @@ service cloud.firestore {
     //   weatherStations/{gatewayId}          labels + provider per station
     //   stationProviders/{id}                NuaSense-compatible accounts
     //   stationProviderSecrets/{id}          their API keys
+    //   weatherArchive/{gatewayId}/days/{d}  every recorded station hour and
+    //                                        satellite hour (functions/weather_history.js)
     // No client rules on purpose: only the Cloud Functions and admins (via the
     // admin catch-all above) touch them; farmers get labels through
-    // getNuaSenseData, and never a key.
+    // getNuaSenseData and history through weatherHistory, and never a key.
 
     // Which of the account's stations each of its farms uses — the farmer's
     // own choice (lib/services/station_preferences.dart). Access to station

@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kilimomkononi/screens/user_profile.dart';
 import 'package:kilimomkononi/services/offline_queue_service.dart';
+import 'package:kilimomkononi/services/privacy_settings.dart';
+import 'package:kilimomkononi/utils/friendly_error.dart';
 import 'package:kilimomkononi/settings/about_kilimo_mkononi_screen.dart';
 import 'package:kilimomkononi/settings/account_settings_screen.dart';
 import 'package:kilimomkononi/settings/appearance/appearance.dart';
@@ -161,6 +163,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
         ),
+        if (!edu)
+          const SettingsSection(
+            title: 'Privacy',
+            color: Color(0xFF00838F),
+            footer: 'Field Agronomists use your plots, soil tests and pest / disease records to send you advice '
+                'made for your farm. If you turn this off, they can\'t see your records or send you personal '
+                'advice — your reports still count, without your name, in area trends.',
+            children: [AgronomistSharingTile()],
+          ),
         if (!edu)
           SettingsSection(title: 'Offline data', color: const Color(0xFF2E7D32), children: [
             SettingsTile(
@@ -332,5 +343,54 @@ class _Chip extends StatelessWidget {
                 style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
           ),
         ]),
+      );
+}
+
+/// "Share my farm records with Field Agronomists" (privacySettings/{uid}).
+/// Turning it off asks first.
+class AgronomistSharingTile extends StatelessWidget {
+  const AgronomistSharingTile({super.key});
+
+  Future<void> _set(BuildContext context, bool share) async {
+    if (!share &&
+        !await confirmAction(
+          context,
+          icon: Icons.lock_outline_rounded,
+          title: 'Stop sharing your farm records?',
+          message: 'Field Agronomists will no longer see your records or be able to send you advice for your farm.',
+          confirmLabel: 'Stop sharing',
+          color: kSetRed,
+        )) {
+      return;
+    }
+    try {
+      await PrivacySettings.setSharing(share);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(share ? 'Sharing with Field Agronomists turned on' : 'Sharing turned off'),
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, 'Couldn\'t save the setting'))));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<bool>(
+        stream: PrivacySettings.watchSharing(),
+        builder: (context, snap) {
+          final on = snap.data ?? true;
+          return SettingsSwitchTile(
+            icon: Icons.support_agent_rounded,
+            color: const Color(0xFF00838F),
+            title: 'Share my farm records with Field Agronomists',
+            subtitle: on ? 'On — you can get advice made for your farm' : 'Off — agronomists can\'t see your records',
+            value: on,
+            onChanged: (v) => _set(context, v),
+          );
+        },
       );
 }

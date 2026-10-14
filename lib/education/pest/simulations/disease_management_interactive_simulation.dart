@@ -554,8 +554,7 @@ class _DiseaseManagementInteractiveSimulationState
               icon: Icon(_day >= _totalDays ? Icons.flag : Icons.skip_next),
               label: Text(_day >= _totalDays ? '🏁 Final Assessment' : '⏭ Next Day'),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 12)),
+                  backgroundColor: Colors.amber, foregroundColor: Colors.black87,),
             )),
             const SizedBox(width: 10),
             IconButton(icon: const Icon(Icons.help_outline, color: Colors.white),

@@ -100,11 +100,9 @@ class _AskTeacherScreenState extends State<AskTeacherScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
+            Center(child: ElevatedButton(
                 onPressed: _isSending ? null : _sendQuestion,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                style: ElevatedButton.styleFrom(),
                 child: _isSending
                     ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Text("Send Question", style: TextStyle(fontSize: 16)),

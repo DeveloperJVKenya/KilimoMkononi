@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 import 'package:kilimomkononi/models/user_model.dart';
 import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home_page.dart';
 import 'package:kilimomkononi/screens/admin/admin_management_screen.dart';
@@ -28,6 +29,7 @@ import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/iot_sensor_service.dart';
 import 'package:kilimomkononi/widgets/farm_advice_panel.dart';
 import 'package:kilimomkononi/services/notification_prefs.dart';
+import 'package:kilimomkononi/services/privacy_settings.dart';
 import 'package:kilimomkononi/services/reminder_service.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 import 'dart:async';
@@ -46,6 +48,15 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? _userData;
   Uint8List? _profileImageBytes;
   bool _isMainAdmin = false;
+
+  /// Field Agronomist (Agronomists/{uid}, granted by an admin) — gets the
+  /// panel on the dashboard. Admins without the role keep test mode, which
+  /// stays in the Admin panel.
+  bool _isAgronomist = false;
+
+  /// Farmers are told once (per device) that agronomists can see their
+  /// records, with a link to the Privacy switch in Settings.
+  bool _showSharingNotice = false;
   final logger = Logger(printer: PrettyPrinter());
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -62,6 +73,9 @@ class _HomePageState extends State<HomePage> {
     _fetchUserData();
     _listenToUserAndAdminStatus();
     _listenToAuthState();
+    PrivacySettings.noticeSeen().then((seen) {
+      if (mounted && !seen) setState(() => _showSharingNotice = true);
+    });
   }
 
   @override
@@ -196,7 +210,13 @@ class _HomePageState extends State<HomePage> {
     _subscriptions.add(FirebaseFirestore.instance.collection('Admins').doc(user.uid).snapshots().listen((snapshot) {
       if (mounted) setState(() => _isMainAdmin = snapshot.exists);
     }, onError: (Object e) => logger.e('Admin doc listener error: $e')));
+
+    _subscriptions.add(FirebaseFirestore.instance.collection('Agronomists').doc(user.uid).snapshots().listen((snapshot) {
+      if (mounted) setState(() => _isAgronomist = snapshot.exists);
+    }, onError: (Object e) => logger.e('Agronomist doc listener error: $e')));
   }
+
+  void _openAgronomistPanel() => _open(const FieldAgronomistPanelScreen());
 
   void _listenToAuthState() {
     _subscriptions.add(FirebaseAuth.instance.authStateChanges().listen((user) {
@@ -245,6 +265,12 @@ class _HomePageState extends State<HomePage> {
           decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF0B3D1E), _kGreen])),
         ),
         actions: [
+          if (_isAgronomist)
+            IconButton(
+              icon: const Icon(Icons.verified_user_rounded),
+              tooltip: 'Agronomist panel',
+              onPressed: _openAgronomistPanel,
+            ),
           if (_isMainAdmin)
             IconButton(
               icon: const Icon(Icons.admin_panel_settings),
@@ -313,6 +339,16 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.fromLTRB(side, 16, side, 0),
           sliver: SliverToBoxAdapter(child: _heroCard(fullName)),
         ),
+        if (_isAgronomist)
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(side, 14, side, 0),
+            sliver: SliverToBoxAdapter(child: _agronomistPanelCard()),
+          ),
+        if (_showSharingNotice && !_isAgronomist)
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(side, 14, side, 0),
+            sliver: SliverToBoxAdapter(child: _sharingNotice()),
+          ),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(side, 20, side, 10),
           sliver: SliverToBoxAdapter(
@@ -414,6 +450,8 @@ class _HomePageState extends State<HomePage> {
               if (county.isNotEmpty)
                 _HeroChip(Icons.place_rounded, ward.isEmpty ? county : '$ward, $county'),
               _HeroChip(Icons.bar_chart_rounded, 'Season analysis', onTap: _openSeasonAnalysis),
+              if (_isAgronomist)
+                _HeroChip(Icons.verified_user_rounded, 'Agronomist panel', onTap: _openAgronomistPanel),
               if (_isMainAdmin)
                 _HeroChip(Icons.admin_panel_settings_rounded, 'Admin panel',
                     onTap: () => _open(const AdminManagementScreen())),
@@ -442,6 +480,93 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => const ProfileEditScreen(),
       ),
     ).then((_) => _fetchUserData());
+  }
+
+  /// One-time notice: Field Agronomists can see this farmer's records.
+  Widget _sharingNotice() {
+    void dismiss() {
+      PrivacySettings.markNoticeSeen();
+      setState(() => _showSharingNotice = false);
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0F7FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF80DEEA)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.support_agent_rounded, color: Color(0xFF00838F)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Field Agronomists can now see your farm records — plots, soil tests, pests and diseases — '
+              'to send you advice made for your farm. You can turn this off in Settings → Privacy.',
+              style: TextStyle(fontSize: 13, height: 1.35, color: Color(0xFF263238)),
+            ),
+          ),
+        ]),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(spacing: 4, children: [
+            TextButton(
+              onPressed: () {
+                dismiss();
+                setState(() => _selectedIndex = 2);
+              },
+              child: const Text('Privacy settings'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00838F)),
+              onPressed: dismiss,
+              child: const Text('Got it'),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  /// Field Agronomists' way into their panel, straight under the greeting.
+  Widget _agronomistPanelCard() {
+    return Material(
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _openAgronomistPanel,
+        child: Ink(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [Color(0xFF004D40), Color(0xFF00796B), Color(0xFF558B2F)]),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), shape: BoxShape.circle),
+              child: const Icon(Icons.verified_user_rounded, size: 28, color: Colors.white),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Agronomist Panel',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+                SizedBox(height: 3),
+                Text('Live station conditions · write, verify and publish advice',
+                    style: TextStyle(fontSize: 12.5, color: Colors.white70)),
+              ]),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+              child: const Text('Open',
+                  style: TextStyle(color: Color(0xFF004D40), fontWeight: FontWeight.w800, fontSize: 12.5)),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   /// Season Analysis highlight (inside the capped content width).
@@ -580,6 +705,11 @@ class _HomePageState extends State<HomePage> {
             const _DrawerLabel('Account', Color(0xFF546E7A)),
             _DrawerItem(Icons.settings_rounded, 'Settings',
                 color: const Color(0xFF546E7A), selected: _selectedIndex == 2, onTap: () => _goTab(2)),
+            if (_isAgronomist)
+              _DrawerItem(Icons.verified_user_rounded, 'Agronomist panel',
+                  color: const Color(0xFF00796B),
+                  subtitle: 'Station conditions & verified advice',
+                  onTap: () => _navigateTo(const FieldAgronomistPanelScreen())),
             if (_isMainAdmin)
               _DrawerItem(Icons.admin_panel_settings_rounded, 'Admin panel',
                   color: const Color(0xFFF4511E), onTap: () => _navigateTo(const AdminManagementScreen())),

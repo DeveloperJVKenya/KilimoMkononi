@@ -185,8 +185,7 @@ class _SpotMistakeSheetState extends State<_SpotMistakeSheet> {
       ElevatedButton.icon(onPressed: _load,
           icon: const Icon(Icons.refresh, size: 16),
           label: const Text('Try again'),
-          style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+          style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white,)),
     ]),
   );
 
@@ -277,27 +276,19 @@ class _SpotMistakeSheetState extends State<_SpotMistakeSheet> {
           ]),
         ),
         const SizedBox(height: 20),
-        Row(children: [
-          Expanded(child: OutlinedButton.icon(
+        Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [OutlinedButton.icon(
             onPressed: _load,
             icon: const Icon(Icons.refresh, size: 16),
             label: const Text('New sentence'),
             style: OutlinedButton.styleFrom(
-                foregroundColor: c, side: BorderSide(color: c),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-          )),
-          const SizedBox(width: 12),
-          Expanded(child: ElevatedButton.icon(
+                foregroundColor: c, side: BorderSide(color: c),),
+          ), ElevatedButton.icon(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.check, size: 16),
             label: const Text('Done'),
             style: ElevatedButton.styleFrom(
-                backgroundColor: c, foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-          )),
-        ]),
+                backgroundColor: c, foregroundColor: Colors.white,),
+          )]),
       ],
     ]);
   }
@@ -339,10 +330,7 @@ class _TFButton extends StatelessWidget {
     style: ElevatedButton.styleFrom(
         backgroundColor: color.shade50,
         foregroundColor: color.shade800,
-        elevation: 0,
-        side: BorderSide(color: color.withValues(alpha: 0.2)),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        side: BorderSide(color: color.withValues(alpha: 0.2)),),
     child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
   );
 }

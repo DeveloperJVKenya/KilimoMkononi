@@ -681,8 +681,6 @@ class _EduFarmConditionsScreenState
           style: ElevatedButton.styleFrom(
             backgroundColor: _kMid,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)),
           ),
         ),
       ]),

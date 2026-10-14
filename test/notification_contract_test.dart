@@ -8,6 +8,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_conditions.dart';
+import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
+import 'package:kilimomkononi/services/notification_prefs.dart';
 import 'package:kilimomkononi/services/notification_service.dart';
 
 void main() {
@@ -27,8 +29,39 @@ void main() {
         .allMatches(RegExp(r'const ROUTE = \{([^}]*)\}').firstMatch(server)!.group(1)!)
         .map((m) => m.group(1)!)
         .toSet();
-    expect({KmRoute.weatherStation, KmRoute.notifications, KmRoute.eduHome, KmRoute.advisory},
-        containsAll(routes));
+    expect({
+      KmRoute.weatherStation,
+      KmRoute.notifications,
+      KmRoute.eduHome,
+      KmRoute.advisory,
+      KmRoute.agronomistFarmer,
+      KmRoute.agronomistPanel,
+    }, containsAll(routes));
+    // main.dart's handler opens each of them.
+    final main = File('lib/main.dart').readAsStringSync();
+    for (final r in ['weatherStation', 'notifications', 'eduHome', 'advisory', 'agronomistFarmer', 'agronomistPanel']) {
+      expect(main, contains('case KmRoute.$r'), reason: 'route $r');
+    }
+  });
+
+  test('push settings the server checks exist in the app and the rules', () {
+    final keys = RegExp(r'return "([A-Za-z]+)";')
+        .allMatches(RegExp(r'function prefKeyFor\(type\) \{([\s\S]*?)\n\}').firstMatch(server)!.group(1)!)
+        .map((m) => m.group(1)!)
+        .toSet();
+    expect(keys, containsAll(['weatherAlerts', 'advisories', 'approvals', 'farmerActivity']));
+    expect(NotificationPrefs.defaults.toMap().keys, containsAll(keys));
+    final rules = File('firestore.rules').readAsStringSync();
+    final allowed = RegExp(r"function validPrefs\(\) \{[\s\S]*?hasOnly\(\[([\s\S]*?)\]\)").firstMatch(rules)!.group(1)!;
+    for (final k in NotificationPrefs.defaults.toMap().keys) {
+      expect(allowed, contains("'$k'"), reason: 'rules must allow $k');
+    }
+  });
+
+  test('agronomist panel tabs match the digest push', () {
+    final agro = File('functions/agronomist.js').readAsStringSync();
+    final tab = RegExp(r'data: \{ tab: "([a-z]+)" \}').firstMatch(agro)!.group(1)!;
+    expect(AgronomistPanelTab.values.map((t) => t.name), contains(tab));
   });
 
   test('weather-alert categories file under the same farm sections in the app and the functions', () {

@@ -4,6 +4,8 @@
 //
 //   Farm alerts      today's plan from the station (buildKmDayPlan) plus the
 //                    live condition alerts (station, soil sensor, satellite)
+//   For you          custom advice a Field Agronomist wrote for this farmer
+//                    from their records (farmer_advice)
 //   Verified advice  advisories a Field Agronomist published for the
 //                    farmer's crops and the station's current conditions
 //   AI advice        Gemini's suggestions for the same conditions — soil,
@@ -40,10 +42,16 @@ class FarmAdvice {
   final String? stationId;
   final String stationName;
 
+  /// Every station this account can pick from (agronomists / admins: all).
+  final List<NuaStation> stations;
+
   /// Null without live station data (none installed, or offline).
   final WeatherDayPlan? plan;
   final FarmAlertsResult? alerts;
   final List<AgronomicAdvisory> verified;
+
+  /// Custom advice a Field Agronomist wrote for this farmer (newest first).
+  final List<AgronomicAdvisory> forYou;
   final List<String> crops;
   final DateTime loadedAt;
 
@@ -51,9 +59,11 @@ class FarmAdvice {
     this.reading,
     this.stationId,
     this.stationName = '',
+    this.stations = const [],
     this.plan,
     this.alerts,
     this.verified = const [],
+    this.forYou = const [],
     this.crops = const [],
     required this.loadedAt,
   });
@@ -89,10 +99,11 @@ class FarmAdviceService {
     final now = DateTime.now();
     String? stationId;
     var stationName = '';
+    var stations = const <NuaStation>[];
     try {
       // The station of the farm the farmer is looking at (accounts can have
       // several stations — one per farm).
-      final stations = await NuaSenseService.getStations();
+      stations = await NuaSenseService.getStations();
       final s = NuaSenseService.stationForPlot(
         stations,
         await FarmLocationService.getSelectedPlotId(),
@@ -134,15 +145,23 @@ class FarmAdviceService {
         debugPrint('[FarmAdviceService] verified: $e');
         return const <AgronomicAdvisory>[];
       }),
+      (uid == null ? Future.value(const <AgronomicAdvisory>[]) : AgronomicAdvisoryService.directFor(uid))
+          .then<Object?>((r) => r)
+          .catchError((Object e) {
+        debugPrint('[FarmAdviceService] for you: $e');
+        return const <AgronomicAdvisory>[];
+      }),
     ]);
 
     return FarmAdvice(
       reading: reading,
       stationId: stationId,
       stationName: stationName,
+      stations: stations,
       plan: live ? buildKmDayPlan(reading, cropNames: crops ?? const []) : null,
       alerts: results[0] as FarmAlertsResult?,
       verified: (results[1] as List<AgronomicAdvisory>?) ?? const [],
+      forYou: (results[2] as List<AgronomicAdvisory>?) ?? const [],
       crops: crops ?? const [],
       loadedAt: now,
     );
