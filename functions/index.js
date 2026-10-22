@@ -238,6 +238,10 @@ const NUASENSE_ALLOWED_ENDPOINTS = [
   "derived/fields",
   "derived/forecast",
   "stations",
+  // Soil sensor attached to the station (moisture % VWC, temperature °C,
+  // EC µS/cm) — lib/services/soil_sensor_service.dart.
+  "soil",
+  "soil/range",
 ];
 
 // This deployment is Kilimo Mkononi's — hardcoded so a mistaken call to

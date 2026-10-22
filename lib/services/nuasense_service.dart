@@ -263,6 +263,12 @@ class NuaStation {
   final DateTime? lastSeen;
   final bool online;
 
+  /// Soil sensor attached to this station, as the admin confirmed it:
+  /// true / false, or null when not confirmed (stations added before soil
+  /// sensors — the app then shows soil data only if the station sends some).
+  /// See SoilSensorService.
+  final bool? soilSensor;
+
   const NuaStation({
     required this.id,
     required this.name,
@@ -270,6 +276,7 @@ class NuaStation {
     this.lon,
     this.lastSeen,
     required this.online,
+    this.soilSensor,
   });
 
   /// NuaSense sends coordinates as `location: {lat, lon, elevation_m}`;
@@ -284,6 +291,7 @@ class NuaStation {
         lon:  n(j['lon']) ?? n(j['longitude']) ?? n(loc['lon']),
         lastSeen: DateTime.tryParse(j['last_seen']?.toString() ?? ''),
         online: j['online'] == true || j['status']?.toString() == 'online',
+        soilSensor: j['soil_sensor'] is bool ? j['soil_sensor'] as bool : null,
       );
   }
 }
@@ -716,6 +724,14 @@ class NuaSenseService {
   }
 
   // ── Firebase call ─────────────────────────────────────────────────────────
+
+  /// The station proxy for other station data (e.g. the soil sensor —
+  /// SoilSensorService): same access rules, {} on failure.
+  static Future<Map<String, dynamic>> proxy(
+    String endpoint,
+    Map<String, String> params, {
+    bool allStations = false,
+  }) => _call(endpoint, params, allStations: allStations);
 
   static Future<Map<String, dynamic>> _call(
     String endpoint,

@@ -16,6 +16,11 @@
 // connected). An account can hold several stations; the farmer chooses in
 // the app which farm uses which (shown here read-only). A new connection
 // sends the account a notification; its data shows straight away.
+//
+// Soil sensors: adding a station asks whether a soil probe is attached
+// (required, with a live "Check now"); connecting an account to a station
+// whose answer isn't confirmed yet asks too. Every account connected to a
+// station with a soil sensor sees its soil readings (SoilSensorService).
 
 import 'dart:async';
 
@@ -114,17 +119,29 @@ class _WeatherStationsAdminScreenState extends State<WeatherStationsAdminScreen>
       ),
     );
     if (r == null) return;
-    await _run(
-      () => WeatherStationAdminService.saveStation(
+    final saved = s == null ? 'Station "${r.label}" added' : 'Station "${r.label}" saved';
+    try {
+      final check = await WeatherStationAdminService.saveStation(
         gatewayId: r.gatewayId,
         label: r.label,
         providerId: r.providerId,
         notes: r.notes,
         inServiceFrom: r.inServiceFrom,
-      ),
-      s == null ? 'Station "${r.label}" added' : 'Station "${r.label}" saved',
-      'Couldn\'t save the station',
-    );
+        soilSensor: r.soilSensor,
+      );
+      _snack(_soilSavedNote(saved, r.soilSensor, check), ok: check == null || check.found);
+      await _load();
+    } catch (e) {
+      _snack(friendlyError(e, 'Couldn\'t save the station'), ok: false);
+    }
+  }
+
+  /// "Station saved · soil sensor found" / "… no soil readings yet" after a
+  /// save that confirmed a soil sensor.
+  String _soilSavedNote(String done, SoilSensorAnswer soil, SoilSensorCheck? check) {
+    if (soil != SoilSensorAnswer.attached || check == null) return done;
+    if (check.found) return '$done · soil sensor found, its readings are now shown to connected accounts';
+    return '$done · soil sensor saved, but it hasn\'t sent readings yet — they appear once it reports';
   }
 
   Future<void> _connect([AdminStation? preset]) async {
@@ -144,6 +161,7 @@ class _WeatherStationsAdminScreenState extends State<WeatherStationsAdminScreen>
         providerId: r.station.providerId,
         label: r.label,
         replaceOtherStations: r.replaceOthers,
+        soilSensor: r.soilSensor,
       ),
       '${r.farmer.displayName} is now connected to ${r.label ?? r.station.displayName}',
       'Couldn\'t connect the account',
@@ -200,6 +218,13 @@ class _WeatherStationsAdminScreenState extends State<WeatherStationsAdminScreen>
               selectable: true),
           _kv('Last seen', s.lastSeen == null ? '—' : DateFormat('EEE d MMM yyyy · HH:mm').format(s.lastSeen!.toLocal())),
           _kv('In service from', s.inServiceFrom == null ? 'Not set' : DateFormat('EEE d MMM yyyy').format(s.inServiceFrom!)),
+          _kv('Soil sensor', switch (s.soilSensor) {
+            SoilSensorAnswer.attached => 'Attached (confirmed)',
+            SoilSensorAnswer.none => 'None (confirmed)',
+            SoilSensorAnswer.unconfirmed => 'Not confirmed',
+          }),
+          if (s.soilSensorCheck != null && s.soilSensorCheck!.devices.isNotEmpty)
+            _kv('Soil sensor device', s.soilSensorCheck!.devices.join(', '), selectable: true),
           if (s.notes.isNotEmpty) _kv('Notes', s.notes),
         ],
       ),
@@ -565,6 +590,11 @@ class _StationCard extends StatelessWidget {
                     s.inServiceFrom == null
                         ? const _Tag('In-service date not set', _kAmber)
                         : _Tag('In service since ${DateFormat('d MMM yyyy').format(s.inServiceFrom!)}', _kGreen),
+                  switch (s.soilSensor) {
+                    SoilSensorAnswer.attached => const _Tag('Soil sensor', _kSoil),
+                    SoilSensorAnswer.none => const _Tag('No soil sensor', Colors.black54),
+                    SoilSensorAnswer.unconfirmed => const _Tag('Soil sensor: not confirmed', _kAmber),
+                  },
                 ]),
               ]),
             ),
@@ -741,6 +771,147 @@ Widget _sheet(BuildContext context, String title, List<Widget> children, {List<W
   ]),
 );
 
+// ── Soil sensor question (add station / connect an account) ─────────────────
+
+const _kSoil = Color(0xFF6D4C41);
+
+/// "Is a soil sensor attached to this station?" — Yes / No, with a live
+/// check of what the station's soil sensor sends.
+class _SoilSensorQuestion extends StatefulWidget {
+  final SoilSensorAnswer value;
+  final ValueChanged<SoilSensorAnswer> onChanged;
+
+  /// The gateway ID to check (may still be empty while typing).
+  final String Function() gatewayId;
+  final SoilSensorCheck? lastCheck;
+
+  /// Shown under the question (e.g. what the farmer gets).
+  final String? helper;
+
+  const _SoilSensorQuestion({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    required this.gatewayId,
+    this.lastCheck,
+    this.helper,
+  });
+
+  @override
+  State<_SoilSensorQuestion> createState() => _SoilSensorQuestionState();
+}
+
+class _SoilSensorQuestionState extends State<_SoilSensorQuestion> {
+  late SoilSensorCheck? _check = widget.lastCheck;
+  bool _checking = false;
+  String? _error;
+
+  Future<void> _run() async {
+    final g = widget.gatewayId().trim();
+    if (g.isEmpty) {
+      setState(() => _error = 'Enter the gateway ID first.');
+      return;
+    }
+    setState(() {
+      _checking = true;
+      _error = null;
+    });
+    try {
+      final c = await WeatherStationAdminService.checkSoil(g);
+      if (mounted) setState(() => _check = c);
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e, 'Couldn\'t check the soil sensor'));
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Widget _choice(SoilSensorAnswer a, String label, IconData icon) {
+    final on = widget.value == a;
+    return ChoiceChip(
+      selected: on,
+      avatar: Icon(icon, size: 16, color: on ? Colors.white : _kSoil),
+      label: Text(label),
+      labelStyle: TextStyle(color: on ? Colors.white : Colors.black87, fontWeight: FontWeight.w700),
+      selectedColor: _kSoil,
+      showCheckmark: false,
+      onSelected: (_) => widget.onChanged(a),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _check;
+    final fmt = DateFormat('d MMM yyyy · HH:mm');
+    String? result;
+    var ok = false;
+    if (c != null) {
+      if (!c.supported) {
+        result = c.message.isNotEmpty ? c.message : 'The station provider didn\'t answer for soil data.';
+      } else if (!c.found) {
+        result = 'No soil readings from this station yet.';
+      } else {
+        ok = true;
+        result = 'Soil sensor found · ${c.probes <= 1 ? '1 probe' : '${c.probes} probes'}'
+            '${c.metricsLabel.isEmpty ? '' : ' · ${c.metricsLabel}'}'
+            '${c.firstReading == null ? '' : '\nReadings since ${fmt.format(c.firstReading!.toLocal())}'}'
+            '${c.lastReading == null ? '' : '\nLast reading ${fmt.format(c.lastReading!.toLocal())}'}';
+      }
+    }
+    final warn = widget.value == SoilSensorAnswer.attached && c != null && !c.found;
+    final mismatch = widget.value == SoilSensorAnswer.none && c != null && c.found;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Is a soil sensor attached to this station?',
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black87)),
+      const SizedBox(height: 2),
+      Text(
+        widget.helper ??
+            'Stations can come with a soil probe (soil moisture, soil temperature, soil EC). '
+                'Every account connected to the station sees its soil readings.',
+        style: const TextStyle(fontSize: 11.5, color: Colors.black54, height: 1.35),
+      ),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        _choice(SoilSensorAnswer.attached, 'Yes, attached', Icons.grass_rounded),
+        _choice(SoilSensorAnswer.none, 'No soil sensor', Icons.block_rounded),
+        TextButton.icon(
+          onPressed: _checking ? null : _run,
+          icon: _checking
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.network_check_rounded, size: 18),
+          label: const Text('Check now'),
+        ),
+      ]),
+      if (_error != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(_error!, style: const TextStyle(fontSize: 12, color: _kRed)),
+        ),
+      if (result != null)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: ok ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ok ? const Color(0xFFA5D6A7) : _kAmber.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            [
+              result,
+              if (warn)
+                'You can still save it as attached — readings show up once the probe reports. '
+                    'Check that it is installed and connected.',
+              if (mismatch) 'This station does send soil readings — choose "Yes, attached" to show them.',
+            ].join('\n'),
+            style: const TextStyle(fontSize: 12, height: 1.35),
+          ),
+        ),
+    ]);
+  }
+}
+
 // ── Add / rename a station ───────────────────────────────────────────────────
 
 class _StationFormResult {
@@ -749,7 +920,8 @@ class _StationFormResult {
   final String providerId;
   final String notes;
   final DateTime? inServiceFrom;
-  const _StationFormResult(this.gatewayId, this.label, this.providerId, this.notes, this.inServiceFrom);
+  final SoilSensorAnswer soilSensor;
+  const _StationFormResult(this.gatewayId, this.label, this.providerId, this.notes, this.inServiceFrom, this.soilSensor);
 }
 
 class _StationForm extends StatefulWidget {
@@ -769,6 +941,7 @@ class _StationFormState extends State<_StationForm> {
   late String _provider = widget.station?.providerId ??
       (widget.providers.isEmpty ? 'nuasense' : widget.providers.first.id);
   late DateTime? _inService = widget.station?.inServiceFrom;
+  late SoilSensorAnswer _soil = widget.station?.soilSensor ?? SoilSensorAnswer.unconfirmed;
   InServiceSuggestion? _suggestion;
   bool _suggesting = false;
   String? _suggestError;
@@ -890,7 +1063,11 @@ class _StationFormState extends State<_StationForm> {
       setState(() => _error = 'Give the station a name of 2–60 characters, e.g. "Kamau farm – Nyeri".');
       return;
     }
-    Navigator.pop(context, _StationFormResult(g, l, _provider, _notes.text.trim(), _inService));
+    if (!_editing && _soil == SoilSensorAnswer.unconfirmed) {
+      setState(() => _error = 'Confirm whether a soil sensor is attached to this station.');
+      return;
+    }
+    Navigator.pop(context, _StationFormResult(g, l, _provider, _notes.text.trim(), _inService, _soil));
   }
 
   @override
@@ -933,6 +1110,20 @@ class _StationFormState extends State<_StationForm> {
             helper: 'This is what farmers and agronomists see everywhere in the app.'),
       ),
       _inServiceField(),
+      const SizedBox(height: 16),
+      _SoilSensorQuestion(
+        value: _soil,
+        onChanged: (a) => setState(() {
+          _soil = a;
+          _error = null;
+        }),
+        gatewayId: () => _gateway.text,
+        lastCheck: widget.station?.soilSensorCheck,
+        helper: _editing && _soil == SoilSensorAnswer.unconfirmed
+            ? 'Not confirmed yet — connected accounts see soil readings only if the station sends some. '
+                'Confirm it so every connected account gets its soil data.'
+            : null,
+      ),
       const SizedBox(height: 14),
       TextField(
         controller: _notes,
@@ -948,7 +1139,7 @@ class _StationFormState extends State<_StationForm> {
         style: FilledButton.styleFrom(backgroundColor: _kGreen),
         onPressed: _save,
         icon: Icon(_editing ? Icons.save_rounded : Icons.add_rounded, size: 18),
-        label: Text(_editing ? 'Save name' : 'Add station'),
+        label: Text(_editing ? 'Save' : 'Add station'),
       ),
     ]);
   }
@@ -961,7 +1152,8 @@ class _ConnectResult {
   final AdminStation station;
   final String? label;
   final bool replaceOthers;
-  const _ConnectResult(this.farmer, this.station, this.label, this.replaceOthers);
+  final SoilSensorAnswer soilSensor;
+  const _ConnectResult(this.farmer, this.station, this.label, this.replaceOthers, this.soilSensor);
 }
 
 class _ConnectFarmerSheet extends StatefulWidget {
@@ -984,6 +1176,9 @@ class _ConnectFarmerSheetState extends State<_ConnectFarmerSheet> {
   StationFarmer? _farmer;
   late AdminStation? _station = widget.preset;
   bool _replaceOthers = false;
+
+  /// Asked only when the station's soil sensor isn't confirmed yet.
+  SoilSensorAnswer _soil = SoilSensorAnswer.unconfirmed;
   String? _error;
 
   @override
@@ -1039,8 +1234,42 @@ class _ConnectFarmerSheetState extends State<_ConnectFarmerSheet> {
       setState(() => _error = 'This station has no name yet — give it one (2–60 characters).');
       return;
     }
-    Navigator.pop(context, _ConnectResult(f, s, s.needsLabel ? label : null, _replaceOthers));
+    if (s.soilSensor == SoilSensorAnswer.unconfirmed && _soil == SoilSensorAnswer.unconfirmed) {
+      setState(() => _error = 'Confirm whether a soil sensor is attached to this station.');
+      return;
+    }
+    Navigator.pop(context, _ConnectResult(f, s, s.needsLabel ? label : null, _replaceOthers, _soil));
   }
+
+  /// What the account gets with this station (soil confirmed), or the
+  /// question (soil not confirmed yet).
+  Widget _soilPart(AdminStation s) => switch (s.soilSensor) {
+        SoilSensorAnswer.attached => _note(Icons.grass_rounded, _kSoil,
+            'This station has a soil sensor — the account also gets its soil moisture, soil temperature and soil EC.'),
+        SoilSensorAnswer.none => _note(Icons.cloud_outlined, Colors.black54,
+            'No soil sensor on this station — the account gets its weather data.'),
+        SoilSensorAnswer.unconfirmed => _SoilSensorQuestion(
+            key: ValueKey(s.gatewayId),
+            value: _soil,
+            onChanged: (a) => setState(() {
+              _soil = a;
+              _error = null;
+            }),
+            gatewayId: () => s.gatewayId,
+            lastCheck: s.soilSensorCheck,
+            helper: 'Not confirmed yet for this station. If it has one, the account (and everyone else '
+                'connected to the station) gets its soil moisture, soil temperature and soil EC.',
+          ),
+      };
+
+  Widget _note(IconData icon, Color color, String text) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, height: 1.35))),
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -1108,8 +1337,15 @@ class _ConnectFarmerSheetState extends State<_ConnectFarmerSheet> {
               child: Text('${x.displayName}${x.online ? '' : ' (offline)'}', overflow: TextOverflow.ellipsis),
             ),
         ],
-        onChanged: (v) => setState(() => _station = widget.stations.firstWhere((x) => x.gatewayId == v)),
+        onChanged: (v) => setState(() {
+          _station = widget.stations.firstWhere((x) => x.gatewayId == v);
+          _soil = SoilSensorAnswer.unconfirmed;
+        }),
       ),
+      if (s != null) ...[
+        const SizedBox(height: 12),
+        _soilPart(s),
+      ],
       if (s != null && s.needsLabel) ...[
         const SizedBox(height: 10),
         TextField(

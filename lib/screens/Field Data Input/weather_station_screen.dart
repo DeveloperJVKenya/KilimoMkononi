@@ -1,7 +1,8 @@
 // lib/screens/Field Data Input/weather_station_screen.dart
 //
 // The farm's weather station — its data only:
-//   status → conditions (always open, with every sensor value) → last 24 h.
+//   status → conditions (always open, with every sensor value) → soil sensor
+//   (when the station has one — SoilSensorService) → last 24 h.
 // Advice built on these readings (today's plan, farm alerts, verified and AI
 // advice) lives on Home and in Notifications (lib/widgets/farm_advice_panel.dart);
 // the area forecast is on the Weather forecast screen. A link card points
@@ -13,6 +14,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kilimomkononi/services/nuasense_service.dart';
+import 'package:kilimomkononi/services/soil_sensor_service.dart';
 import 'package:kilimomkononi/services/farm_location_service.dart';
 import 'package:kilimomkononi/services/station_preferences.dart';
 import 'package:kilimomkononi/services/weather_day_plan.dart';
@@ -22,6 +24,7 @@ import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_ser
 import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 import 'package:kilimomkononi/settings/notifications_screen.dart';
 import 'package:kilimomkononi/widgets/google_weather_widgets.dart';
+import 'package:kilimomkononi/widgets/soil_sensor_card.dart';
 import 'package:kilimomkononi/utils/friendly_error.dart';
 
 class _C {
@@ -111,6 +114,9 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
   String? _error;
   NuaSenseReading? _reading;
   List<NuaSenseHourPoint> _history = [];
+
+  /// The selected station's soil sensor (null = not asked / no station).
+  SoilSensorData? _soil;
   String _county = '';
   String _userId = '';
   List<PlotSummary> _plots = [];
@@ -364,6 +370,11 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
       _error = null;
     });
     try {
+      // Soil sensor alongside the weather; its failure never blocks the weather.
+      final stationId = _selectedStationId;
+      final soilFuture = stationId != null && SoilSensorService.shouldFetch(_soilConfirmed)
+          ? SoilSensorService.load(stationId).then<SoilSensorData?>((d) => d, onError: (_) => null)
+          : Future<SoilSensorData?>.value(null);
       final loc = await FarmLocationService.getLocation();
       final reading = await NuaSenseService.getLatestReading(
         stationId: _selectedStationId,
@@ -371,12 +382,14 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
       final history = await NuaSenseService.get24hHistory(
         stationId: _selectedStationId,
       );
+      final soil = await soilFuture;
       if (!mounted) return;
       setState(() {
         _county = loc.county;
         _isPlotGps = loc.isPlotGps;
         _reading = reading;
         _history = history;
+        _soil = soil;
         _loading = false;
       });
       debugPrint('Using station: $_selectedStationId');
@@ -392,8 +405,16 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
 
   Future<void> _refresh() async {
     NuaSenseService.clearCache(stationId: _selectedStationId);
+    SoilSensorService.clearCache(stationId: _selectedStationId);
     await _load();
   }
+
+  /// The admin's answer for the selected station: soil sensor attached
+  /// (true), none (false) or not confirmed (null).
+  bool? get _soilConfirmed =>
+      _stations.where((s) => s.id == _selectedStationId).firstOrNull?.soilSensor;
+
+  bool get _showSoil => _soil != null && SoilSensorService.shouldShow(_soilConfirmed, _soil);
 
   List<String> get _cropNames => _farmerCrops;
 
@@ -503,6 +524,10 @@ class _WeatherStationScreenState extends State<WeatherStationScreen> {
                   _buildConditionsSummary(plan!)
                 else
                   _buildOfflineCard(),
+                if (_showSoil) ...[
+                  const SizedBox(height: 14),
+                  SoilSensorCard(data: _soil!, confirmed: _soilConfirmed == true),
+                ],
                 const SizedBox(height: 14),
                 _buildAdviceLink(),
                 if (_adminTestMode) ...[

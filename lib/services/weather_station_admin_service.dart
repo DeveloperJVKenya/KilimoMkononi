@@ -60,6 +60,72 @@ class StationFarmer {
   );
 }
 
+/// The admin's answer to "is a soil sensor attached to this station?"
+/// (`weatherStations.soilSensor`). [unconfirmed] = stations from before soil
+/// sensors: the app shows soil data for them only if the station sends some.
+enum SoilSensorAnswer {
+  attached('attached'),
+  none('none'),
+  unconfirmed('');
+
+  final String value;
+  const SoilSensorAnswer(this.value);
+
+  static SoilSensorAnswer from(Object? v) =>
+      values.firstWhere((a) => a.value.isNotEmpty && a.value == v, orElse: () => unconfirmed);
+}
+
+/// A live check of the station's soil sensor (provider /soil + /soil/range).
+class SoilSensorCheck {
+  /// The provider answered for soil data at all.
+  final bool supported;
+
+  /// At least one soil reading exists.
+  final bool found;
+  final List<String> devices;
+  final int probes;
+  final List<String> sensorTypes;
+  final DateTime? firstReading;
+  final DateTime? lastReading;
+  final DateTime? checkedAt;
+  final String message;
+
+  const SoilSensorCheck({
+    this.supported = true,
+    this.found = false,
+    this.devices = const [],
+    this.probes = 0,
+    this.sensorTypes = const [],
+    this.firstReading,
+    this.lastReading,
+    this.checkedAt,
+    this.message = '',
+  });
+
+  static SoilSensorCheck? fromMap(Object? v) {
+    if (v is! Map) return null;
+    final m = _map(v);
+    return SoilSensorCheck(
+      supported: m['supported'] != false,
+      found: m['found'] == true,
+      devices: (m['devEuis'] as List?)?.map((e) => '$e').toList() ?? const [],
+      probes: (m['probes'] as num?)?.toInt() ?? 0,
+      sensorTypes: (m['sensorTypes'] as List?)?.map((e) => '$e').toList() ?? const [],
+      firstReading: DateTime.tryParse(_s(m['firstReading'])),
+      lastReading: DateTime.tryParse(_s(m['lastReading'])),
+      checkedAt: DateTime.tryParse(_s(m['checkedAt'])),
+      message: _s(m['message']),
+    );
+  }
+
+  /// "Soil moisture, soil temperature, soil EC".
+  String get metricsLabel {
+    const names = {'soil_moisture': 'moisture', 'soil_temperature': 'temperature', 'soil_ec': 'EC'};
+    final l = sensorTypes.map((t) => names[t] ?? t).toList();
+    return l.isEmpty ? '' : 'Soil ${l.join(', ')}';
+  }
+}
+
 class AdminStation {
   final String gatewayId;
 
@@ -88,6 +154,12 @@ class AdminStation {
   /// download and date range. Null = not set yet.
   final DateTime? inServiceFrom;
 
+  /// Soil sensor attached, as the admin confirmed it.
+  final SoilSensorAnswer soilSensor;
+
+  /// The live check made when "attached" was confirmed (null = none yet).
+  final SoilSensorCheck? soilSensorCheck;
+
   const AdminStation({
     required this.gatewayId,
     this.label,
@@ -104,6 +176,8 @@ class AdminStation {
     this.lon,
     this.farmers = const [],
     this.inServiceFrom,
+    this.soilSensor = SoilSensorAnswer.unconfirmed,
+    this.soilSensorCheck,
   });
 
   bool get needsLabel => label == null || label!.trim().isEmpty;
@@ -124,6 +198,8 @@ class AdminStation {
     lon: (m['lon'] as num?)?.toDouble(),
     farmers: _list(m['farmers']).map(StationFarmer.fromMap).toList(),
     inServiceFrom: DateTime.tryParse(_s(m['inServiceFrom'])),
+    soilSensor: SoilSensorAnswer.from(m['soilSensor']),
+    soilSensorCheck: SoilSensorCheck.fromMap(m['soilSensorCheck']),
   );
 }
 
@@ -238,20 +314,31 @@ class WeatherStationAdminService {
   }
 
   /// Registers a station or changes its label / provider / notes /
-  /// in-service date (null clears it).
-  static Future<void> saveStation({
+  /// in-service date (null clears it) / soil sensor. [soilSensor] is required
+  /// when adding a station. Returns the live soil check when "attached" was
+  /// saved (null otherwise).
+  static Future<SoilSensorCheck?> saveStation({
     required String gatewayId,
     required String label,
     required String providerId,
     String notes = '',
     DateTime? inServiceFrom,
-  }) => _call('saveStation', {
-        'gatewayId': gatewayId,
-        'label': label,
-        'providerId': providerId,
-        'notes': notes,
-        'inServiceFrom': inServiceFrom == null ? null : _ymd(inServiceFrom),
-      });
+    SoilSensorAnswer soilSensor = SoilSensorAnswer.unconfirmed,
+  }) async {
+    final d = await _call('saveStation', {
+      'gatewayId': gatewayId,
+      'label': label,
+      'providerId': providerId,
+      'notes': notes,
+      'inServiceFrom': inServiceFrom == null ? null : _ymd(inServiceFrom),
+      if (soilSensor != SoilSensorAnswer.unconfirmed) 'soilSensor': soilSensor.value,
+    });
+    return SoilSensorCheck.fromMap(d['soilCheck']);
+  }
+
+  /// Asks the station's provider now whether its soil sensor sends readings.
+  static Future<SoilSensorCheck> checkSoil(String gatewayId) async =>
+      SoilSensorCheck.fromMap(await _call('checkSoil', {'gatewayId': gatewayId})) ?? const SoilSensorCheck();
 
   static String _ymd(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -275,18 +362,22 @@ class WeatherStationAdminService {
   /// Connects an account (farmer, agronomist or admin) to the station.
   /// Accounts can hold several stations; [replaceOtherStations] disconnects
   /// the others. Which farm uses which station, the account chooses itself.
+  /// [soilSensor] is required when the station's soil sensor isn't confirmed
+  /// yet — the account then gets the station's soil data with it.
   static Future<void> assign({
     required String gatewayId,
     required String uid,
     String providerId = 'nuasense',
     String? label,
     bool replaceOtherStations = false,
+    SoilSensorAnswer soilSensor = SoilSensorAnswer.unconfirmed,
   }) => _call('assign', {
     'gatewayId': gatewayId,
     'uid': uid,
     'providerId': providerId,
     'label': ?label,
     'replaceOtherStations': replaceOtherStations,
+    if (soilSensor != SoilSensorAnswer.unconfirmed) 'soilSensor': soilSensor.value,
   });
 
   static Future<void> unassign({required String gatewayId, required String uid}) =>

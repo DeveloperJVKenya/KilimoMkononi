@@ -10,6 +10,14 @@
 //     notes, createdAt/By, updatedAt/By
 //     lat / lon / deviceName — what the provider reports; kept for backend
 //                    identification only, never shown to farmers
+//     soilSensor   — "attached" | "none": the admin's answer to "is a soil
+//                    sensor attached?" (asked when adding a station, and when
+//                    connecting an account to a station not confirmed yet).
+//                    Missing = not confirmed: the app then shows soil data
+//                    only if the station sends some (stations from before).
+//     soilSensorCheck — the live check made when "attached" was confirmed
+//                    ({ supported, found, devEuis, probes, sensorTypes,
+//                    firstReading, lastReading, checkedAt })
 //   stationProviders/{providerId}   name, baseUrl, authStyle, notes, active
 //   stationProviderSecrets/{providerId}  apiKey (written here, never returned)
 //   stationAssignments/{gatewayId}_{uid}  (see index.js getNuaSenseData)
@@ -25,12 +33,15 @@
 //   overview         providers + every station (provider listings ∪ registry
 //                    ∪ assignments) with label, status and connected farmers
 //   saveStation      register / relabel a station (gatewayId, label, providerId, notes,
-//                    inServiceFrom — readings before it are excluded everywhere)
+//                    inServiceFrom — readings before it are excluded everywhere,
+//                    soilSensor — required when adding)
+//   checkSoil        live check: does the station's soil sensor send readings?
 //   suggestInService the likely in-service date from the station's readings
 //                    (first day after its last gap of ≥ 3 days)
 //   removeStation    delete its registration and all its assignments
 //   assign           connect an account (farmer, agronomist or admin) to a
-//                    station. An account can hold several stations; its others
+//                    station (soilSensor required if the station's isn't
+//                    confirmed yet — the account gets its soil data too). An account can hold several stations; its others
 //                    are kept unless replaceOtherStations is set. Which farm
 //                    uses which station is the FARMER's choice, saved in
 //                    stationPreferences/{uid} { plots: { plotId: gatewayId } }
@@ -71,6 +82,50 @@ function stationDisplayName(raw, label, gatewayId) {
 
 /** The id NuaSense-style listings use for a station. */
 const gatewayOf = (s) => String(s?.gateway_id ?? s?.id ?? "");
+
+// ── Soil sensor (a probe attached to a station) ─────────────────────────────
+// NuaSense: GET /soil?metrics=soil_moisture,soil_temperature,soil_ec and
+// GET /soil/range. Moisture % VWC, temperature °C, EC µS/cm. Each series is
+// one probe channel ("level") of one device (devEui); soil_ec only comes back
+// when asked for by name.
+
+const SOIL_METRICS = "soil_moisture,soil_temperature,soil_ec";
+
+/** What the admin confirmed: "attached" | "none" | null (not confirmed). */
+function soilSensorState(v) {
+  return v === "attached" || v === "none" ? v : null;
+}
+
+/**
+ * /soil/range + /soil (last 24 h, hourly) → what the station's soil sensor
+ * actually sends: { found, devEuis, probes, sensorTypes, firstReading,
+ * lastReading }. found = at least one soil reading exists.
+ */
+function summarizeSoil(range, soil) {
+  const series = Array.isArray(soil?.series) ? soil.series : [];
+  const withData = series.filter((s) => Array.isArray(s?.data) && s.data.length);
+  const devEuis = [...new Set([
+    ...(range?.meta?.devEuis || []),
+    ...series.map((s) => s?.devEui).filter(Boolean),
+  ].map(String))];
+  const probes = new Set(withData.map((s) => `${s.devEui ?? ""}|${s.level ?? ""}`)).size;
+  const sensorTypes = [...new Set([
+    ...withData.map((s) => s.sensorType).filter(Boolean),
+    ...(range?.meta?.sensorTypes || []),
+  ].map(String))].sort();
+  const times = withData.flatMap((s) => s.data.map((p) => Date.parse(p?.x))).filter(Number.isFinite);
+  const firstReading = range?.range?.minTime || null;
+  const lastReading = range?.range?.maxTime ||
+    (times.length ? new Date(Math.max(...times)).toISOString() : null);
+  return {
+    found: Boolean(firstReading || lastReading || withData.length),
+    devEuis,
+    probes,
+    sensorTypes,
+    firstReading,
+    lastReading,
+  };
+}
 
 /** Request URL + headers for a provider call (key never logged). */
 function providerRequest(p, endpoint, params = {}) {
@@ -164,6 +219,27 @@ function createStationRegistry({ NUASENSE_KEY, NUASENSE_BASE }) {
     return call(p, endpoint, { ...params, gateway_id: gatewayId });
   }
 
+  /**
+   * Does this station's soil sensor send readings? Asks the provider live
+   * (2 calls). A provider without /soil reports supported: false.
+   */
+  async function checkSoil(gatewayId) {
+    try {
+      const [range, soil] = await Promise.all([
+        callForStation(gatewayId, "soil/range"),
+        callForStation(gatewayId, "soil", { metrics: SOIL_METRICS, start: "-24h", resolution: "hourly" }),
+      ]);
+      return { supported: true, ...summarizeSoil(range, soil), checkedAt: new Date().toISOString() };
+    } catch (e) {
+      console.warn(`[stations] soil check ${gatewayId}: ${e.message}`);
+      return {
+        supported: false, found: false, devEuis: [], probes: 0, sensorTypes: [],
+        firstReading: null, lastReading: null, checkedAt: new Date().toISOString(),
+        message: "The station provider didn't answer for soil data.",
+      };
+    }
+  }
+
   /** Full /stations listing of a provider ([] when it can't be reached). */
   async function listing(p) {
     try {
@@ -202,6 +278,9 @@ function createStationRegistry({ NUASENSE_KEY, NUASENSE_BASE }) {
           name: stationDisplayName(raw, m.label, g),
           label: m.label || null,
           provider_id: pid,
+          // true / false = the admin confirmed it; null = not confirmed
+          // (the app then shows soil data only if the station sends some).
+          soil_sensor: soilSensorState(m.soilSensor) === null ? null : m.soilSensor === "attached",
           lat: raw.lat ?? raw.latitude ?? m.lat ?? null,
           lon: raw.lon ?? raw.longitude ?? m.lon ?? null,
         });
@@ -210,7 +289,7 @@ function createStationRegistry({ NUASENSE_KEY, NUASENSE_BASE }) {
     return out;
   }
 
-  return { provider, stationMeta, call, callForStation, listing, describe };
+  return { provider, stationMeta, call, callForStation, checkSoil, listing, describe };
 }
 
 // ── Admin callable ───────────────────────────────────────────────────────────
@@ -332,6 +411,9 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
         notes: m.notes || "",
         // Readings before this date are excluded everywhere (weather_history.js).
         inServiceFrom: m.inServiceFrom || null,
+        // Soil sensor: what the admin confirmed + the last live check.
+        soilSensor: soilSensorState(m.soilSensor),
+        soilSensorCheck: m.soilSensorCheck || null,
         // Backend identification only (shown under "Technical details").
         deviceName: raw.name || (typeof raw.location === "string" ? raw.location : null),
         lat: raw.location?.lat ?? raw.lat ?? raw.latitude ?? null,
@@ -369,17 +451,43 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
     }
     const ref = db().doc(`weatherStations/${gatewayId}`);
     const existing = await ref.get();
+    // Soil sensor: required when a station is added (the admin confirms
+    // whether a probe came with it); optional when editing.
+    const soil = soilSensorState(d?.soilSensor);
+    if (!existing.exists && !soil) {
+      throw new HttpsError("invalid-argument", "Confirm whether a soil sensor is attached to this station.");
+    }
+    const soilBefore = existing.exists ? soilSensorState(existing.data().soilSensor) : null;
+    const soilFields = soil ? await soilConfirmation(admin, gatewayId, soil, soilBefore) : {};
     await ref.set({
       gatewayId, label, providerId,
       inServiceFrom,
       notes: String(d?.notes ?? "").trim().slice(0, 500),
+      ...soilFields,
       updatedAt: FieldValue.serverTimestamp(), updatedBy: admin,
       ...(existing.exists ? {} : { createdAt: FieldValue.serverTimestamp(), createdBy: admin }),
     }, { merge: true });
     const before = existing.exists ? existing.data().inServiceFrom || null : null;
     await log(admin, `${existing.exists ? "Updated" : "Registered"} weather station "${label}" (${gatewayId})` +
-      (inServiceFrom !== before ? ` · in service from ${inServiceFrom || "(not set)"}` : ""));
-    return { ok: true };
+      (inServiceFrom !== before ? ` · in service from ${inServiceFrom || "(not set)"}` : "") +
+      (soil && soil !== soilBefore ? ` · soil sensor ${soil === "attached" ? "attached" : "none"}` : ""));
+    return { ok: true, soilCheck: soilFields.soilSensorCheck ?? null };
+  }
+
+  /**
+   * Fields recording the admin's soil-sensor answer. "attached" is checked
+   * live against the provider (stored as soilSensorCheck — a warning in the
+   * UI if nothing arrives yet, never a refusal: a new probe may not have
+   * reported yet).
+   */
+  async function soilConfirmation(admin, gatewayId, soil, before) {
+    const out = { soilSensor: soil };
+    if (soil !== before) {
+      out.soilSensorConfirmedAt = FieldValue.serverTimestamp();
+      out.soilSensorConfirmedBy = admin;
+    }
+    if (soil === "attached") out.soilSensorCheck = await registry.checkSoil(gatewayId);
+    return out;
   }
 
   async function removeStation(admin, d) {
@@ -403,14 +511,25 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
     const replaceOthers = d?.replaceOtherStations === true || d?.keepOtherStations === false;
     const stationRef = db().doc(`weatherStations/${gatewayId}`);
     const station = await stationRef.get();
+    // Soil sensor: the admin confirms it here when the station hasn't been
+    // confirmed yet (the connect sheet asks), so the account gets the soil
+    // data with the station.
+    const soilBefore = station.exists ? soilSensorState(station.data().soilSensor) : null;
+    const soil = soilSensorState(d?.soilSensor) || soilBefore;
+    if (!soil) {
+      throw new HttpsError("invalid-argument", "Confirm whether a soil sensor is attached to this station.");
+    }
+    const soilFields = soil !== soilBefore ? await soilConfirmation(admin, gatewayId, soil, soilBefore) : {};
     const batch = db().batch();
     if (!station.exists) {
       // Connecting an unregistered (provider-listed) station registers it.
       batch.set(stationRef, {
         gatewayId, label: String(d?.label ?? "").trim() || null, providerId: String(d?.providerId || BUILTIN_PROVIDER),
-        notes: "", createdAt: FieldValue.serverTimestamp(), createdBy: admin,
+        notes: "", ...soilFields, createdAt: FieldValue.serverTimestamp(), createdBy: admin,
         updatedAt: FieldValue.serverTimestamp(), updatedBy: admin,
       });
+    } else if (Object.keys(soilFields).length) {
+      batch.set(stationRef, { ...soilFields, updatedAt: FieldValue.serverTimestamp(), updatedBy: admin }, { merge: true });
     }
     // Exactly one record per account + station (old-style doc ids go). The
     // account's OTHER stations stay — accounts can have several farms —
@@ -431,11 +550,13 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
     if (notifyUser && !already) {
       await notifyUser(uid, {
         title: "Your farm is connected to a weather station",
-        body: `${label} now sends live conditions, alerts and advice for your farm.`,
+        body: soil === "attached"
+          ? `${label} now sends live conditions, soil moisture, soil temperature and soil EC, alerts and advice for your farm.`
+          : `${label} now sends live conditions, alerts and advice for your farm.`,
         gatewayId,
       }).catch((e) => console.warn(`[stations] notify ${uid}: ${e.message}`));
     }
-    return { ok: true };
+    return { ok: true, soilCheck: soilFields.soilSensorCheck ?? null };
   }
 
   async function unassign(admin, d) {
@@ -558,6 +679,11 @@ function createStationAdminFunction({ registry, isPlatformAdmin, PLATFORM, NUASE
       case "testProvider": return testProvider(d);
       case "removeProvider": return removeProvider(admin, d);
       case "searchUsers": return searchUsers(d);
+      case "checkSoil": {
+        const g = String(d?.gatewayId ?? "").trim();
+        if (!GATEWAY_RE.test(g)) throw new HttpsError("invalid-argument", "Enter the station's gateway ID first.");
+        return registry.checkSoil(g);
+      }
       case "suggestInService": {
         const g = String(d?.gatewayId ?? "");
         if (!GATEWAY_RE.test(g)) throw new HttpsError("invalid-argument", "Unknown station.");
@@ -578,5 +704,8 @@ module.exports = {
   providerRequest,
   validateProviderInput,
   slug,
+  soilSensorState,
+  summarizeSoil,
+  SOIL_METRICS,
   BUILTIN_PROVIDER,
 };

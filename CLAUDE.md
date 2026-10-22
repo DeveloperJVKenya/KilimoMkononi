@@ -230,8 +230,20 @@ Routes are named and centralized in `main.dart`'s `MaterialApp.routes`.
   Record / Weather station / Plot history / Season analysis — the app-wide bottom navigation stays on
   Home. Those screens take `embedded: true` (no app bar of their own); tabs build on first open, then
   stay alive. Record = start cards, then "Your plots this season". No advice on this screen.
+- Soil sensors (a probe that comes with a station): NuaSense `GET /soil?metrics=soil_moisture,
+  soil_temperature,soil_ec` (always name the metrics — EC is left out otherwise) and `/soil/range`,
+  through `getNuaSenseData` (same access rules). Moisture % VWC, temperature °C, EC µS/cm, every
+  ~15 min; series per device (`devEui`) + `level` = probe channel, NOT a depth ("Probe 1").
+  `lib/services/soil_sensor_service.dart` (pure `SoilSensorData.parse`, tested in
+  `test/soil_sensor_test.dart`) → `SoilSensorCard` (`lib/widgets/soil_sensor_card.dart`) on the
+  Weather Station screen under Conditions. `weatherStations/{id}.soilSensor` = "attached" | "none"
+  (admin's answer — required when adding a station, asked when connecting an account to an
+  unconfirmed station; "Check now" = action `checkSoil`; saving "attached" stores
+  `soilSensorCheck`). `/stations` returns it as `soil_sensor` true / false / null; null (stations
+  from before) = shown only if the station sends soil readings. Values as recorded, never filled.
+  The simulated IoT soil data (`iot_sensor_service.dart`) is separate and not replaced yet.
 - Weather Station screen = station data only (status, Conditions card always open with every sensor
-  value, last 24 h) + a link to the advice. No day plan / verified / AI advice and no Google forecast
+  value, soil sensor card when the station has one, last 24 h) + a link to the advice. No day plan / verified / AI advice and no Google forecast
   there (the forecast is on the Weather forecast screen).
 - Farm advice lives on Home (`FarmAdvicePanel(compact: true)`) and Notifications → "Farm advice"
   tab, categorised the same way: Farm alerts (day plan + `loadFarmAlerts`), Verified advice, AI
