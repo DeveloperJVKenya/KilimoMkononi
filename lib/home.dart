@@ -9,6 +9,7 @@ import 'package:kilimomkononi/screens/Field%20Data%20Input/field_data_input_home
 import 'package:kilimomkononi/screens/admin/admin_management_screen.dart';
 import 'package:kilimomkononi/screens/analysis/farmer_plot_analysis_screen.dart';
 import 'package:kilimomkononi/screens/farm_management_screen.dart';
+import 'package:kilimomkononi/screens/farm_mapping/farm_mapping_home_screen.dart';
 import 'package:kilimomkononi/screens/farming_tips_widget.dart';
 import 'package:kilimomkononi/screens/market_price_screen.dart';
 import 'package:kilimomkononi/screens/manuals_screen.dart';
@@ -326,6 +327,8 @@ class _HomePageState extends State<HomePage> {
           Icons.bug_report_rounded, () => _open(const PestDiseaseHomePage())),
       _Slide('assets/farm_management.jpg', 'Farm Management', 'Tasks, costs, harvests and loans',
           Icons.account_balance_wallet_rounded, () => _open(const FarmManagementScreen())),
+      _Slide('assets/farm_management.jpg', 'Farm Mapping', 'Map your farm boundary and sections',
+          Icons.map_rounded, () => _open(const FarmMappingHomeScreen())),
       _Slide('assets/soil.png', 'Weather Station', 'Rainfall, soil moisture, temperature & spray windows',
           Icons.sensors_rounded, () => _open(const WeatherStationScreen())),
       _Slide('assets/manuals.jpg', 'Manuals', 'Guides and documents to download',
@@ -693,6 +696,10 @@ class _HomePageState extends State<HomePage> {
                 color: const Color(0xFF8E24AA),
                 subtitle: 'Costs, harvests & loans',
                 onTap: () => _navigateTo(const FarmManagementScreen())),
+            _DrawerItem(Icons.map_rounded, 'Farm mapping',
+                color: const Color(0xFF2E7D32),
+                subtitle: 'Map boundaries & sections',
+                onTap: () => _navigateTo(const FarmMappingHomeScreen())),
             const _DrawerLabel('Insights & learning', Color(0xFF3949AB)),
             _DrawerItem(Icons.insights_rounded, 'Season analysis',
                 color: const Color(0xFF3949AB),

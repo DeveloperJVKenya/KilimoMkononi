@@ -34,7 +34,7 @@ class WeatherSourceBadge extends StatelessWidget {
     final fg = station ? _Palette.stationFg : _Palette.googleFg;
     final text = station
         ? (compact ? 'Your station' : 'Weather station · measured on your farm')
-        : (compact ? 'Google forecast' : 'Google Weather · area forecast');
+        : (compact ? 'Planetek forecast' : 'Planetek · area forecast');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(

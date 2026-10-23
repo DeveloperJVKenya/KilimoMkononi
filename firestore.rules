@@ -746,6 +746,13 @@ service cloud.firestore {
       allow update: if ownsExisting() && keepsOwner();
       allow delete: if ownsExisting();
     }
+    // Farm Mapping: boundary polygons and section divisions per farmer.
+    match /farmPlots/{docId} {
+      allow read:   if signedIn() && (resource == null || ownsExisting());
+      allow create: if createsOwn();
+      allow update: if ownsExisting() && keepsOwner();
+      allow delete: if ownsExisting();
+    }
     match /pest_costs/{docId} {
       allow read:   if signedIn() && (resource == null || ownsExisting());
       allow create: if createsOwn();

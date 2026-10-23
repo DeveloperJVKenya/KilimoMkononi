@@ -21,9 +21,9 @@ import 'package:kilimomkononi/utils/xlsx_writer.dart';
 const kXlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const kCsvMime = 'text/csv';
 
-/// "Google to Weather station Comparison data --2026-10-06" (no extension).
+/// "Planetek to Weather station Comparison data --2026-10-06" (no extension).
 String comparisonFileBaseName(DateTime day) =>
-    'Google to Weather station Comparison data --${DateFormat('yyyy-MM-dd').format(day)}';
+    'Planetek to Weather station Comparison data --${DateFormat('yyyy-MM-dd').format(day)}';
 
 final _stamp = DateFormat('EEE d MMM yyyy · HH:mm');
 final _hour = DateFormat('EEE d MMM · HH:00');
@@ -47,7 +47,7 @@ Uint8List buildComparisonXlsx(WeatherComparison c) {
 
   // ── Summary ───────────────────────────────────────────────────────────────
   final s = x.sheet('Summary', widths: [30, 18, 18, 22, 18]);
-  var r = s.row([const XCell('Google to Weather station Comparison data', XStyle.title)]);
+  var r = s.row([const XCell('Planetek to Weather station Comparison data', XStyle.title)]);
   s.merge(r, 0, 4);
   r = s.row([XCell(subtitle, XStyle.subtitle)]);
   s.merge(r, 0, 4);
@@ -59,7 +59,7 @@ Uint8List buildComparisonXlsx(WeatherComparison c) {
     s.merge(r, 0, 3);
     s.row(const [
       XCell('Measure', XStyle.header),
-      XCell('Google', XStyle.headerGoogle),
+      XCell('Planetek', XStyle.headerGoogle),
       XCell('Weather station', XStyle.headerStation),
       XCell('Difference (station − Google)', XStyle.headerDiff),
     ]);
@@ -108,7 +108,7 @@ Uint8List buildComparisonXlsx(WeatherComparison c) {
 
   // ── Hourly comparison ─────────────────────────────────────────────────────
   final h = x.sheet('Hourly comparison', widths: [22, for (var k = 0; k < metrics.length; k++) ...[12, 12, 13]]);
-  r = h.row([const XCell('Google to Weather station Comparison data — hour by hour', XStyle.title)]);
+  r = h.row([const XCell('Planetek to Weather station Comparison data — hour by hour', XStyle.title)]);
   h.merge(r, 0, lastCol);
   r = h.row([XCell(subtitle, XStyle.subtitle)]);
   h.merge(r, 0, lastCol);
@@ -124,7 +124,7 @@ Uint8List buildComparisonXlsx(WeatherComparison c) {
   final headRow = h.row([
     const XCell('(local time)', XStyle.header),
     for (var k = 0; k < metrics.length; k++) ...const [
-      XCell('Google', XStyle.headerGoogle),
+      XCell('Planetek', XStyle.headerGoogle),
       XCell('Station', XStyle.headerStation),
       XCell('Difference', XStyle.headerDiff),
     ],
@@ -160,7 +160,7 @@ String _csv(Object? v) {
 Uint8List buildComparisonCsv(WeatherComparison c) {
   final b = StringBuffer();
   void line(List<Object?> cells) => b.writeln(cells.map(_csv).join(','));
-  line(['Google to Weather station Comparison data']);
+  line(['Planetek to Weather station Comparison data']);
   line(['Station', c.stationName]);
   line(['Area', c.place]);
   line(['Generated', _stamp.format(c.generatedAt)]);

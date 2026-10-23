@@ -208,7 +208,7 @@ class WeatherScreenState extends State<WeatherScreen> {
         final loc = await FarmLocationService.getLocation();
         final w = await GoogleWeatherService.forLocation(loc.latitude, loc.longitude);
         if (mounted && req == _request) {
-          _notice = 'Google forecast for your farm location (${loc.displayLabel}) — '
+          _notice = 'Planetek forecast for your farm location (${loc.displayLabel}) — '
               '${st.name} doesn\'t report its own position.';
         }
         _finish(req, w, loc.displayLabel);
@@ -332,7 +332,7 @@ class WeatherScreenState extends State<WeatherScreen> {
           if (_station?.isProvisioned ?? false)
             IconButton(
               icon: const Icon(Icons.compare_arrows_rounded),
-              tooltip: 'Compare Google with your weather station',
+              tooltip: 'Compare Planetek with your weather station',
               onPressed: _openComparison,
             ),
           IconButton(
@@ -565,7 +565,7 @@ class WeatherScreenState extends State<WeatherScreen> {
           Icon(Icons.compare_arrows_rounded, color: Color(0xFF2E7D32)),
           SizedBox(width: 8),
           Expanded(
-            child: Text('Google vs. weather station — right now',
+            child: Text('Planetek vs. weather station — right now',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
           ),
         ]),
@@ -580,7 +580,7 @@ class WeatherScreenState extends State<WeatherScreen> {
             children: [
               TableRow(children: [
                 head('', Colors.black54),
-                head('Google', const Color(0xFF1A73E8)),
+                head('Planetek', const Color(0xFF1A73E8)),
                 head('Station', const Color(0xFF2E7D32)),
                 head('Difference', const Color(0xFFE65100)),
               ]),

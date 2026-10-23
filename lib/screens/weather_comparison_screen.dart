@@ -113,14 +113,14 @@ class _WeatherComparisonScreenState extends State<WeatherComparisonScreen> {
             foregroundColor: Colors.white,
             title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Weather comparison', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-              Text('Weather station vs. Google and satellite', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
+              Text('Weather station vs. Planetek and satellite', style: TextStyle(fontSize: 11.5, color: Colors.white70)),
             ]),
             bottom: const TabBar(
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               indicatorColor: Colors.white,
               tabs: [
-                Tab(icon: Icon(Icons.public_rounded, size: 18), text: 'Last 24 hours · Google'),
+                Tab(icon: Icon(Icons.public_rounded, size: 18), text: 'Last 24 hours · Planetek'),
                 Tab(icon: Icon(Icons.satellite_alt_rounded, size: 18), text: 'Past dates · Satellite'),
               ],
             ),
@@ -153,7 +153,7 @@ class _WeatherComparisonScreenState extends State<WeatherComparisonScreen> {
                     _NowTable(d.now!),
                     const SizedBox(height: 18),
                   ],
-                  const _SectionTitle('How close they were', 'Over the last 24 hours (station − Google)'),
+                  const _SectionTitle('How close they were', 'Over the last 24 hours (station − Planetek)'),
                   _SummaryCards(d.summaries),
                   const SizedBox(height: 18),
                   _SectionTitle('Hour by hour', '${d.hourly.length} hours · recorded values from both'),
@@ -219,7 +219,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _side(Icons.public_rounded, 'Google Weather', 'Area model for ${d.place}', _kGoogle),
+        _side(Icons.public_rounded, 'Planetek', 'Area model for ${d.place}', _kGoogle),
         const SizedBox(width: 10),
         _side(Icons.sensors_rounded, 'Weather station', '${d.stationName} — measured on the farm', _kStation),
       ]),
@@ -227,7 +227,7 @@ class _Header extends StatelessWidget {
     const SizedBox(height: 8),
     Text(
       'Generated ${DateFormat('EEE d MMM yyyy · HH:mm').format(d.generatedAt)}'
-      '${d.usedFarmLocation ? ' · Google data for your farm\'s location' : ''}',
+      '${d.usedFarmLocation ? ' · Planetek data for your farm\'s location' : ''}',
       style: const TextStyle(fontSize: 11.5, color: Colors.black54),
     ),
   ]);
@@ -322,7 +322,7 @@ class _NowTable extends StatelessWidget {
           children: [
             TableRow(children: [
               _headCell('Measure', _kDark, align: TextAlign.left),
-              _headCell('Google', _kGoogle),
+              _headCell('Planetek', _kGoogle),
               _headCell('Station', _kStation),
               _headCell('Difference', _kDiff),
             ]),
@@ -418,7 +418,7 @@ class _HourlyTable extends StatelessWidget {
             TableRow(children: [
               _headCell('', _kDark),
               for (var k = 0; k < metrics.length; k++) ...[
-                _headCell('Google', _kGoogle),
+                _headCell('Planetek', _kGoogle),
                 _headCell('Station', _kStation),
                 _headCell('Diff.', _kDiff),
               ],
@@ -447,8 +447,8 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const Text(
-    'Difference = Station − Google (positive = the station read higher). Wind in km/h for both. '
-    'Google is a model for the area; the station measures your farm — advice and alerts use the station.',
+    'Difference = Station − Planetek (positive = the station read higher). Wind in km/h for both. '
+    'Planetek is a model for the area; the station measures your farm — advice and alerts use the station.',
     style: TextStyle(fontSize: 11.5, color: Colors.black54, height: 1.4),
   );
 }
