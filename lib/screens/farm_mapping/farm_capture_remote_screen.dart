@@ -74,18 +74,111 @@ class _FarmCaptureRemoteScreenState extends State<FarmCaptureRemoteScreen> {
   // ── Centre on device location ─────────────────────────────────────────────
 
   Future<void> _goToMyLocation() async {
-    final perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+    // Check service first, then permission.
+    final serviceOn = await Geolocator.isLocationServiceEnabled();
+    if (!serviceOn) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location permission not granted.')));
+      _showLocationSheet(
+        icon: Icons.location_off_rounded,
+        title: 'Location services are off',
+        body: 'Enable GPS on your device to centre the map on your position.',
+        btnLabel: 'Enable GPS',
+        onAction: () async {
+          Navigator.pop(context);
+          await Geolocator.openLocationSettings();
+        },
+      );
       return;
     }
+
+    LocationPermission perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      _showLocationSheet(
+        icon: Icons.lock_outlined,
+        title: 'Location access needed',
+        body: perm == LocationPermission.deniedForever
+            ? 'Location was permanently denied. Open app settings to allow it.'
+            : 'Allow location access so the map can centre on your position.',
+        btnLabel: 'Open app settings',
+        onAction: () async {
+          Navigator.pop(context);
+          await Geolocator.openAppSettings();
+        },
+      );
+      return;
+    }
+
     try {
       final pos = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-      _mapCtrl.move(LatLng(pos.latitude, pos.longitude), 17);
+      if (mounted) _mapCtrl.move(LatLng(pos.latitude, pos.longitude), 17);
     } catch (_) {}
+  }
+
+  void _showLocationSheet({
+    required IconData icon,
+    required String title,
+    required String body,
+    required String btnLabel,
+    required VoidCallback onAction,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1B2820),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2E7D32).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: const Color(0xFF66BB6A), size: 24),
+            ),
+            const SizedBox(height: 14),
+            Text(title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text(body,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontSize: 13,
+                    height: 1.45)),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: onAction,
+                icon: const Icon(Icons.settings_rounded, size: 18),
+                label: Text(btnLabel,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ── Save dialog ───────────────────────────────────────────────────────────
