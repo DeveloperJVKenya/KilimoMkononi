@@ -2,40 +2,44 @@
 //
 // Admin-only screen: lists all published advisories that have an AI-generated
 // parallel draft, lets admins compare them side-by-side, add a note, and mark
-// as reviewed. Collection: advisoryAiComparisons/{advisoryId} (admin-only).
+// as reviewed.  Collection: advisoryAiComparisons/{advisoryId} (admin-only).
+//
+// All stream subscriptions go through Riverpod providers so they are properly
+// cancelled on unmount (autoDispose) and the detail screen receives live
+// Firestore updates when another admin acts on the same document.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:kilimomkononi/enterprise/features/weather/advisory_ai_comparison.dart';
 import 'package:kilimomkononi/enterprise/features/weather/advisory_actions.dart';
-import 'package:kilimomkononi/enterprise/features/weather/advisory_widgets.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_ai_comparison.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_ai_comparison_providers.dart';
+import 'package:kilimomkononi/enterprise/features/weather/agronomic_advisory_service.dart';
 import 'package:kilimomkononi/utils/friendly_error.dart';
 
-const _kDarkGreen = Color.fromARGB(255, 3, 39, 4);
-const _kPageBg = Color(0xFFF4F6F3);
+// ── Brand / accent constants ──────────────────────────────────────────────────
+// These are product-specific accents (not in the M3 seed palette), so they
+// stay as constants.  All surface / text colors come from the theme instead.
+const _kAppBar = Color.fromARGB(255, 3, 39, 4);
 const _kAi = Color(0xFF6A1B9A);
 const _kAgronomist = Color(0xFF1B5E20);
+const _kPendingBg = Color(0xFFFFF9C4);
+const _kPendingFg = Color(0xFFF57F17);
 
-class AdvisoryAiComparisonScreen extends StatelessWidget {
+// ── List screen ───────────────────────────────────────────────────────────────
+
+class AdvisoryAiComparisonScreen extends ConsumerWidget {
   const AdvisoryAiComparisonScreen({super.key});
 
-  static Stream<List<AdvisoryAiComparison>> _stream() =>
-      FirebaseFirestore.instance
-          .collection('advisoryAiComparisons')
-          .orderBy('generatedAt', descending: true)
-          .snapshots()
-          .map(
-            (s) => s.docs.map(AdvisoryAiComparison.fromDoc).toList(),
-          );
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final stream = ref.watch(comparisonsProvider);
+
     return Scaffold(
-      backgroundColor: _kPageBg,
+      backgroundColor: cs.surfaceContainerLowest,
       appBar: AppBar(
-        backgroundColor: _kDarkGreen,
+        backgroundColor: _kAppBar,
         foregroundColor: Colors.white,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,78 +55,46 @@ class AdvisoryAiComparisonScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: StreamBuilder<List<AdvisoryAiComparison>>(
-        stream: _stream(),
-        builder: (context, snap) {
-          if (snap.hasError) {
-            return Center(
-              child: Text(
-                friendlyError(snap.error, 'Could not load comparisons'),
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
-          }
-          if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final items = snap.data!;
-          if (items.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.compare_arrows_rounded, size: 48, color: Colors.black26),
-                  SizedBox(height: 12),
-                  Text(
-                    'No comparisons yet',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black54),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Comparisons are generated automatically\nwhen an agronomist publishes an advisory.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12.5, color: Colors.black38),
-                  ),
-                ],
-              ),
-            );
-          }
-
+      body: stream.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              friendlyError(e, 'Could not load comparisons'),
+              style: TextStyle(color: cs.error),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+        data: (items) {
+          if (items.isEmpty) return _EmptyState(cs: cs);
           final pending = items.where((e) => !e.adminReviewed).length;
           return Column(
             children: [
-              if (pending > 0)
-                Container(
-                  width: double.infinity,
-                  color: const Color(0xFFFFF9C4),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(children: [
-                    const Icon(Icons.pending_actions_rounded, size: 16, color: Color(0xFFF57F17)),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$pending pending review${pending == 1 ? '' : 's'}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFF57F17),
-                      ),
-                    ),
-                  ]),
-                ),
+              if (pending > 0) _PendingBanner(count: pending),
               Expanded(
-                child: ListView.separated(
+                child: ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, i) => _ComparisonTile(
-                    item: items[i],
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => _ComparisonDetailScreen(item: items[i]),
+                  itemBuilder: (context, i) {
+                    final item = items[i];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ComparisonTile(
+                        item: item,
+                        cs: cs,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _ComparisonDetailScreen(
+                              advisoryId: item.advisoryId,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -133,20 +105,92 @@ class AdvisoryAiComparisonScreen extends StatelessWidget {
   }
 }
 
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  final ColorScheme cs;
+  const _EmptyState({required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.compare_arrows_rounded, size: 52, color: cs.outlineVariant),
+          const SizedBox(height: 14),
+          Text(
+            'No comparisons yet',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Generated automatically when an agronomist\npublishes an advisory.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: cs.outlineVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Pending banner ────────────────────────────────────────────────────────────
+
+class _PendingBanner extends StatelessWidget {
+  final int count;
+  const _PendingBanner({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: _kPendingBg,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      child: Row(children: [
+        const Icon(Icons.pending_actions_rounded, size: 16, color: _kPendingFg),
+        const SizedBox(width: 8),
+        Text(
+          '$count pending review${count == 1 ? '' : 's'}',
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _kPendingFg,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 // ── List tile ─────────────────────────────────────────────────────────────────
 
 class _ComparisonTile extends StatelessWidget {
   final AdvisoryAiComparison item;
+  final ColorScheme cs;
   final VoidCallback onTap;
-  const _ComparisonTile({required this.item, required this.onTap});
+  const _ComparisonTile(
+      {required this.item, required this.cs, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final reviewed = item.adminReviewed;
+    final iconBg =
+        reviewed ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
+    final iconFg =
+        reviewed ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
+    final badgeFg = iconFg;
+    final badgeBg = iconBg;
+
     return Material(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
+      elevation: 0,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -154,21 +198,17 @@ class _ComparisonTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: reviewed
-                      ? const Color(0xFFE8F5E9)
-                      : const Color(0xFFFFF3E0),
+                  color: iconBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   reviewed
                       ? Icons.check_circle_outline_rounded
                       : Icons.pending_actions_rounded,
-                  color: reviewed
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFE65100),
+                  color: iconFg,
                   size: 20,
                 ),
               ),
@@ -181,9 +221,10 @@ class _ComparisonTile extends StatelessWidget {
                       item.conditionLabel.isEmpty
                           ? item.condition
                           : item.conditionLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -192,33 +233,19 @@ class _ComparisonTile extends StatelessWidget {
                           (item.crops.length > 3
                               ? ' +${item.crops.length - 3} more'
                               : ''),
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.black54,
-                      ),
+                      style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Row(children: [
-                      Text(
+                    Text(
+                      [
                         'by ${item.agronomistName}',
-                        style: const TextStyle(fontSize: 11, color: Colors.black45),
-                      ),
-                      if (item.generatedAt != null) ...[
-                        const Text(
-                          ' · ',
-                          style: TextStyle(fontSize: 11, color: Colors.black26),
-                        ),
-                        Text(
+                        if (item.generatedAt != null)
                           DateFormat('d MMM y').format(item.generatedAt!),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.black45,
-                          ),
-                        ),
-                      ],
-                    ]),
+                      ].join(' · '),
+                      style: TextStyle(fontSize: 11, color: cs.outline),
+                    ),
                   ],
                 ),
               ),
@@ -227,11 +254,10 @@ class _ComparisonTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: reviewed
-                          ? const Color(0xFFE8F5E9)
-                          : const Color(0xFFFFF3E0),
+                      color: badgeBg,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -239,14 +265,12 @@ class _ComparisonTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: reviewed
-                            ? const Color(0xFF2E7D32)
-                            : const Color(0xFFE65100),
+                        color: badgeFg,
                       ),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right_rounded, color: Colors.black26),
+                  Icon(Icons.chevron_right_rounded, color: cs.outlineVariant),
                 ],
               ),
             ],
@@ -259,24 +283,26 @@ class _ComparisonTile extends StatelessWidget {
 
 // ── Detail / comparison screen ────────────────────────────────────────────────
 
-class _ComparisonDetailScreen extends StatefulWidget {
-  final AdvisoryAiComparison item;
-  const _ComparisonDetailScreen({required this.item});
+/// Receives only the [advisoryId] so it can subscribe to the live Firestore
+/// document.  When another admin marks the comparison as reviewed, this screen
+/// reflects that immediately without requiring a manual refresh.
+class _ComparisonDetailScreen extends ConsumerStatefulWidget {
+  final String advisoryId;
+  const _ComparisonDetailScreen({required this.advisoryId});
 
   @override
-  State<_ComparisonDetailScreen> createState() =>
+  ConsumerState<_ComparisonDetailScreen> createState() =>
       _ComparisonDetailScreenState();
 }
 
-class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
-  late TextEditingController _noteCtrl;
+class _ComparisonDetailScreenState
+    extends ConsumerState<_ComparisonDetailScreen> {
+  final TextEditingController _noteCtrl = TextEditingController();
   bool _saving = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _noteCtrl = TextEditingController(text: widget.item.adminNote);
-  }
+  // Track the last-loaded note so we only override the text field on the
+  // first load (not on every live update that would interrupt typing).
+  bool _noteInitialized = false;
 
   @override
   void dispose() {
@@ -287,34 +313,13 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
   Future<void> _markReviewed() async {
     setState(() => _saving = true);
     try {
-      final user = FirebaseAuth.instance.currentUser!;
-      final snap = await FirebaseFirestore.instance
-          .collection('Users')
-          .doc(user.uid)
-          .get();
-      final name = (snap.data()?['fullName'] as String?)?.trim() ??
-          user.displayName ??
-          'Admin';
-
-      await FirebaseFirestore.instance
-          .collection('advisoryAiComparisons')
-          .doc(widget.item.advisoryId)
-          .update({
-        'adminReviewed': true,
-        'adminNote': _noteCtrl.text.trim(),
-        'reviewedByName': name,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      });
+      await AgronomicAdvisoryService.markComparisonReviewed(
+        widget.advisoryId,
+        _noteCtrl.text,
+      );
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(friendlyError(e, 'Could not save review')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) _snackError(friendlyError(e, 'Could not save review'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -323,36 +328,93 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
   Future<void> _saveNote() async {
     setState(() => _saving = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('advisoryAiComparisons')
-          .doc(widget.item.advisoryId)
-          .update({'adminNote': _noteCtrl.text.trim()});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Note saved.')),
-        );
-      }
+      await AgronomicAdvisoryService.saveComparisonNote(
+        widget.advisoryId,
+        _noteCtrl.text,
+      );
+      if (mounted) _snack('Note saved.');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(friendlyError(e, 'Could not save note')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) _snackError(friendlyError(e, 'Could not save note'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  void _snack(String msg) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+  void _snackError(String msg) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Theme.of(context).colorScheme.error),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
+    final cs = Theme.of(context).colorScheme;
+    final docAsync = ref.watch(comparisonDocProvider(widget.advisoryId));
+
+    return docAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: cs.surfaceContainerLowest,
+        appBar: AppBar(
+          backgroundColor: _kAppBar,
+          foregroundColor: Colors.white,
+          title: const Text('Advisory Comparison'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: cs.surfaceContainerLowest,
+        appBar: AppBar(
+          backgroundColor: _kAppBar,
+          foregroundColor: Colors.white,
+          title: const Text('Advisory Comparison'),
+        ),
+        body: Center(
+          child: Text(
+            friendlyError(e, 'Could not load comparison'),
+            style: TextStyle(color: cs.error),
+          ),
+        ),
+      ),
+      data: (item) {
+        if (item == null) {
+          return Scaffold(
+            backgroundColor: cs.surfaceContainerLowest,
+            appBar: AppBar(
+              backgroundColor: _kAppBar,
+              foregroundColor: Colors.white,
+              title: const Text('Advisory Comparison'),
+            ),
+            body: Center(
+              child: Text(
+                'Comparison not found — it may have been deleted.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            ),
+          );
+        }
+
+        // Initialise text field once from Firestore (don't overwrite typing).
+        if (!_noteInitialized) {
+          _noteCtrl.text = item.adminNote;
+          _noteInitialized = true;
+        }
+
+        return _buildDetail(context, cs, item);
+      },
+    );
+  }
+
+  Widget _buildDetail(
+      BuildContext context, ColorScheme cs, AdvisoryAiComparison item) {
+    final title =
+        item.conditionLabel.isEmpty ? item.condition : item.conditionLabel;
+
     return Scaffold(
-      backgroundColor: _kPageBg,
+      backgroundColor: cs.surfaceContainerLowest,
       appBar: AppBar(
-        backgroundColor: _kDarkGreen,
+        backgroundColor: _kAppBar,
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +424,7 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             Text(
-              '${item.conditionLabel.isEmpty ? item.condition : item.conditionLabel} · v${item.advisoryVersion}',
+              '$title · v${item.advisoryVersion}',
               style: const TextStyle(fontSize: 11, color: Colors.white70),
             ),
           ],
@@ -373,101 +435,58 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
           children: [
-            // ── Meta ─────────────────────────────────────────────────────
-            _metaCard(item),
+            _MetaCard(item: item, cs: cs),
             const SizedBox(height: 14),
-
-            // ── Side by side header ───────────────────────────────────────
-            Row(children: [
-              Expanded(
-                child: _header(
-                  Icons.verified_rounded,
-                  'Agronomist',
-                  item.agronomistName,
-                  _kAgronomist,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _header(
-                  Icons.auto_awesome_rounded,
-                  'AI Generated',
-                  'Gemini · not verified',
-                  _kAi,
-                ),
-              ),
-            ]),
+            _ColumnHeaders(item: item),
             const SizedBox(height: 10),
-
-            // ── Main action ───────────────────────────────────────────────
-            _sectionLabel('Main action'),
-            _comparisonRow(
-              item.agronomistAdvice.main,
-              item.aiAdvice.main,
-            ),
+            _SectionLabel('Main action', cs),
+            _ComparisonRow(item.agronomistAdvice.main, item.aiAdvice.main, cs),
             const SizedBox(height: 10),
-
-            // ── DO lists ──────────────────────────────────────────────────
-            _sectionLabel('DO'),
-            _listComparisonRow(item.agronomistAdvice.doList, item.aiAdvice.doList),
+            _SectionLabel('DO', cs),
+            _ListRow(item.agronomistAdvice.doList, item.aiAdvice.doList, cs),
             const SizedBox(height: 10),
-
-            // ── AVOID lists ───────────────────────────────────────────────
-            _sectionLabel('AVOID'),
-            _listComparisonRow(
-                item.agronomistAdvice.avoidList, item.aiAdvice.avoidList),
+            _SectionLabel('AVOID', cs),
+            _ListRow(item.agronomistAdvice.avoidList, item.aiAdvice.avoidList, cs),
             const SizedBox(height: 10),
-
-            // ── WHY ───────────────────────────────────────────────────────
-            _sectionLabel('WHY'),
-            _comparisonRow(item.agronomistAdvice.why, item.aiAdvice.why),
-            const SizedBox(height: 14),
-
-            // ── Pest checks ───────────────────────────────────────────────
+            _SectionLabel('WHY', cs),
+            _ComparisonRow(item.agronomistAdvice.why, item.aiAdvice.why, cs),
             if (item.agronomistActions.pests.isNotEmpty ||
                 item.aiActions.pests.isNotEmpty) ...[
-              _sectionLabel('Pests to check'),
-              _checksComparisonRow(
+              const SizedBox(height: 10),
+              _SectionLabel('Pests to check', cs),
+              _CropChecksRow(
                 item.agronomistActions.pests,
                 item.aiActions.pests,
-                color: const Color(0xFFEF6C00),
+                cs,
               ),
-              const SizedBox(height: 10),
             ],
-
-            // ── Disease checks ────────────────────────────────────────────
             if (item.agronomistActions.diseases.isNotEmpty ||
                 item.aiActions.diseases.isNotEmpty) ...[
-              _sectionLabel('Diseases to check'),
-              _checksComparisonRow(
+              const SizedBox(height: 10),
+              _SectionLabel('Diseases to check', cs),
+              _CropChecksRow(
                 item.agronomistActions.diseases,
                 item.aiActions.diseases,
-                color: const Color(0xFFC62828),
+                cs,
               ),
-              const SizedBox(height: 10),
             ],
-
-            // ── Soil actions ──────────────────────────────────────────────
             if (item.agronomistActions.soil.isNotEmpty ||
                 item.aiActions.soil.isNotEmpty) ...[
-              _sectionLabel('Soil & fertiliser actions'),
-              _soilComparisonRow(
-                item.agronomistActions.soil,
-                item.aiActions.soil,
-              ),
               const SizedBox(height: 10),
+              _SectionLabel('Soil & fertiliser actions', cs),
+              _SoilRow(item.agronomistActions.soil, item.aiActions.soil, cs),
             ],
-
-            const SizedBox(height: 6),
-            const Divider(),
-            const SizedBox(height: 6),
-
-            // ── Admin note ────────────────────────────────────────────────
-            _adminNoteSection(item),
-
+            const SizedBox(height: 14),
+            Divider(color: cs.outlineVariant),
+            const SizedBox(height: 10),
+            _AdminNoteField(
+              controller: _noteCtrl,
+              readOnly: item.adminReviewed,
+              cs: cs,
+            ),
             if (item.adminReviewed) ...[
               const SizedBox(height: 10),
-              _reviewedBadge(item),
+              _ReviewedBadge(item: item, cs: cs),
             ],
           ],
         ),
@@ -477,10 +496,11 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
           : SafeArea(
               child: Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border:
-                      Border(top: BorderSide(color: AdvisoryColors.border)),
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  border: Border(
+                    top: BorderSide(color: cs.outlineVariant, width: 0.8),
+                  ),
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.end,
@@ -494,6 +514,7 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: _kAgronomist,
+                        foregroundColor: Colors.white,
                       ),
                       onPressed: _saving ? null : _markReviewed,
                       icon: _saving
@@ -515,210 +536,345 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
             ),
     );
   }
+}
 
-  Widget _metaCard(AdvisoryAiComparison item) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AdvisoryColors.border),
-    ),
-    child: Wrap(
-      spacing: 12,
-      runSpacing: 6,
-      children: [
-        _metaChip(Icons.spa_rounded, item.crops.take(4).join(', ')),
-        _metaChip(Icons.thermostat_rounded,
-            item.conditionLabel.isEmpty ? item.condition : item.conditionLabel),
-        if (item.generatedAt != null)
-          _metaChip(
-            Icons.calendar_today_rounded,
-            DateFormat('d MMM y').format(item.generatedAt!),
-          ),
-        _metaChip(Icons.person_outline_rounded, item.agronomistName),
-      ],
-    ),
-  );
+// ── Shared comparison widgets ─────────────────────────────────────────────────
 
-  Widget _metaChip(IconData icon, String label) => Row(
+class _MetaCard extends StatelessWidget {
+  final AdvisoryAiComparison item;
+  final ColorScheme cs;
+  const _MetaCard({required this.item, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    final label =
+        item.conditionLabel.isEmpty ? item.condition : item.conditionLabel;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant, width: 0.8),
+      ),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 6,
+        children: [
+          if (item.crops.isNotEmpty)
+            _Chip(Icons.spa_rounded, item.crops.take(4).join(', '), cs),
+          _Chip(Icons.thermostat_rounded, label, cs),
+          if (item.generatedAt != null)
+            _Chip(Icons.calendar_today_rounded,
+                DateFormat('d MMM y').format(item.generatedAt!), cs),
+          _Chip(Icons.person_outline_rounded, item.agronomistName, cs),
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final ColorScheme cs;
+  const _Chip(this.icon, this.label, this.cs);
+
+  @override
+  Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, size: 13, color: Colors.black45),
+      Icon(icon, size: 13, color: cs.outline),
       const SizedBox(width: 4),
       Text(label,
-          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
     ],
   );
+}
 
-  Widget _header(
-      IconData icon, String title, String subtitle, Color color) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Row(
+class _ColumnHeaders extends StatelessWidget {
+  final AdvisoryAiComparison item;
+  const _ColumnHeaders({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final narrow = constraints.maxWidth < 400;
+      if (narrow) {
+        // On very narrow screens stack — the comparison rows also stack.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: color)),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          fontSize: 10.5, color: Colors.black54),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
+            _HeaderChip(Icons.verified_rounded, 'Agronomist',
+                item.agronomistName, _kAgronomist),
+            const SizedBox(height: 6),
+            _HeaderChip(Icons.auto_awesome_rounded, 'AI Generated',
+                'Gemini · not verified', _kAi),
           ],
+        );
+      }
+      return Row(children: [
+        Expanded(
+          child: _HeaderChip(Icons.verified_rounded, 'Agronomist',
+              item.agronomistName, _kAgronomist),
         ),
-      );
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HeaderChip(Icons.auto_awesome_rounded, 'AI Generated',
+              'Gemini · not verified', _kAi),
+        ),
+      ]);
+    });
+  }
+}
 
-  Widget _sectionLabel(String t) => Padding(
+class _HeaderChip extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  const _HeaderChip(this.icon, this.title, this.subtitle, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
+    ),
+    child: Row(children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title,
+              style: TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w800, color: color)),
+          Text(subtitle,
+              style: const TextStyle(fontSize: 10.5, color: Colors.black54),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ]),
+      ),
+    ]),
+  );
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  final ColorScheme cs;
+  const _SectionLabel(this.text, this.cs);
+
+  @override
+  Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
     child: Text(
-      t,
-      style: const TextStyle(
+      text,
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w800,
-        color: Colors.black54,
+        color: cs.onSurfaceVariant,
+        letterSpacing: 0.4,
       ),
     ),
   );
+}
 
-  Widget _comparisonRow(String agronomist, String ai) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(child: _textBox(agronomist, _kAgronomist)),
-      const SizedBox(width: 8),
-      Expanded(child: _textBox(ai, _kAi)),
-    ],
+// ── Comparison cells ──────────────────────────────────────────────────────────
+
+/// Side-by-side on wide screens, stacked with colour labels on narrow ones.
+class _ComparisonRow extends StatelessWidget {
+  final String agr;
+  final String ai;
+  final ColorScheme cs;
+  const _ComparisonRow(this.agr, this.ai, this.cs);
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) => c.maxWidth >= 400
+        ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _TextBox(agr, _kAgronomist, cs)),
+            const SizedBox(width: 8),
+            Expanded(child: _TextBox(ai, _kAi, cs)),
+          ])
+        : Column(children: [
+            _TextBox(agr, _kAgronomist, cs, label: 'Agronomist'),
+            const SizedBox(height: 6),
+            _TextBox(ai, _kAi, cs, label: 'AI'),
+          ]),
   );
+}
 
-  Widget _textBox(String text, Color color) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: color.withValues(alpha: 0.2)),
-    ),
-    child: Text(
-      text.isEmpty ? '—' : text,
-      style: TextStyle(
-        fontSize: 12.5,
-        color: text.isEmpty ? Colors.black26 : Colors.black87,
-        height: 1.4,
+class _TextBox extends StatelessWidget {
+  final String text;
+  final Color color;
+  final ColorScheme cs;
+  final String? label;
+  const _TextBox(this.text, this.color, this.cs, {this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = text.isEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
-    ),
-  );
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (label != null) ...[
+            Text(label!,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  letterSpacing: 0.5,
+                )),
+            const SizedBox(height: 4),
+          ],
+          Text(
+            isEmpty ? '—' : text,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: isEmpty ? cs.outlineVariant : cs.onSurface,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-  Widget _listComparisonRow(List<String> agronomist, List<String> ai) {
-    final count = [agronomist.length, ai.length].reduce((a, b) => a > b ? a : b);
-    if (count == 0) {
-      return _comparisonRow('(none)', '(none)');
+class _ListRow extends StatelessWidget {
+  final List<String> agr;
+  final List<String> ai;
+  final ColorScheme cs;
+  const _ListRow(this.agr, this.ai, this.cs);
+
+  @override
+  Widget build(BuildContext context) {
+    if (agr.isEmpty && ai.isEmpty) {
+      return _ComparisonRow('(none)', '(none)', cs);
     }
+    final count = agr.length > ai.length ? agr.length : ai.length;
     return Column(
       children: List.generate(count, (i) {
-        final a = i < agronomist.length ? agronomist[i] : '';
-        final b = i < ai.length ? ai[i] : '';
+        final a = i < agr.length ? '• ${agr[i]}' : '—';
+        final b = i < ai.length ? '• ${ai[i]}' : '—';
         return Padding(
           padding: EdgeInsets.only(bottom: i < count - 1 ? 6 : 0),
-          child: _comparisonRow(a.isEmpty ? '—' : '• $a', b.isEmpty ? '—' : '• $b'),
+          child: _ComparisonRow(a, b, cs),
         );
       }),
     );
   }
+}
 
-  Widget _checksComparisonRow(
-      List<CropCheck> agronomist, List<CropCheck> ai,
-      {required Color color}) {
-    final agrTexts = agronomist
-        .map((c) => '${c.name}\n  Signs: ${c.signs}\n  If found: ${c.ifFound}')
-        .toList();
-    final aiTexts = ai
-        .map((c) => '${c.name}\n  Signs: ${c.signs}\n  If found: ${c.ifFound}')
-        .toList();
+class _CropChecksRow extends StatelessWidget {
+  final List<CropCheck> agr;
+  final List<CropCheck> ai;
+  final ColorScheme cs;
+  const _CropChecksRow(this.agr, this.ai, this.cs);
 
-    if (agrTexts.isEmpty && aiTexts.isEmpty) return const SizedBox.shrink();
+  static String _fmt(CropCheck c) =>
+      '${c.name}'
+      '${c.signs.isNotEmpty ? '\n  Signs: ${c.signs}' : ''}'
+      '${c.ifFound.isNotEmpty ? '\n  If found: ${c.ifFound}' : ''}';
 
-    final count = [agrTexts.length, aiTexts.length]
-        .reduce((a, b) => a > b ? a : b);
+  @override
+  Widget build(BuildContext context) {
+    final agrT = agr.map(_fmt).toList();
+    final aiT = ai.map(_fmt).toList();
+    if (agrT.isEmpty && aiT.isEmpty) return const SizedBox.shrink();
+    final count = agrT.length > aiT.length ? agrT.length : aiT.length;
     return Column(
       children: List.generate(count, (i) {
-        final a = i < agrTexts.length ? agrTexts[i] : '—';
-        final b = i < aiTexts.length ? aiTexts[i] : '—';
+        final a = i < agrT.length ? agrT[i] : '—';
+        final b = i < aiT.length ? aiT[i] : '—';
         return Padding(
           padding: EdgeInsets.only(bottom: i < count - 1 ? 6 : 0),
-          child: _comparisonRow(a, b),
+          child: _ComparisonRow(a, b, cs),
         );
       }),
     );
   }
+}
 
-  Widget _soilComparisonRow(
-      List<SoilAction> agronomist, List<SoilAction> ai) {
-    String soilText(SoilAction s) {
-      final buf = StringBuffer(s.nutrient);
-      if (s.stages.isNotEmpty) buf.write(' · ${s.stages.join(', ')}');
-      if (!s.general.isEmpty) buf.write('\n  General: ${s.general.action}');
-      if (s.low.action.isNotEmpty) buf.write('\n  Low: ${s.low.action}');
-      if (s.moderate.action.isNotEmpty) {
-        buf.write('\n  Moderate: ${s.moderate.action}');
-      }
-      if (s.high.action.isNotEmpty) buf.write('\n  High: ${s.high.action}');
-      return buf.toString();
+class _SoilRow extends StatelessWidget {
+  final List<SoilAction> agr;
+  final List<SoilAction> ai;
+  final ColorScheme cs;
+  const _SoilRow(this.agr, this.ai, this.cs);
+
+  static String _fmt(SoilAction s) {
+    final buf = StringBuffer(s.nutrient);
+    if (s.stages.isNotEmpty) buf.write(' · ${s.stages.join(', ')}');
+    if (!s.general.isEmpty) buf.write('\n  General: ${s.general.action}');
+    if (s.low.action.isNotEmpty) buf.write('\n  Low: ${s.low.action}');
+    if (s.moderate.action.isNotEmpty) {
+      buf.write('\n  Moderate: ${s.moderate.action}');
     }
+    if (s.high.action.isNotEmpty) buf.write('\n  High: ${s.high.action}');
+    return buf.toString();
+  }
 
-    final agrTexts = agronomist.map(soilText).toList();
-    final aiTexts = ai.map(soilText).toList();
-
-    if (agrTexts.isEmpty && aiTexts.isEmpty) return const SizedBox.shrink();
-
-    final count =
-        [agrTexts.length, aiTexts.length].reduce((a, b) => a > b ? a : b);
+  @override
+  Widget build(BuildContext context) {
+    final agrT = agr.map(_fmt).toList();
+    final aiT = ai.map(_fmt).toList();
+    if (agrT.isEmpty && aiT.isEmpty) return const SizedBox.shrink();
+    final count = agrT.length > aiT.length ? agrT.length : aiT.length;
     return Column(
       children: List.generate(count, (i) {
-        final a = i < agrTexts.length ? agrTexts[i] : '—';
-        final b = i < aiTexts.length ? aiTexts[i] : '—';
+        final a = i < agrT.length ? agrT[i] : '—';
+        final b = i < aiT.length ? aiT[i] : '—';
         return Padding(
           padding: EdgeInsets.only(bottom: i < count - 1 ? 6 : 0),
-          child: _comparisonRow(a, b),
+          child: _ComparisonRow(a, b, cs),
         );
       }),
     );
   }
+}
 
-  Widget _adminNoteSection(AdvisoryAiComparison item) => Column(
+// ── Admin note & reviewed badge ───────────────────────────────────────────────
+
+class _AdminNoteField extends StatelessWidget {
+  final TextEditingController controller;
+  final bool readOnly;
+  final ColorScheme cs;
+  const _AdminNoteField(
+      {required this.controller,
+      required this.readOnly,
+      required this.cs});
+
+  @override
+  Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text(
+      Text(
         'Admin note',
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w800,
-          color: Colors.black87,
+          color: cs.onSurface,
         ),
       ),
       const SizedBox(height: 4),
-      const Text(
-        'Note any critical information the agronomist may have missed, or confirm accuracy.',
-        style: TextStyle(fontSize: 12, color: Colors.black45, height: 1.35),
+      Text(
+        'Note any critical information the agronomist may have missed, '
+        'or confirm accuracy.',
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.35),
       ),
       const SizedBox(height: 8),
       TextField(
-        controller: _noteCtrl,
-        enabled: !item.adminReviewed,
+        controller: controller,
+        enabled: !readOnly,
         minLines: 3,
         maxLines: 8,
         maxLength: 1000,
@@ -726,14 +882,24 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
           hintText: 'Add observations, corrections or confirmation…',
           isDense: true,
           filled: true,
-          fillColor: const Color(0xFFFAFBFA),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          fillColor: cs.surfaceContainerLow,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: cs.outlineVariant),
+          ),
         ),
       ),
     ],
   );
+}
 
-  Widget _reviewedBadge(AdvisoryAiComparison item) => Container(
+class _ReviewedBadge extends StatelessWidget {
+  final AdvisoryAiComparison item;
+  final ColorScheme cs;
+  const _ReviewedBadge({required this.item, required this.cs});
+
+  @override
+  Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: const Color(0xFFE8F5E9),
@@ -741,22 +907,30 @@ class _ComparisonDetailScreenState extends State<_ComparisonDetailScreen> {
       border: Border.all(color: const Color(0xFFA5D6A7)),
     ),
     child: Row(children: [
-      const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 18),
+      const Icon(Icons.check_circle_rounded,
+          color: Color(0xFF2E7D32), size: 18),
       const SizedBox(width: 8),
       Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Reviewed',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Reviewed',
               style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1B5E20))),
-          if (item.reviewedByName != null)
-            Text(
-              'by ${item.reviewedByName}'
-              '${item.reviewedAt != null ? ' · ${DateFormat('d MMM y').format(item.reviewedAt!)}' : ''}',
-              style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1B5E20),
+              ),
             ),
-        ]),
+            if (item.reviewedByName != null)
+              Text(
+                'by ${item.reviewedByName}'
+                '${item.reviewedAt != null ? ' · ${DateFormat('d MMM y').format(item.reviewedAt!)}' : ''}',
+                style: TextStyle(
+                    fontSize: 11.5, color: cs.onSurfaceVariant),
+              ),
+          ],
+        ),
       ),
     ]),
   );

@@ -413,6 +413,26 @@ class AgronomicAdvisoryService {
     }
   }
 
+  // ── Comparison review (admin actions) ────────────────────────────────────
+
+  /// Persists the admin's note on a comparison without marking it reviewed.
+  static Future<void> saveComparisonNote(String advisoryId, String note) =>
+      _db.collection('advisoryAiComparisons').doc(advisoryId).update({
+        'adminNote': note.trim(),
+      });
+
+  /// Marks a comparison as reviewed, stamping the reviewer's name and time.
+  static Future<void> markComparisonReviewed(
+      String advisoryId, String note) async {
+    final name = await _myName();
+    await _db.collection('advisoryAiComparisons').doc(advisoryId).update({
+      'adminReviewed': true,
+      'adminNote': note.trim(),
+      'reviewedByName': name,
+      'reviewedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   // ── AI drafting ───────────────────────────────────────────────────────────
 
   /// Asks Gemini for a draft the agronomist then reviews. Returns the parsed
