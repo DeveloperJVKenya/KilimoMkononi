@@ -126,6 +126,17 @@ service cloud.firestore {
     }
 
     // ════════════════════════════════════════════════════════════════
+    //  Advisory AI comparisons — admin-only.
+    //  Written server-side on publish (fire-and-forget via the app);
+    //  admins add notes and mark as reviewed. Never readable by farmers
+    //  or agronomists. The admin catch-all above covers this collection,
+    //  but the explicit rule documents intent and blocks non-admins.
+    // ════════════════════════════════════════════════════════════════
+    match /advisoryAiComparisons/{advisoryId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ════════════════════════════════════════════════════════════════
     //  Agronomic advisories — written/verified by Field Agronomists.
     //  Farmers only ever read PUBLISHED advisories. Every create/update
     //  must write history/v{version} in the same batch (existsAfter), and

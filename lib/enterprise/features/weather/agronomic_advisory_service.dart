@@ -238,6 +238,7 @@ class AgronomicAdvisoryService {
     final name = await _myName();
     final ref = id == null ? _col.doc() : _col.doc(id);
 
+    var capturedVersion = 0;
     await _db.runTransaction((tx) async {
       final current = id == null ? null : await tx.get(ref);
       if (id != null && !(current?.exists ?? false)) {
@@ -248,6 +249,7 @@ class AgronomicAdvisoryService {
         throw const AdvisoryConflictException();
       }
       final version = currentVersion + 1;
+      capturedVersion = version;
       final wasPublished =
           current?.data()?['status'] == AdvisoryStatus.published.name;
       final now = FieldValue.serverTimestamp();
@@ -294,6 +296,13 @@ class AgronomicAdvisoryService {
         'snapshot': content.toMap(),
       });
     });
+
+    // Fire-and-forget: generate an AI parallel advisory and store both for
+    // admin comparison. Only for real (non-test) published advisories.
+    if (status == AdvisoryStatus.published && !content.testOnly) {
+      _storeAiComparison(ref.id, content, name, capturedVersion).ignore();
+    }
+
     return ref.id;
   }
 
@@ -349,6 +358,59 @@ class AgronomicAdvisoryService {
     final part = first(content is Map ? content['parts'] : null);
     final text = (part is Map ? part['text'] : null) ?? data['text'];
     return (text ?? '').toString().trim();
+  }
+
+  // ── AI comparison (admin-only) ────────────────────────────────────────────
+
+  /// Generates an AI draft using the advisory's own conditions and stores
+  /// it alongside the agronomist's version in `advisoryAiComparisons/{id}`.
+  /// Called fire-and-forget from [save]; errors are swallowed so they never
+  /// surface to the agronomist.
+  static Future<void> _storeAiComparison(
+    String advisoryId,
+    AdvisoryContent content,
+    String agronomistName,
+    int version,
+  ) async {
+    try {
+      final draft = await generateAiDraft(
+        crops: content.crops,
+        conditionKey: content.condition,
+        customCondition: content.customCondition,
+      );
+      final condLabel = content.condition == kCustomCondition &&
+              content.customCondition != null
+          ? content.customCondition!.label
+          : conditionFor(content.condition).label;
+
+      await _db.collection('advisoryAiComparisons').doc(advisoryId).set({
+        'advisoryVersion': version,
+        'crops': content.crops,
+        'condition': content.condition,
+        'conditionLabel': condLabel,
+        'generatedAt': FieldValue.serverTimestamp(),
+        'aiRaw': draft.raw,
+        'aiAdvice': {
+          'main': draft.advice.main,
+          'doList': draft.advice.doList,
+          'avoidList': draft.advice.avoidList,
+          'why': draft.advice.why,
+        },
+        'aiActions': draft.advice.actions.toMap(),
+        'agronomistAdvice': {
+          'main': content.advice.main,
+          'doList': content.advice.doList,
+          'avoidList': content.advice.avoidList,
+          'why': content.advice.why,
+        },
+        'agronomistActions': content.actions.toMap(),
+        'agronomistName': agronomistName,
+        'adminReviewed': false,
+        'adminNote': '',
+      });
+    } catch (_) {
+      // Intentionally swallowed — this must never block or throw to the caller.
+    }
   }
 
   // ── AI drafting ───────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import 'package:kilimomkononi/screens/admin/data/admin_collection_screen.dart';
 import 'package:kilimomkononi/screens/admin/widgets/interactive_tile.dart';
 import 'package:kilimomkononi/screens/admin/widgets/role_sheet.dart';
 import 'package:kilimomkononi/screens/admin/weather_stations_admin_screen.dart';
+import 'package:kilimomkononi/enterprise/features/weather/advisory_ai_comparison_screen.dart';
 import 'package:kilimomkononi/enterprise/features/weather/field_agronomist_panel_screen.dart';
 
 const _kDarkGreen = Color.fromARGB(255, 3, 39, 4);
@@ -240,6 +241,13 @@ class _AdminManagementScreenState extends ConsumerState<AdminManagementScreen> {
       subtitle: 'Review, restore or remove disease records',
       gradient: const [Color(0xFF4A148C), Color(0xFFAB47BC)],
       onTap: () => _open(const AdminCollectionScreen(collection: 'diseaseinterventiondata')),
+    ),
+    ActionTile(
+      icon: Icons.compare_arrows_rounded,
+      title: 'Advisory AI Review',
+      subtitle: 'Compare agronomist vs. AI advisories — spot missed critical info',
+      gradient: const [Color(0xFF1A237E), Color(0xFF1976D2)],
+      onTap: () => _open(const AdvisoryAiComparisonScreen()),
     ),
   ];
 

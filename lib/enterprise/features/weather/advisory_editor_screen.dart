@@ -490,15 +490,23 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                 Icons.track_changes_rounded,
                 _targetSection(),
               ),
+              // AI assist is only available to admins (test mode). Real
+              // agronomists get the auto-generated AI comparison on publish
+              // instead (stored in advisoryAiComparisons for admin review).
+              if (_testOnly)
+                _section(
+                  '2 · AI assist (optional)',
+                  Icons.auto_awesome_rounded,
+                  _aiSection(),
+                ),
               _section(
-                '2 · AI assist (optional)',
-                Icons.auto_awesome_rounded,
-                _aiSection(),
+                '${_testOnly ? 3 : 2} · Advice',
+                Icons.edit_note_rounded,
+                _adviceSection(),
               ),
-              _section('3 · Advice', Icons.edit_note_rounded, _adviceSection()),
               for (final (i, s) in AdviceSection.values.indexed)
                 _section(
-                  '${4 + i} · ${switch (s) {
+                  '${(_testOnly ? 4 : 3) + i} · ${switch (s) {
                     AdviceSection.soil => 'Soil & fertiliser actions',
                     AdviceSection.pests => 'Pests to check',
                     AdviceSection.diseases => 'Diseases to check',
@@ -516,7 +524,7 @@ class _AdvisoryEditorScreenState extends State<AdvisoryEditorScreen> {
                   ),
                 ),
               _section(
-                '7 · What farmers will see',
+                '${_testOnly ? 7 : 6} · What farmers will see',
                 Icons.visibility_outlined,
                 VerifiedAdvisoryCard(
                   advice: _advice,
